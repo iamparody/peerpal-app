@@ -163,15 +163,30 @@ router.get('/referrals', async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await query(
-    `SELECT tr.id, tr.struggles, tr.preferred_time, tr.contact_method,
-            tr.status, tr.admin_notes, tr.created_at, tr.updated_at,
-            u.alias
+    `SELECT tr.id, tr.struggles, tr.specific_needs, tr.preferred_time, tr.contact_method,
+            tr.status, tr.admin_notes, tr.support_style_preference,
+            tr.created_at, tr.updated_at, u.alias
      FROM therapist_referrals tr
      JOIN users u ON u.id = tr.user_id
      ${where}
      ORDER BY tr.created_at ASC`,
     params
   );
+
+  // Attach expressed therapist interests to each referral
+  for (const referral of rows) {
+    const { rows: interests } = await query(
+      `SELECT ti.id, ti.status,
+              tp.display_name, tp.photo_url, tp.availability_status, tp.specializations
+       FROM therapist_interests ti
+       JOIN therapist_profiles tp ON tp.id = ti.therapist_id
+       WHERE ti.referral_id = $1
+       ORDER BY ti.created_at ASC`,
+      [referral.id]
+    );
+    referral.interests = interests;
+  }
+
   return res.status(200).json({ referrals: rows });
 });
 
@@ -362,6 +377,149 @@ router.get('/stats', async (req, res) => {
     ai_sessions_today: parseInt(aiSessions.rows[0].count),
     credits_purchased_today: parseInt(creditsPurchased.rows[0].total),
   });
+});
+
+// ─── GET /admin/therapists ────────────────────────────────────────────────────
+router.get('/therapists', async (req, res) => {
+  const { rows } = await query(
+    `SELECT tp.id, tp.display_name, tp.full_name, tp.photo_url, tp.credentials,
+            tp.years_experience, tp.specializations, tp.languages, tp.session_formats,
+            tp.location, tp.statement, tp.plain_language_intro, tp.cultural_competencies,
+            tp.approach_plain, tp.availability_status, tp.is_active, tp.created_at
+     FROM therapist_profiles tp
+     ORDER BY tp.created_at DESC`
+  );
+  return res.status(200).json({ therapists: rows });
+});
+
+// ─── POST /admin/therapists ───────────────────────────────────────────────────
+// Creates a user with role=therapist then inserts a therapist_profiles row.
+router.post('/therapists', async (req, res) => {
+  const {
+    email, password,
+    display_name, full_name, credentials, years_experience,
+    specializations, languages, session_formats, location,
+    statement, plain_language_intro, cultural_competencies, approach_plain,
+    photo_url, availability_status,
+  } = req.body;
+
+  if (!email || !password || !display_name || !full_name || !credentials) {
+    return res.status(400).json({
+      error: 'email, password, display_name, full_name, and credentials are required',
+      code: 'MISSING_FIELDS',
+    });
+  }
+
+  const bcrypt = require('bcrypt');
+  const { generateAlias } = require('../utils/aliasGenerator');
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const alias = await generateAlias();
+
+  const { rows: userRows } = await query(
+    `INSERT INTO users (email, password_hash, alias, role, consent_version, email_verified)
+     VALUES ($1, $2, $3, 'therapist', '1.0', true)
+     RETURNING id`,
+    [email.toLowerCase().trim(), passwordHash, alias]
+  );
+  const userId = userRows[0].id;
+
+  const { rows: profileRows } = await query(
+    `INSERT INTO therapist_profiles
+       (user_id, display_name, full_name, credentials, years_experience,
+        specializations, languages, session_formats, location, statement,
+        plain_language_intro, cultural_competencies, approach_plain,
+        photo_url, availability_status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     RETURNING id`,
+    [
+      userId,
+      display_name.trim(),
+      full_name.trim(),
+      credentials.trim(),
+      years_experience || 0,
+      specializations || [],
+      languages || [],
+      session_formats || [],
+      location || null,
+      statement || null,
+      plain_language_intro || null,
+      cultural_competencies || [],
+      approach_plain || null,
+      photo_url || null,
+      availability_status || 'available',
+    ]
+  );
+
+  return res.status(201).json({ therapist_id: profileRows[0].id, alias });
+});
+
+// ─── PATCH /admin/therapists/:id ─────────────────────────────────────────────
+router.patch('/therapists/:id', async (req, res) => {
+  const {
+    display_name, full_name, credentials, years_experience,
+    specializations, languages, session_formats, location,
+    statement, plain_language_intro, cultural_competencies, approach_plain,
+    photo_url, availability_status, is_active,
+  } = req.body;
+
+  const setClauses = ['updated_at = NOW()'];
+  const params = [];
+  let idx = 1;
+
+  if (display_name           !== undefined) { setClauses.push(`display_name = $${idx++}`);           params.push(display_name); }
+  if (full_name              !== undefined) { setClauses.push(`full_name = $${idx++}`);              params.push(full_name); }
+  if (credentials            !== undefined) { setClauses.push(`credentials = $${idx++}`);            params.push(credentials); }
+  if (years_experience       !== undefined) { setClauses.push(`years_experience = $${idx++}`);       params.push(years_experience); }
+  if (specializations        !== undefined) { setClauses.push(`specializations = $${idx++}`);        params.push(specializations); }
+  if (languages              !== undefined) { setClauses.push(`languages = $${idx++}`);              params.push(languages); }
+  if (session_formats        !== undefined) { setClauses.push(`session_formats = $${idx++}`);        params.push(session_formats); }
+  if (location               !== undefined) { setClauses.push(`location = $${idx++}`);               params.push(location); }
+  if (statement              !== undefined) { setClauses.push(`statement = $${idx++}`);              params.push(statement); }
+  if (plain_language_intro   !== undefined) { setClauses.push(`plain_language_intro = $${idx++}`);   params.push(plain_language_intro); }
+  if (cultural_competencies  !== undefined) { setClauses.push(`cultural_competencies = $${idx++}`);  params.push(cultural_competencies); }
+  if (approach_plain         !== undefined) { setClauses.push(`approach_plain = $${idx++}`);         params.push(approach_plain); }
+  if (photo_url              !== undefined) { setClauses.push(`photo_url = $${idx++}`);              params.push(photo_url); }
+  if (availability_status    !== undefined) { setClauses.push(`availability_status = $${idx++}`);    params.push(availability_status); }
+  if (is_active              !== undefined) { setClauses.push(`is_active = $${idx++}`);              params.push(is_active); }
+
+  if (params.length === 0) return res.status(400).json({ error: 'No fields to update', code: 'MISSING_FIELDS' });
+
+  params.push(req.params.id);
+  const { rowCount } = await query(
+    `UPDATE therapist_profiles SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+    params
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ updated: true });
+});
+
+// ─── PATCH /admin/therapists/:id/availability ─────────────────────────────────
+router.patch('/therapists/:id/availability', async (req, res) => {
+  const { availability_status } = req.body;
+  if (!['available', 'limited', 'unavailable'].includes(availability_status)) {
+    return res.status(400).json({ error: 'availability_status must be: available, limited, or unavailable', code: 'INVALID_STATUS' });
+  }
+  const { rowCount } = await query(
+    'UPDATE therapist_profiles SET availability_status = $1, updated_at = NOW() WHERE id = $2',
+    [availability_status, req.params.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ updated: true });
+});
+
+// ─── PATCH /admin/therapist-interests/:id/status ──────────────────────────────
+router.patch('/therapist-interests/:id/status', async (req, res) => {
+  const { status } = req.body;
+  if (!['pending', 'matched', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'status must be: pending, matched, or closed', code: 'INVALID_STATUS' });
+  }
+  const { rowCount } = await query(
+    'UPDATE therapist_interests SET status = $1 WHERE id = $2',
+    [status, req.params.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Interest not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ updated: true });
 });
 
 module.exports = router;

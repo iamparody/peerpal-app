@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-21 (session 12) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-21 (session 13) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -20,7 +20,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 12) | Agent: Claude Co
 | `src/backend/db/index.js` | pg Pool (max 20 connections, 30s idle timeout); exports `query()` and `getClient()` for transactions |
 | `src/backend/migrations/run.js` | Reads/executes numbered SQL files 001–028; tracks applied migrations in `migrations_log`; uses DATABASE_DIRECT_URL for DDL |
 
-### Migrations (35 SQL files, 001–035 all applied to Supabase)
+### Migrations (39 SQL files, 001–035 applied to Supabase; 036–039 written, pending apply)
 | File | Table/Change | Key Fields |
 |---|---|---|
 | `001_users.sql` | users | UUID PK, alias UNIQUE, email UNIQUE, password_hash, role enum, risk_level enum, streak_count, consent fields, notif prefs, fcm_token |
@@ -58,8 +58,12 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 12) | Agent: Claude Co
 | `033_peer_quiz_done.sql` | ALTER users | Adds peer_quiz_done BOOLEAN (default false) — tracks volunteer readiness quiz completion |
 | `034_events.sql` | events | id UUID PK, user_id FK nullable, event_name VARCHAR(64), properties JSONB, created_at; 3 indexes (name, user_id, created_at DESC) — basic funnel analytics |
 | `035_articles_trauma_relationships_stories.sql` | ALTER article_category enum + ALTER psychoeducation_articles | Adds 'trauma' + 'relationships' to article_category enum; adds content_type VARCHAR(10) DEFAULT 'article' (CHECK IN ('article','story')), author_name VARCHAR(100) NULL, author_bio TEXT NULL, source_url VARCHAR(500) NULL; index on content_type |
+| `036_therapist_profiles.sql` | therapist_profiles | id UUID PK, display_name, full_name, photo_url, credentials, years_experience, specializations TEXT[], languages TEXT[], session_formats TEXT[], location, statement (max 300 chars), plain_language_intro TEXT, cultural_competencies TEXT[], approach_plain TEXT, availability_status enum (available/limited/unavailable), is_active BOOLEAN, created_at, updated_at — **pending apply** |
+| `037_therapist_interests.sql` | therapist_interests | id UUID PK, member_user_id FK → users, therapist_id FK → therapist_profiles, referral_id FK → therapist_referrals, status enum (pending/matched/closed), created_at — **pending apply** |
+| `038_referrals_support_style.sql` | ALTER therapist_referrals | Adds support_style_preference column — **pending apply** |
+| `039_therapist_rls.sql` | RLS | Deny-anon policies for therapist_profiles and therapist_interests (consistent with migration 030 pattern) — **pending apply** |
 
-### Route Files (16 files)
+### Route Files (17 files)
 | File | Endpoints |
 |---|---|
 | `routes/auth.js` | POST /register, GET /verify-email, POST /resend-verification, POST /login, POST /logout, POST /recover, POST /reset-password |
@@ -75,9 +79,10 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 12) | Agent: Claude Co
 | `routes/notifications.js` | GET /, PATCH /:id/read, PATCH /read-all, PATCH /preferences |
 | `routes/feedback.js` | POST / (no auth required) |
 | `routes/resources.js` | GET /, GET /:id |
-| `routes/referrals.js` | POST /, GET /my |
+| `routes/referrals.js` | POST / (accepts support_style_preference), GET /my (includes interests array), POST /:id/interests |
+| `routes/therapists.js` | GET / (filters: specialization, language, session_format, availability_status), GET /:id |
 | `routes/profile.js` | GET /, POST /delete-data, PATCH /deactivate, POST /deactivate-undo |
-| `routes/admin.js` | 18 admin-only endpoints (reports, emergency, escalations, referrals, risk-flags, resources, feedback, stats) |
+| `routes/admin.js` | 24 admin-only endpoints (reports, emergency, escalations, referrals + interests + support_style_preference, risk-flags, resources, feedback, stats, therapists CRUD, therapist-interests status) |
 
 ### Middleware (3 files)
 | File | Purpose |
@@ -182,22 +187,31 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 12) | Agent: Claude Co
 | `PeerTextChatScreen.jsx` | `/peer/text/:id` | Text chat; credit countdown per 15min; End Session → FeedbackModal |
 | `PeerVoiceCallScreen.jsx` | `/peer/voice/:id` | WebRTC audio via ws/signaling; mute toggle; credit countdown per 5min; 2min grace on last credit |
 
-### Standalone Admin Panel (`src/admin/`) — Phase 18
+### Therapist Marketplace Screens (`src/frontend/src/screens/therapist/`) — Phase 19
+| Screen | Route | Purpose |
+|---|---|---|
+| `TherapistIntakeScreen.jsx` | `/therapists` | 3-step conversational intake (struggles → support style → preferences); checks for existing open referral → redirects to /therapists/status; cross-fade transitions 400ms ease-out; creates referral on submit, navigates to /therapists/browse |
+| `TherapistListScreen.jsx` | `/therapists/browse` | 1.8s warm intro moment (pulsing dots); staggered card entrance (90ms delay, 450ms ease-out); fit highlights per intake answers; ProfileSheet bottom sheet (350ms); max 3 selections; sticky CTA bar |
+| `TherapistConfirmScreen.jsx` | `/therapists/confirm` | Therapist first names in Lora font; intake summary card; home + status buttons; intentional no-auto-navigate |
+| `TherapistStatusScreen.jsx` | `/therapists/status` | Animated timeline (pending → in_review → arranged → closed); expressed interests display (avatar + name chips); re-match path for closed referrals |
+
+### Standalone Admin Panel (`src/admin/`) — Phase 18 + Phase 19
 Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_API_URL` to backend Railway URL.
 | File | Purpose |
 |---|---|
-| `App.jsx` | Collapsible sidebar (240px ↔ 64px), Phosphor icons, active amber border, live red badges on Emergency/Escalations/Reports/Risk, breadcrumb topbar, mobile off-canvas drawer < 900px |
+| `App.jsx` | Collapsible sidebar (240px ↔ 64px), Phosphor icons, active amber border, live red badges on Emergency/Escalations/Reports/Risk, breadcrumb topbar, mobile off-canvas drawer < 900px; 8 tabs (added Therapists tab in Phase 19) |
 | `components/LoginScreen.jsx` | Dark sidebar bg wrap, white card, admin credential auth |
 | `components/MessageModal.jsx` | Send in-app message to user by alias → POST /admin/users/:alias/message |
 | `context/AuthContext.jsx` | Admin JWT storage, logout |
 | `tabs/OverviewTab.jsx` | 4 animated stat cards (count-up, staggered entrance), activity feed, quick actions |
 | `tabs/EmergencyTab.jsx` | Emergency queue with row colouring (open=red, ack=amber), elapsed time |
 | `tabs/EscalationsTab.jsx` | Peer escalations; onCountChange badge callback |
-| `tabs/ReferralsTab.jsx` | Therapist referrals as card list |
+| `tabs/ReferralsTab.jsx` | Therapist referrals as card list; shows expressed interests (therapist avatar chips) + support_style_preference (updated Phase 19) |
 | `tabs/ReportsTab.jsx` | Group reports with Pending/Reviewed/All filter tabs; onCountChange badge |
 | `tabs/RiskTab.jsx` | Risk-flagged users; onCountChange badge |
 | `tabs/ContentTab.jsx` | Psychoeducation articles CRUD; right slide panel (480px) replaces modal |
 | `tabs/StatsTab.jsx` | DAU + session stats with rating bar indicators |
+| `tabs/TherapistsTab.jsx` | Therapist profiles table; inline availability toggle; active/inactive toggle; full create/edit slide panel with all fields incl. plain_language_intro, cultural_competencies, approach_plain (NEW Phase 19) |
 | `styles/globals.css` | Full brand token system: sidebar `#2F2622`, cream `#FAF6F2`, status colours |
 
 ### Legal Screens (`src/frontend/src/screens/`)
@@ -209,7 +223,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 
 ---
 
-## 3. DATABASE SCHEMA — All 22 Tables
+## 3. DATABASE SCHEMA — All 24 Tables (+ 2 pending: therapist_profiles, therapist_interests)
 
 | Table | Key Fields (3) | Notes |
 |---|---|---|
@@ -231,7 +245,9 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | **group_bans** | group_id FK, user_id FK, expires_at nullable | + banned_by FK, reason; nullable expiry for permanent |
 | **emergency_logs** | user_id FK, trigger_type enum, status enum | + handled_by FK, acknowledged_at, resolved_at |
 | **escalation_logs** | session_id FK, trigger_type enum, escalated_to | Trigger types: user_initiated, ai_escalation, peer_escalation |
-| **therapist_referrals** | user_id FK, contact_detail TEXT (encrypted), status | + preferred_time, contact_method, specific_needs, admin_notes |
+| **therapist_referrals** | user_id FK, contact_detail TEXT (encrypted), status | + preferred_time, contact_method, specific_needs, admin_notes, support_style_preference (added migration 038) |
+| **therapist_profiles** | id UUID PK, display_name, full_name, availability_status enum | + photo_url, credentials, years_experience, specializations[], languages[], session_formats[], location, statement, plain_language_intro, cultural_competencies[], approach_plain, is_active; RLS deny-anon — **pending migrations 036 + 039** |
+| **therapist_interests** | member_user_id FK, therapist_id FK, referral_id FK | + status enum (pending/matched/closed); max 3 per referral enforced at API layer; RLS deny-anon — **pending migrations 037 + 039** |
 | **feedback** | type enum, rating CHECK 1-5, session_id FK | NO user_id — fully anonymous by design |
 | **psychoeducation_articles** | title, category enum (11), status enum, content_type | + content, estimated_read_minutes, tags[], created_by FK, published_at; content_type ∈ {article, story}; author_name/bio/source_url for stories; 55 seeded articles |
 | **ai_usage** | user_id FK, date, token_count | UNIQUE(user_id, date); supports 50k daily limit |
@@ -347,8 +363,15 @@ GET    /:id                   — Full article
 
 ### Referrals (`/api/referrals`)
 ```
-POST   /                      — {struggles, preferred_time, contact_method, contact_detail, specific_needs}
-GET    /my                    — {referrals} with status
+POST   /                      — {struggles, preferred_time, contact_method, contact_detail, specific_needs, support_style_preference}
+GET    /my                    — {referrals} with status; each referral includes interests array
+POST   /:id/interests         — {therapist_ids[]} — max 3 per referral; enforces deduplication
+```
+
+### Therapists (`/api/therapists`)
+```
+GET    /                      — {therapists} (filters: specialization, language, session_format, availability_status; auth required — not public)
+GET    /:id                   — Full therapist profile (auth required)
 ```
 
 ### Profile (`/api/profile`)
@@ -367,7 +390,7 @@ PATCH  /emergency/:id/resolve
 PATCH  /reports/:id/action    — {action: warn|ban|dismiss, admin_notes}
 GET    /emergency-queue
 GET    /escalations
-GET    /referrals             — ?status filter
+GET    /referrals             — ?status filter; each referral includes interests array + support_style_preference
 PATCH  /referrals/:id         — {status, admin_notes}
 GET    /risk-flags
 POST   /users/:alias/message  — {message} → in-app notification
@@ -378,6 +401,11 @@ PATCH  /resources/:id/publish
 PATCH  /resources/:id/archive
 GET    /feedback              — {avg_rating_by_type, recent_comments}
 GET    /stats                 — {dau, checkins_today, peer_sessions_today, ai_sessions_today, credits_purchased_today}
+GET    /therapists            — All therapist profiles
+POST   /therapists            — Create user (role=therapist) + therapist_profiles row
+PATCH  /therapists/:id        — Update any profile field
+PATCH  /therapists/:id/availability — Quick availability toggle
+PATCH  /therapist-interests/:id/status — Update interest status (pending/matched/closed)
 ```
 
 ---
@@ -445,10 +473,10 @@ GET    /stats                 — {dau, checkins_today, peer_sessions_today, ai_
 
 ## 8. CURRENT PHASE STATUS & REMAINING TASKS
 
-### Completed Phases (18/18)
+### Completed Phases (19/19)
 | Phase | Status | Description |
 |---|---|---|
-| Phase 1 | ✅ | Database migrations (34 SQL files, 25 tables) |
+| Phase 1 | ✅ | Database migrations (35 SQL files applied, 4 pending; 25+ tables) |
 | Phase 2 | ✅ | Backend auth & onboarding APIs |
 | Phase 3 | ✅ | Core module APIs (moods, journals, AI chat) |
 | Phase 4 | ✅ | Credits & Paystack payments |
@@ -466,11 +494,11 @@ GET    /stats                 — {dau, checkins_today, peer_sessions_today, ai_
 | Phase 16 | ✅ | Performance, security, scale (Redis, RLS, indexes, BullMQ) |
 | Phase 17 | ✅ | Feature triage: peer incentives, onboarding condition step, peer quiz gate, group profile UI, Sentry/analytics (migrations 031–034), groups read-only for members |
 | Phase 18 | ✅ | Standalone admin panel at `src/admin/` — 8-tab redesign, collapsible sidebar, animated stat cards, mobile responsive; AdminDashboard removed from user app |
+| Phase 19 | ✅ | Therapist Marketplace — intake flow, browse/select screens, confirm + status screens; therapists.js route (NEW); referrals.js + admin.js updated; TherapistsTab.jsx (NEW); migrations 036–039 written (pending apply to Supabase) |
 
 ### Scoped & Pending (not started — await implementation call)
 | Phase | Status | Description |
 |---|---|---|
-| Phase 19 | 🔲 | Therapist Marketplace — browse-and-interest flow, therapist profiles, admin onboarding |
 | Phase 20 | 🔲 | Persona & Language Enhancements — mutable persona, Swahili/Sheng switcher |
 | Phase 21 | 🔲 | UI Performance & Design System — TanStack Query, skeletons, Radix tooltips, shared components, Nivo mood calendar |
 
@@ -512,20 +540,20 @@ GET    /stats                 — {dau, checkins_today, peer_sessions_today, ai_
 
 | Category | Count |
 |---|---|
-| Database migrations | 34 SQL files (001–034, all applied to Supabase) |
-| Database tables | 25 (23 app + events + migrations_log + token_blacklist; all RLS-enabled) |
-| Backend route files | 16 |
+| Database migrations | 39 SQL files (001–035 applied to Supabase; 036–039 written, pending apply) |
+| Database tables | 25 live + 2 pending (therapist_profiles, therapist_interests); all RLS-enabled once 039 applied |
+| Backend route files | 17 (added therapists.js) |
 | Backend middleware | 3 |
 | Backend utilities | 9 |
 | Backend services | 2 |
 | Background workers | 2 |
 | Cron jobs | 3 |
-| Frontend screens (user app) | 36 |
-| Admin panel tabs | 8 (standalone `src/admin/` app) |
-| API endpoints (total) | ~65 |
+| Frontend screens (user app) | 40 (added TherapistIntakeScreen, TherapistListScreen, TherapistConfirmScreen, TherapistStatusScreen) |
+| Admin panel tabs | 9 (standalone `src/admin/` app; added TherapistsTab) |
+| API endpoints (total) | ~72 |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 18/18 |
+| Build phases complete | 19/19 |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects

@@ -3,7 +3,50 @@
 ---
 
 ## Current Phase
-**Phase 18 — Standalone Admin Panel — UI COMPLETE**
+**Phase 19 — Therapist Marketplace — COMPLETE**
+
+---
+
+### Session 13 — 2026-05-21
+
+**Phase 19 — Therapist Marketplace — fully implemented:**
+
+**Migrations written (need to be applied to Supabase):**
+- `036_therapist_profiles.sql` — new table: display_name, full_name, photo_url, credentials, years_experience, specializations[], languages[], session_formats[], location, statement, plain_language_intro, cultural_competencies[], approach_plain, availability_status enum (available/limited/unavailable), is_active, created_at, updated_at. Note: migration 035 was already used for articles; therapist_profiles starts at 036.
+- `037_therapist_interests.sql` — new table: member_user_id (FK → users), therapist_id (FK → therapist_profiles), referral_id (FK → therapist_referrals), status enum (pending/matched/closed), created_at
+- `038_referrals_support_style.sql` — ALTER therapist_referrals: adds support_style_preference column
+- `039_therapist_rls.sql` — RLS deny-anon for therapist_profiles and therapist_interests (consistent with migration 030 pattern)
+
+**Backend new/updated files:**
+- `src/backend/routes/therapists.js` (NEW) — GET /api/therapists (with filters: specialization, language, session_format, availability_status); GET /api/therapists/:id
+- `src/backend/routes/referrals.js` (UPDATED) — POST /referrals now accepts support_style_preference; POST /referrals/:id/interests (up to 3 therapist IDs, max enforced, duplicate prevention); GET /referrals/my now includes interests array per referral
+- `src/backend/routes/admin.js` (UPDATED) — GET /admin/therapists; POST /admin/therapists; PATCH /admin/therapists/:id; PATCH /admin/therapists/:id/availability; PATCH /admin/therapist-interests/:id/status; GET /admin/referrals now includes interests + support_style_preference
+- `src/backend/app.js` (UPDATED) — mounts /api/therapists route
+
+**Frontend new screens (`src/frontend/src/screens/therapist/`):**
+- `TherapistIntakeScreen.jsx` — 3-step conversational intake (struggles → support style → preferences); checks for existing open referral and redirects to /therapists/status; cross-fade transitions 400ms ease-out between steps; on submit creates referral and navigates to /therapists/browse
+- `TherapistListScreen.jsx` — 1.8s warm intro moment with gentle pulsing dots; staggered card entrance (90ms delay per card, opacity + translateY 450ms ease-out); fit highlights per therapist based on intake answers; ProfileSheet bottom sheet (slides up 350ms); max 3 selections; sticky CTA bar
+- `TherapistConfirmScreen.jsx` — confirmation screen with therapist first names in Lora font; intake summary card; home + status buttons; intentional no-auto-navigate (member in distress needs to act intentionally)
+- `TherapistStatusScreen.jsx` — animated timeline (pending → in_review → arranged → closed); expressed interests display (avatar + name chips); re-match path for closed referrals
+
+**Admin panel:**
+- `src/admin/src/tabs/TherapistsTab.jsx` (NEW) — table of therapists; inline availability toggle; active/inactive toggle; full create/edit slide panel with all fields including plain_language_intro, cultural_competencies, approach_plain
+- `src/admin/src/App.jsx` (UPDATED) — Therapists tab added as 8th tab (UserCircle icon)
+- `src/admin/src/tabs/ReferralsTab.jsx` (UPDATED) — shows expressed interests (therapist avatar chips) and support_style_preference alongside each referral
+
+**Frontend routing and CSS:**
+- `src/frontend/src/App.jsx` — routes added: /therapists, /therapists/browse, /therapists/confirm, /therapists/status; /therapists added to HIDE_NAV_ON
+- `src/frontend/src/screens/DashboardScreen.jsx` — Therapist tile updated to navigate to /therapists
+- `src/frontend/src/styles/globals.css` — fadeInUp and introPulse keyframe animations added
+
+**Design decisions:**
+- Intake transitions: cross-fade 400ms ease-out (no slide transitions — too aggressive for someone in distress)
+- Browse cards stagger in: 90ms delay per card, opacity + translateY 450ms ease-out
+- 1.8s intro moment before browse: "Here are some people who may be right for you"
+- Profile opens as bottom sheet (not new route), 350ms ease-out
+- Confirm screen: Lora font for therapist names; intentional no-auto-navigate
+
+**Migrations pending (not yet applied to Supabase):** 036, 037, 038, 039
 
 ---
 
@@ -50,18 +93,17 @@
 **Migration 035 applied (2026-05-21):** `trauma` + `relationships` added to `article_category` enum; `content_type`, `author_name`, `author_bio`, `source_url` columns live in Supabase. All 55 articles seeded — 45 original + 10 new (5 trauma, 5 relationships). Article peer review in progress — user + peer reviewers assessing helpfulness.
 
 ## Scoped & Pending
-**Phase 19 — Therapist Marketplace** — fully scoped in CHECKLIST.md (items 19.1–19.11). Not started. Transforms the referral module into a browse-and-express-interest flow with real therapist profiles, admin-managed onboarding, and a new Therapists tab in the admin panel. Await implementation call.
-
 **Phase 20 — Persona & Language Enhancements** — fully scoped in CHECKLIST.md (items 20.1–20.3). Not started. Three changes: mutable persona tone/style, Swahili/Sheng language switcher in AI layer, and a future fine-tuned Kenyan model switch via env var. Await implementation call.
 
 **Phase 21 — UI Performance & Design System** — fully scoped in CHECKLIST.md (items 21.1–21.6). Not started. TanStack Query caching, optimistic updates on key mutations, skeleton placeholders replacing all blank/spinner states, Radix tooltips on all icon-only actions, extracted shared component library (Sheet, Toast, PageHeader, EmptyState, Badge), and a Nivo dot-matrix mood calendar in Analytics + Dashboard. Await implementation call.
 
 ## Current Task
-Phase 18 UI polish complete. All 8 tabs built, collapsible sidebar, mobile responsive, production-level animated stat cards.
+Phase 19 complete. Therapist Marketplace fully built: intake flow, browse/select screens, confirm + status screens, backend therapist routes, admin TherapistsTab, referral updates for interests and support_style_preference.
 
-**Next:** Deploy src/admin/ separately (Railway or Netlify). Set `VITE_API_URL` to the backend Railway URL. Run seeds on production DB before first admin login.
+**Next:** Apply migrations 036–039 to Supabase before using any therapist features. Then deploy.
 
 **Migrations applied:** 031, 032, 033, 034, 035 — all live in Supabase.
+**Migrations written, not yet applied:** 036, 037, 038, 039 — apply with `npm run migrate` in `src/backend/`.
 
 ---
 
@@ -728,3 +770,4 @@ to their support system — a direct safety risk.
 | 2026-05-04 | 9 | Redis: cache + rate limiting switched to @upstash/redis REST client (HTTPS 443, works locally); BullMQ keeps ioredis TCP with family:4 + retryStrategy(3) to suppress Node v24 AggregateError flood on blocked networks; server starts clean, cache round-trip verified |
 | 2026-05-06 | 10 | Bug fixes: enqueueEmail made fire-and-forget (2s race timeout on queue.add); registration handler wrapped in try/catch with dev error logging; startup diagnostics for RESEND_API_KEY + EMAIL_FROM |
 | 2026-05-21 | 11 | GRAPH_REPORT.md updated (Phases 17–18, migrations 031–034, events table, admin panel docs); dashboard timestamp fix (formatMoodTime); dashboard tappable mood affordance |
+| 2026-05-21 | 13 | Phase 19 Therapist Marketplace complete: migrations 036–039 written; therapists.js route (NEW); referrals.js + admin.js updated; 4 new frontend screens (TherapistIntakeScreen, TherapistListScreen, TherapistConfirmScreen, TherapistStatusScreen); TherapistsTab.jsx (NEW) + admin App.jsx + ReferralsTab.jsx updated; App.jsx routes + HIDE_NAV; globals.css animations |

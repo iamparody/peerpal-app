@@ -66,19 +66,64 @@ export default function ReferralsTab() {
             </div>
 
             <div className="referral-card__body">
-              <strong style={{ color: 'var(--color-text-primary)' }}>Struggles:</strong> {r.struggles}
+              <strong style={{ color: 'var(--color-text-primary)' }}>What they shared:</strong>
+              <p style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
+                {r.struggles}
+              </p>
+              {r.support_style_preference && (
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  Support style: {r.support_style_preference.replace(/_/g, ' ')}
+                </p>
+              )}
               {r.specific_needs && (
-                <><br /><strong style={{ color: 'var(--color-text-primary)' }}>Specific needs:</strong> {r.specific_needs}</>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  <strong style={{ color: 'var(--color-text-primary)' }}>Additional context:</strong> {r.specific_needs}
+                </p>
               )}
             </div>
 
+            {/* Expressed therapist interests */}
+            {r.interests?.length > 0 && (
+              <div style={{ padding: '10px 16px', borderTop: '1px solid var(--color-card-border)' }}>
+                <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: 'var(--color-text-muted)', marginBottom: 8 }}>
+                  Interested in
+                </p>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {r.interests.map((interest) => (
+                    <div key={interest.id} style={{ display: 'flex', alignItems: 'center', gap: 8,
+                      background: 'var(--color-surface-bg)', borderRadius: 8, padding: '6px 10px',
+                      border: '1px solid var(--color-card-border)' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%',
+                        background: 'var(--color-surface-secondary)', overflow: 'hidden',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+                        {interest.photo_url
+                          ? <img src={interest.photo_url} alt={interest.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : interest.display_name.charAt(0)
+                        }
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                          {interest.display_name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                          {interest.availability_status}
+                        </div>
+                      </div>
+                      {interest.status === 'matched' && (
+                        <span style={{ fontSize: 10, background: 'var(--color-success-bg)', color: 'var(--color-success)',
+                          borderRadius: 4, padding: '2px 6px', fontWeight: 600 }}>Matched</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="referral-card__footer">
-              <span className="referral-meta">
-                🕐 {r.preferred_time}
-              </span>
-              <span className="referral-meta">
-                📱 {r.contact_method}
-              </span>
+              <span className="referral-meta">🕐 {r.preferred_time}</span>
+              <span className="referral-meta">📱 {r.contact_method}</span>
               {r.admin_notes && (
                 <span className="referral-meta" style={{ fontStyle: 'italic' }}>
                   Note: {r.admin_notes}

@@ -8,7 +8,7 @@ import MoodBlob from '../components/MoodBlob';
 const TILES = [
   { label: 'Peer Help',  Icon: Handshake,   to: '/peer',      desc: 'Talk to someone now' },
   { label: 'AI Chat',    Icon: Robot,        to: '/ai-chat',   desc: 'Your companion is here' },
-  { label: 'Therapist',  Icon: Stethoscope,  to: '/referral',  desc: 'Professional referral' },
+  { label: 'Therapist',  Icon: Stethoscope,  to: '/therapists', desc: 'Find the right fit' },
   { label: 'Journal',    Icon: Notebook,     to: '/journal',   desc: 'Write freely' },
   { label: 'Groups',     Icon: UsersThree,   to: '/groups',    desc: 'Peer communities' },
   { label: 'Emergency',  Icon: Siren,        to: '/emergency', desc: 'Get help right now', emergency: true },

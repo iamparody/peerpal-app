@@ -42,6 +42,10 @@ import GroupChatScreen from './screens/GroupChatScreen';
 import EmergencyScreen from './screens/EmergencyScreen';
 import SafetyPlanScreen from './screens/SafetyPlanScreen';
 import ReferralScreen from './screens/ReferralScreen';
+import TherapistIntakeScreen  from './screens/therapist/TherapistIntakeScreen';
+import TherapistListScreen    from './screens/therapist/TherapistListScreen';
+import TherapistConfirmScreen from './screens/therapist/TherapistConfirmScreen';
+import TherapistStatusScreen  from './screens/therapist/TherapistStatusScreen';
 import ResourcesScreen from './screens/ResourcesScreen';
 import ArticleScreen from './screens/ArticleScreen';
 import BreathingScreen from './screens/BreathingScreen';
@@ -60,6 +64,7 @@ const HIDE_NAV_ON = [
   '/onboarding', '/welcome', '/ai-chat', '/peer/session', '/peer/waiting',
   '/emergency', '/emergency-public',
   '/privacy-policy', '/terms-of-service', '/data-compliance',
+  '/therapists',
 ];
 
 // Paths where the unverified banner should not appear
@@ -174,7 +179,11 @@ function Layout() {
         <Route path="/groups/:id/chat"  element={<ProtectedRoute><GroupChatScreen /></ProtectedRoute>} />
         <Route path="/emergency"   element={<ProtectedRoute><EmergencyScreen /></ProtectedRoute>} />
         <Route path="/safety-plan" element={<ProtectedRoute><SafetyPlanScreen /></ProtectedRoute>} />
-        <Route path="/referral"    element={<ProtectedRoute><ReferralScreen /></ProtectedRoute>} />
+        <Route path="/referral"           element={<ProtectedRoute><ReferralScreen /></ProtectedRoute>} />
+        <Route path="/therapists"         element={<ProtectedRoute><TherapistIntakeScreen /></ProtectedRoute>} />
+        <Route path="/therapists/browse"  element={<ProtectedRoute><TherapistListScreen /></ProtectedRoute>} />
+        <Route path="/therapists/confirm" element={<ProtectedRoute><TherapistConfirmScreen /></ProtectedRoute>} />
+        <Route path="/therapists/status"  element={<ProtectedRoute><TherapistStatusScreen /></ProtectedRoute>} />
         <Route path="/resources"   element={<ProtectedRoute><ResourcesScreen /></ProtectedRoute>} />
         <Route path="/resources/:id" element={<ProtectedRoute><ArticleScreen /></ProtectedRoute>} />
         <Route path="/sounds"      element={<ProtectedRoute><CalmingSoundsScreen /></ProtectedRoute>} />

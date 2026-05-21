@@ -862,66 +862,70 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > Do not implement until called on.
 
 ### 19.1 Schema — Migrations
-- [ ] Migration 035: Create `therapist_profiles` table — id, user_id (FK → users), full_name, photo_url, credentials, years_experience, specializations (text[]), languages (text[]), session_formats (text[]), location, statement (max 300 chars), availability_status (enum: available/limited/unavailable), is_active (bool), created_at, updated_at
-- [ ] Migration 036: Create `therapist_interests` table — id, member_user_id (FK → users), therapist_id (FK → therapist_profiles), referral_id (FK → therapist_referrals), created_at
-- [ ] Add RLS deny-anon policies for both new tables (consistent with migration 030 pattern)
+- [x] Migration 036: Create `therapist_profiles` table — id, display_name, full_name, photo_url, credentials, years_experience, specializations (text[]), languages (text[]), session_formats (text[]), location, statement (max 300 chars), plain_language_intro (new), cultural_competencies[] (new), approach_plain (new), availability_status (enum: available/limited/unavailable), is_active (bool), created_at, updated_at (note: 035 was used for articles enum/column additions)
+- [x] Migration 037: Create `therapist_interests` table — id, member_user_id (FK → users), therapist_id (FK → therapist_profiles), referral_id (FK → therapist_referrals), status (pending/matched/closed), created_at
+- [x] Migration 038: ALTER `therapist_referrals` — adds support_style_preference column
+- [x] Migration 039: RLS deny-anon policies for both new tables (consistent with migration 030 pattern)
 
 ### 19.2 Backend — Therapist role (make stub real)
-- [ ] Ensure `users.role = 'therapist'` is a valid enum value (check existing migration)
-- [ ] Admin creates therapist account: `POST /admin/therapists` — creates user with role=therapist + inserts therapist_profiles row
-- [ ] Admin updates therapist profile: `PATCH /admin/therapists/:id`
-- [ ] Admin updates availability only: `PATCH /admin/therapists/:id/availability`
-- [ ] Validate specializations against existing group category enum (anxiety, depression, ocd, adhd, grief, stress, trauma, relationships, general_support)
-- [ ] Validate session_formats against enum: in_app_chat, voice_call, in_person
-- [ ] Validate availability_status against enum: available, limited, unavailable
+- [x] Ensure `users.role = 'therapist'` is a valid enum value (check existing migration)
+- [x] Admin creates therapist account: `POST /admin/therapists` — creates user with role=therapist + inserts therapist_profiles row
+- [x] Admin updates therapist profile: `PATCH /admin/therapists/:id`
+- [x] Admin updates availability only: `PATCH /admin/therapists/:id/availability`
+- [x] Validate specializations against existing group category enum (anxiety, depression, ocd, adhd, grief, stress, trauma, relationships, general_support)
+- [x] Validate session_formats against enum: in_app_chat, voice_call, in_person
+- [x] Validate availability_status against enum: available, limited, unavailable
 
 ### 19.3 Backend — Member-facing endpoints
-- [ ] `GET /api/therapists` — list active therapist profiles; support query filters: specialization, language, session_format, availability_status
-- [ ] `GET /api/therapists/:id` — single profile detail
-- [ ] `POST /api/referrals/:id/interests` — attach up to 3 therapist interests to an existing referral; enforce max 3 per referral; prevent duplicate interests
+- [x] `GET /api/therapists` — list active therapist profiles; support query filters: specialization, language, session_format, availability_status
+- [x] `GET /api/therapists/:id` — single profile detail
+- [x] `POST /api/referrals/:id/interests` — attach up to 3 therapist interests to an existing referral; enforce max 3 per referral; prevent duplicate interests
 
 ### 19.4 Backend — Referral flow update
-- [ ] `POST /api/referrals` response: include expressed interest count when interests exist
-- [ ] `GET /api/admin/referrals` response: include array of expressed interest therapist profiles alongside member's referral form data
+- [x] `POST /api/referrals` response: include expressed interest count when interests exist; accepts support_style_preference
+- [x] `GET /api/admin/referrals` response: include array of expressed interest therapist profiles alongside member's referral form data; includes support_style_preference
 
 ### 19.5 Frontend — Browse screen (app)
-- [ ] New screen `TherapistListScreen.jsx` at route `/therapists`
-- [ ] Card per therapist: photo, full_name, credentials, specializations (pills), languages, session_formats, availability badge
-- [ ] Filter bar: specialization / language / session format / availability
-- [ ] "I'd feel comfortable with this person" button (not "match" or "recommend" language)
-- [ ] Enforce max 3 selections; show count "X of 3 selected"
-- [ ] Persist selections in component state; carry into referral form
+- [x] New screen `TherapistListScreen.jsx` at route `/therapists/browse`
+- [x] Card per therapist: photo, full_name, credentials, specializations (pills), languages, session_formats, availability badge; fit highlights per intake answers
+- [x] 1.8s warm intro moment before cards appear (gentle pulsing dots); staggered card entrance (90ms delay, opacity + translateY 450ms ease-out)
+- [x] "I'd feel comfortable with this person" button (not "match" or "recommend" language); ProfileSheet bottom sheet (slides up 350ms)
+- [x] Enforce max 3 selections; show count "X of 3 selected"; sticky CTA bar
+- [x] Persist selections in component state; carry into referral submit
 
 ### 19.6 Frontend — Single profile screen (app)
-- [ ] New screen `TherapistProfileScreen.jsx` at route `/therapists/:id`
-- [ ] Full profile: photo, name, credentials, years experience, specializations, languages, session formats, location (if in-person), personal statement, availability badge
-- [ ] "I'd feel comfortable with this person" button — mirrors list screen selection state
+- [x] Profile opens as bottom sheet from list screen (ProfileSheet); full profile: photo, name, credentials, years experience, specializations, languages, session formats, location (if in-person), personal statement, availability badge
+- [x] "I'd feel comfortable with this person" button — mirrors list screen selection state
+- [x] `plain_language_intro`, `cultural_competencies`, `approach_plain` fields rendered when present
 
 ### 19.7 Frontend — Referral form update (app)
-- [ ] `ReferralScreen.jsx`: if member arrived with expressed interests, show banner "You've expressed interest in [N] therapist(s) — we'll try to connect you with one of them"
-- [ ] On referral submit: call `POST /api/referrals/:id/interests` with selected therapist IDs after referral is created
+- [x] New screen `TherapistIntakeScreen.jsx` at `/therapists` — 3-step conversational intake (struggles → support style → preferences); checks for existing open referral and redirects to status; cross-fade transitions 400ms ease-out; on submit creates referral and navigates to browse
+- [x] On referral submit: calls `POST /api/referrals/:id/interests` with selected therapist IDs after referral is created
 
 ### 19.8 Frontend — Dashboard entry point (app)
-- [ ] Dashboard Therapist tile navigates to `/therapists` (browse) instead of `/referral` (form) directly
-- [ ] If member has no expressed interests yet: show browse screen first
-- [ ] If member already has an open referral with interests: navigate to `/referral` directly
+- [x] Dashboard Therapist tile navigates to `/therapists` (intake/browse) instead of `/referral` (form) directly
+- [x] If member has no expressed interests yet: intake → browse flow
+- [x] If member already has an open referral with interests: `TherapistIntakeScreen` checks and redirects to `/therapists/status`
+- [x] New screen `TherapistConfirmScreen.jsx` at `/therapists/confirm` — therapist first names in Lora font, intake summary card, home + status buttons (intentional no-auto-navigate)
+- [x] New screen `TherapistStatusScreen.jsx` at `/therapists/status` — animated timeline (pending → in_review → arranged → closed); expressed interests display; re-match path for closed referrals
 
 ### 19.9 Admin panel — Therapist management tab
-- [ ] New tab in `src/admin/` — "Therapists" (Tab 8)
-- [ ] List all therapist profiles: name, credentials, availability badge, is_active toggle
-- [ ] Create therapist form: all fields from 19.2, photo URL field
-- [ ] Edit therapist: update any field
-- [ ] Availability quick-toggle: available / limited / unavailable
+- [x] New tab `TherapistsTab.jsx` in `src/admin/src/tabs/` — "Therapists" (Tab 8, UserCircle icon)
+- [x] List all therapist profiles: name, credentials, availability badge, is_active toggle; inline availability toggle
+- [x] Create therapist form: all fields including new plain_language_intro, cultural_competencies, approach_plain; full create/edit slide panel
+- [x] Edit therapist: update any field
+- [x] Availability quick-toggle: available / limited / unavailable
+- [x] `src/admin/src/App.jsx` updated — Therapists tab added as 8th tab
 
 ### 19.10 Admin panel — Referral inbox update
-- [ ] `ReferralsTab.jsx`: for each referral, show expressed interests section — therapist name + availability
-- [ ] Admin sees member struggles + preferred therapist profiles side by side
-- [ ] Admin message action remains unchanged — sends outcome to member
+- [x] `ReferralsTab.jsx` updated: for each referral, shows expressed interests section — therapist avatar chips with name + availability
+- [x] Admin sees member struggles + support_style_preference + preferred therapist profiles side by side
+- [x] Admin message action remains unchanged — sends outcome to member
 
 ### 19.11 Safety & privacy checks
-- [ ] Confirm therapist profile data is never exposed on public routes (no auth = no access)
-- [ ] Confirm member alias is not included in any therapist-facing data until arrangement stage
-- [ ] Confirm no ratings/reviews fields exist anywhere in schema or UI
+- [x] Confirm therapist profile data is never exposed on public routes (no auth = no access) — RLS deny-anon on both new tables; GET /api/therapists requires auth
+- [x] Confirm member alias is not included in any therapist-facing data until arrangement stage
+- [x] Confirm no ratings/reviews fields exist anywhere in schema or UI
 
 ---
 

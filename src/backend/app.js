@@ -50,6 +50,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/feedback',      require('./routes/feedback'));
 app.use('/api/resources',     require('./routes/resources'));
 app.use('/api/referrals',     require('./routes/referrals'));
+app.use('/api/therapists',    require('./routes/therapists'));
 app.use('/api/profile',       require('./routes/profile'));
 app.use('/api/analytics',     require('./routes/analytics'));
 

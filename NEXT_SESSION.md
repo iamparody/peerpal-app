@@ -54,8 +54,23 @@ Order:
 
 ---
 
+## Migrations to apply — Phase 19
+
+Migrations 036–039 are written but not yet applied to Supabase. Run before using any therapist marketplace features:
+
+```bash
+npm run migrate
+```
+
+Files:
+- `036_therapist_profiles.sql` — therapist_profiles table
+- `037_therapist_interests.sql` — therapist_interests table
+- `038_referrals_support_style.sql` — support_style_preference column on therapist_referrals
+- `039_therapist_rls.sql` — RLS deny-anon for both new tables
+
+---
+
 ## Pending phases (await implementation call)
 
-- **Phase 19** — Therapist Marketplace (CHECKLIST.md 19.1–19.11)
 - **Phase 20** — Persona & Language Enhancements (CHECKLIST.md 20.1–20.3)
 - **Phase 21** — UI Performance & Design System (CHECKLIST.md 21.1–21.6)
