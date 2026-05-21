@@ -1,34 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 
+// Purpose-built inline SVG icons — not borrowed from a library
+const IconListener = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.5 9a5.5 5.5 0 0 1 11 0v1" />
+    <path d="M7 9a3 3 0 0 1 6 0v1.5a2 2 0 0 1-2 2h-.5" />
+    <circle cx="11.5" cy="14" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const IconPatterns = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <circle cx="10" cy="3.5" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="3.5" cy="15.5" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="16.5" cy="15.5" r="1.5" fill="currentColor" stroke="none" />
+    <line x1="10" y1="5" x2="4.1" y2="14.1" />
+    <line x1="10" y1="5" x2="15.9" y2="14.1" />
+    <line x1="5" y1="15.5" x2="15" y2="15.5" />
+  </svg>
+);
+
+const IconCompass = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="10" cy="10" r="7.5" />
+    <path d="M6.5 13.5L8.5 8.5L13.5 6.5L11.5 11.5L6.5 13.5Z" />
+    <circle cx="10" cy="10" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const IconQuestion = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <path d="M7.5 7.8C7.5 6 8.6 4.5 10 4.5s2.5 1.3 2.5 2.8c0 1.4-1.4 2-2.3 3.2" />
+    <circle cx="10" cy="15" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 const SUPPORT_STYLES = [
-  {
-    id: 'listener',
-    label: 'Someone who listens without jumping to solutions',
-    icon: '🤝',
-  },
-  {
-    id: 'patterns',
-    label: 'Help understanding the patterns behind my feelings',
-    icon: '🧠',
-  },
-  {
-    id: 'tools',
-    label: 'Practical tools I can use day-to-day',
-    icon: '🛠',
-  },
-  {
-    id: 'unsure',
-    label: "Honestly, I'm not sure yet",
-    icon: '💭',
-  },
+  { id: 'listener', label: 'Someone who listens without jumping to solutions', Icon: IconListener },
+  { id: 'patterns', label: 'Help understanding the patterns behind my feelings', Icon: IconPatterns },
+  { id: 'tools',    label: 'Practical tools I can use day-to-day',              Icon: IconCompass },
+  { id: 'unsure',   label: "Honestly, I'm not sure yet",                        Icon: IconQuestion },
 ];
 
-const LANGUAGES = ['English', 'Swahili', 'Sheng', 'Other'];
-const FORMATS   = [
-  { id: 'in_app', label: 'Text (in-app)' },
-  { id: 'voice',  label: 'Voice call' },
+const FORMATS = [
+  { id: 'in_app',    label: 'Text (in-app)' },
+  { id: 'voice',     label: 'Voice call' },
   { id: 'in_person', label: 'In-person' },
   { id: 'flexible',  label: 'Any format' },
 ];
@@ -40,17 +58,17 @@ const TIMES = [
 
 export default function TherapistIntakeScreen() {
   const navigate = useNavigate();
-  const [step,          setStep]          = useState(0); // 0=check, 1=struggles, 2=style, 3=prefs
+  const [step,          setStep]          = useState(0);
   const [struggles,     setStruggles]     = useState('');
   const [supportStyle,  setSupportStyle]  = useState('');
   const [language,      setLanguage]      = useState('English');
+  const [specifyText,   setSpecifyText]   = useState('');
   const [sessionFormat, setSessionFormat] = useState('flexible');
   const [preferredTime, setPreferredTime] = useState('evening');
   const [visible,       setVisible]       = useState(false);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState('');
 
-  // Check for existing open referral and redirect to status if found
   useEffect(() => {
     async function checkExisting() {
       try {
@@ -60,7 +78,6 @@ export default function TherapistIntakeScreen() {
         );
         if (open) { navigate('/therapists/status', { replace: true }); return; }
       } catch { /* no open referral, proceed */ }
-      // Fade in with a breath before showing the first question
       setTimeout(() => setVisible(true), 80);
       setStep(1);
     }
@@ -76,19 +93,23 @@ export default function TherapistIntakeScreen() {
     setSaving(true);
     setError('');
     try {
+      const resolvedLanguage = language === 'Specify'
+        ? (specifyText.trim() || 'Not specified')
+        : language;
+
       const { data } = await client.post('/api/referrals', {
-        struggles:               struggles.trim(),
-        preferred_time:          preferredTime,
-        contact_method:          'in_app',
+        struggles:                struggles.trim(),
+        preferred_time:           preferredTime,
+        contact_method:           'in_app',
         support_style_preference: supportStyle,
-        specific_needs:          `Language: ${language}. Format: ${sessionFormat}`,
+        specific_needs:           `Language: ${resolvedLanguage}. Format: ${sessionFormat}`,
       });
       navigate('/therapists/browse', {
         state: {
           referralId:     data.referral_id,
           struggles,
           supportStyle,
-          language,
+          language:       resolvedLanguage,
           sessionFormat,
           preferredTime,
         },
@@ -106,12 +127,10 @@ export default function TherapistIntakeScreen() {
 
   return (
     <div style={styles.screen}>
-      {/* Progress bar — thin, unobtrusive */}
       <div style={styles.progressBar}>
         <div style={{ ...styles.progressFill, width: `${progress * 100}%` }} />
       </div>
 
-      {/* Back nav */}
       {step > 1 && (
         <button
           style={styles.back}
@@ -121,31 +140,24 @@ export default function TherapistIntakeScreen() {
         </button>
       )}
 
-      {/* Step content — cross-fades between steps */}
       <div style={{ ...styles.content, opacity: visible ? 1 : 0, transform: visible ? 'none' : 'translateY(6px)' }}>
 
         {step === 1 && (
-          <Step1
-            value={struggles}
-            onChange={setStruggles}
-            onNext={goNext}
-          />
+          <Step1 value={struggles} onChange={setStruggles} onNext={goNext} />
         )}
 
         {step === 2 && (
-          <Step2
-            selected={supportStyle}
-            onSelect={setSupportStyle}
-            onNext={goNext}
-          />
+          <Step2 selected={supportStyle} onSelect={setSupportStyle} onNext={goNext} />
         )}
 
         {step === 3 && (
           <Step3
             language={language}
+            specifyText={specifyText}
             sessionFormat={sessionFormat}
             preferredTime={preferredTime}
             onLanguage={setLanguage}
+            onSpecifyText={setSpecifyText}
             onFormat={setSessionFormat}
             onTime={setPreferredTime}
             onSubmit={handleSubmit}
@@ -196,20 +208,30 @@ function Step2({ selected, onSelect, onNext }) {
       <h1 style={styles.question}>What kind of support feels right?</h1>
       <p style={styles.hint}>You can change your mind later — this is just to help us find a good fit.</p>
       <div style={styles.optionList}>
-        {SUPPORT_STYLES.map((s) => (
-          <button
-            key={s.id}
-            style={{
-              ...styles.option,
-              ...(selected === s.id ? styles.optionSelected : {}),
-            }}
-            onClick={() => onSelect(s.id)}
-          >
-            <span style={styles.optionIcon}>{s.icon}</span>
-            <span style={styles.optionLabel}>{s.label}</span>
-            {selected === s.id && <span style={styles.check}>✓</span>}
-          </button>
-        ))}
+        {SUPPORT_STYLES.map((s) => {
+          const isSelected = selected === s.id;
+          return (
+            <button
+              key={s.id}
+              style={{ ...styles.option, ...(isSelected ? styles.optionSelected : {}) }}
+              onClick={() => onSelect(s.id)}
+            >
+              <div style={{ ...styles.optionIconBox, ...(isSelected ? styles.optionIconBoxSelected : {}) }}>
+                <s.Icon />
+              </div>
+              <span style={{ ...styles.optionLabel, ...(isSelected ? styles.optionLabelSelected : {}) }}>
+                {s.label}
+              </span>
+              {isSelected && (
+                <div style={styles.checkMark}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2.5 7L5.5 10L11.5 4" />
+                  </svg>
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
       <button
         style={{ ...styles.cta, opacity: !selected ? 0.4 : 1 }}
@@ -222,7 +244,15 @@ function Step2({ selected, onSelect, onNext }) {
   );
 }
 
-function Step3({ language, sessionFormat, preferredTime, onLanguage, onFormat, onTime, onSubmit, saving, error }) {
+function Step3({ language, specifyText, sessionFormat, preferredTime, onLanguage, onSpecifyText, onFormat, onTime, onSubmit, saving, error }) {
+  const specifyRef = useRef(null);
+
+  useEffect(() => {
+    if (language === 'Specify') {
+      setTimeout(() => specifyRef.current?.focus(), 60);
+    }
+  }, [language]);
+
   return (
     <div style={styles.step}>
       <p style={styles.eyebrow}>Step 3 of 3</p>
@@ -232,7 +262,7 @@ function Step3({ language, sessionFormat, preferredTime, onLanguage, onFormat, o
       <div style={styles.prefSection}>
         <p style={styles.prefLabel}>Language you're most comfortable in</p>
         <div style={styles.pillRow}>
-          {LANGUAGES.map((l) => (
+          {['English', 'Swahili', 'Specify'].map((l) => (
             <button
               key={l}
               style={{ ...styles.pill, ...(language === l ? styles.pillActive : {}) }}
@@ -242,6 +272,16 @@ function Step3({ language, sessionFormat, preferredTime, onLanguage, onFormat, o
             </button>
           ))}
         </div>
+        {language === 'Specify' && (
+          <input
+            ref={specifyRef}
+            style={styles.specifyInput}
+            value={specifyText}
+            onChange={(e) => onSpecifyText(e.target.value.slice(0, 40))}
+            placeholder="e.g. Kikuyu, French, Arabic…"
+            maxLength={40}
+          />
+        )}
       </div>
 
       <div style={styles.prefSection}>
@@ -385,27 +425,51 @@ const styles = {
     background: 'var(--color-surface-card)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-md)',
-    padding: '16px 18px',
+    padding: '14px 16px',
     cursor: 'pointer',
-    transition: 'border-color 250ms ease, background 250ms ease',
+    transition: 'border-color 220ms ease, background 220ms ease',
     textAlign: 'left',
   },
   optionSelected: {
     borderColor: 'var(--color-calm)',
     background: 'var(--color-calm-bg)',
   },
-  optionIcon: { fontSize: 22, flexShrink: 0 },
+  optionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    background: 'var(--color-surface-secondary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    color: 'var(--color-text-secondary)',
+    transition: 'background 220ms ease, color 220ms ease',
+  },
+  optionIconBoxSelected: {
+    background: 'var(--color-calm-bg)',
+    color: 'var(--color-calm)',
+  },
   optionLabel: {
     fontSize: 15,
     lineHeight: 1.45,
     color: 'var(--color-text-primary)',
     flex: 1,
+    transition: 'color 220ms ease',
   },
-  check: {
-    color: 'var(--color-calm)',
-    fontSize: 16,
-    fontWeight: 600,
+  optionLabelSelected: {
+    color: 'var(--color-text-primary)',
+  },
+  checkMark: {
+    width: 24,
+    height: 24,
+    borderRadius: '50%',
+    background: 'var(--color-calm)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
+    color: '#fff',
   },
   prefSection: { marginBottom: 24 },
   prefLabel: {
@@ -430,6 +494,20 @@ const styles = {
     background: 'rgba(194,164,138,0.15)',
     color: 'var(--color-accent)',
     fontWeight: 500,
+  },
+  specifyInput: {
+    marginTop: 10,
+    width: '100%',
+    background: 'var(--color-surface-secondary)',
+    border: '1.5px solid var(--color-accent)',
+    borderRadius: 'var(--radius-md)',
+    padding: '11px 14px',
+    fontSize: 15,
+    color: 'var(--color-text-dark)',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 200ms ease',
+    fontFamily: 'inherit',
   },
   cta: {
     marginTop: 'auto',

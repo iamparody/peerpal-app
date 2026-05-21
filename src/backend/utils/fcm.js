@@ -3,14 +3,22 @@ const admin = require('firebase-admin');
 let initialized = false;
 
 function initFCM() {
-  if (initialized || !process.env.FCM_SERVICE_ACCOUNT_JSON) return;
+  if (initialized) return;
+  let serviceAccount = null;
+  if (process.env.FCM_SERVICE_ACCOUNT_JSON) {
+    try { serviceAccount = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON); }
+    catch (err) { console.error('FCM: invalid FCM_SERVICE_ACCOUNT_JSON:', err.message); }
+  } else if (process.env.FCM_SERVICE_ACCOUNT_PATH) {
+    try {
+      const fs = require('fs');
+      serviceAccount = JSON.parse(fs.readFileSync(process.env.FCM_SERVICE_ACCOUNT_PATH, 'utf8'));
+    } catch (err) { console.error('FCM: cannot read FCM_SERVICE_ACCOUNT_PATH:', err.message); }
+  }
+  if (!serviceAccount) return;
   try {
-    const serviceAccount = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON);
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
     initialized = true;
-  } catch (err) {
-    console.error('FCM init failed:', err.message);
-  }
+  } catch (err) { console.error('FCM init failed:', err.message); }
 }
 
 // Direct delivery — used by notificationWorker and as fallback.

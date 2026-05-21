@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UsersThree } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import { groupMeta } from '../utils/groupMeta';
+import PageHeader from '../components/PageHeader';
 
 function GroupsSkeleton() {
   return (
@@ -22,31 +23,19 @@ function GroupsSkeleton() {
 
 export default function GroupsScreen() {
   const navigate = useNavigate();
-  const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await client.get('/api/groups');
-        setGroups(data.groups ?? data ?? []);
-      } catch {
-        setError("We couldn't connect. Check your internet and try again.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['groups'],
+    queryFn: () => client.get('/api/groups').then(r => r.data),
+  });
 
-  if (loading) {
+  const groups = data?.groups ?? (Array.isArray(data) ? data : []);
+  const error = isError ? "We couldn't connect. Check your internet and try again." : '';
+
+  if (isLoading) {
     return (
       <div className="screen">
-        <div className="page-header">
-          <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
-          <h2 className="page-header__title">Groups</h2>
-        </div>
+        <PageHeader title="Groups" />
         <GroupsSkeleton />
       </div>
     );
@@ -54,10 +43,7 @@ export default function GroupsScreen() {
 
   return (
     <div className="screen">
-      <div className="page-header">
-        <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
-        <h2 className="page-header__title">Groups</h2>
-      </div>
+      <PageHeader title="Groups" />
 
       <div style={{ padding: 'var(--space-sm) var(--space-md)' }}>
         {error && <div className="error-msg" style={{ marginBottom: 'var(--space-md)' }}>{error}</div>}

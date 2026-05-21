@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Coin, SignOut } from '@phosphor-icons/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 
 const PACKAGES = [
@@ -24,12 +25,8 @@ function ProfileSkeleton() {
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState(null);
-  const [balance, setBalance] = useState(null);
-  const [transactions, setTransactions] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [notifPrefs, setNotifPrefs] = useState({});
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const [notifPrefs, setNotifPrefs] = useState(null);
   const [error, setError] = useState('');
   const [purchasing, setPurchasing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -41,35 +38,33 @@ export default function ProfileScreen() {
   const [sendingFeedback, setSendingFeedback] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [profRes, balRes, txRes, notifRes] = await Promise.all([
-        client.get('/api/profile'),
-        client.get('/api/credits/balance'),
-        client.get('/api/credits/transactions'),
-        client.get('/api/notifications'),
-      ]);
-      setProfile(profRes.data);
-      setBalance(balRes.data.balance ?? 0);
-      setTransactions(txRes.data.transactions ?? txRes.data ?? []);
-      const notifList = notifRes.data.notifications ?? notifRes.data ?? [];
-      setNotifications(notifList);
-      setNotifPrefs({
-        peer_broadcast:   profRes.data.notif_peer_broadcast ?? true,
-        checkin_reminder: profRes.data.notif_checkin_reminder ?? true,
-        group_messages:   profRes.data.notif_group_messages ?? true,
-        credit_low:       profRes.data.notif_credit_low ?? true,
-      });
-    } catch {
-      setError('We couldn\'t connect. Check your internet and try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => client.get('/api/profile').then(r => r.data),
+  });
+  const { data: balanceData } = useQuery({
+    queryKey: ['credits', 'balance'],
+    queryFn: () => client.get('/api/credits/balance').then(r => r.data),
+  });
+  const { data: txData } = useQuery({
+    queryKey: ['credits', 'transactions'],
+    queryFn: () => client.get('/api/credits/transactions').then(r => r.data),
+  });
+  const { data: notifsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => client.get('/api/notifications').then(r => r.data),
+  });
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (profile && notifPrefs === null) {
+      setNotifPrefs({
+        peer_broadcast:   profile.notif_peer_broadcast ?? true,
+        checkin_reminder: profile.notif_checkin_reminder ?? true,
+        group_messages:   profile.notif_group_messages ?? true,
+        credit_low:       profile.notif_credit_low ?? true,
+      });
+    }
+  }, [profile, notifPrefs]);
 
   async function handlePurchase(pkg) {
     setPurchasing(pkg.id);
@@ -110,6 +105,7 @@ export default function ProfileScreen() {
     if (!window.confirm('Delete all journal entries permanently? This cannot be undone.')) return;
     try {
       await client.delete('/api/journals');
+      qc.invalidateQueries({ queryKey: ['journals'] });
     } catch {
       setError('Something went wrong. Please try again.');
     }
@@ -133,6 +129,11 @@ export default function ProfileScreen() {
     logout();
     navigate('/login', { replace: true });
   }
+
+  const loading = isLoading;
+  const balance = balanceData?.balance ?? null;
+  const transactions = txData?.transactions ?? (Array.isArray(txData) ? txData : []);
+  const notifications = notifsData?.notifications ?? (Array.isArray(notifsData) ? notifsData : []);
 
   if (loading) {
     return (
@@ -293,7 +294,7 @@ export default function ProfileScreen() {
               <span className="toggle-label">{label}</span>
               <input
                 type="checkbox"
-                checked={notifPrefs[key] ?? true}
+                checked={(notifPrefs ?? {})[key] ?? true}
                 onChange={(e) => updateNotifPref(key, e.target.checked)}
                 style={{ width: 20, height: 20, accentColor: 'var(--color-accent)', cursor: 'pointer' }}
               />

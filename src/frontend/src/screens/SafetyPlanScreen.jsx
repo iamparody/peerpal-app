@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Siren } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 const DEFAULT_PLAN = {
   warning_signs: '',
@@ -29,31 +31,27 @@ function SafetyPlanSkeleton() {
 export default function SafetyPlanScreen() {
   const navigate = useNavigate();
   const [plan, setPlan] = useState(DEFAULT_PLAN);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await client.get('/api/safety-plan');
-      if (data) {
-        setPlan({
-          ...DEFAULT_PLAN,
-          ...data,
-          contacts: data.contacts?.length
-            ? [...data.contacts, ...Array(Math.max(0, 3 - data.contacts.length)).fill({ name: '', contact_detail: '' })]
-            : DEFAULT_PLAN.contacts,
-        });
-      }
-    } catch {
-      setError('We couldn\'t connect. Check your internet and try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: planData, isLoading: loading } = useQuery({
+    queryKey: ['safety-plan'],
+    queryFn: () => client.get('/api/safety-plan').then(r => r.data),
+    retry: 1,
+  });
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (planData) {
+      setPlan({
+        ...DEFAULT_PLAN,
+        ...planData,
+        contacts: planData.contacts?.length
+          ? [...planData.contacts, ...Array(Math.max(0, 3 - planData.contacts.length)).fill({ name: '', contact_detail: '' })]
+          : DEFAULT_PLAN.contacts,
+      });
+    }
+  }, [planData]);
 
   function updateField(field, value) {
     setPlan((p) => ({ ...p, [field]: value }));
@@ -85,10 +83,7 @@ export default function SafetyPlanScreen() {
   if (loading) {
     return (
       <div className="screen">
-        <div className="page-header">
-          <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
-          <h2 className="page-header__title">My Safety Plan</h2>
-        </div>
+        <PageHeader title="My Safety Plan" />
         <SafetyPlanSkeleton />
       </div>
     );
@@ -96,10 +91,7 @@ export default function SafetyPlanScreen() {
 
   return (
     <div className="screen">
-      <div className="page-header">
-        <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
-        <h2 className="page-header__title">My Safety Plan</h2>
-      </div>
+      <PageHeader title="My Safety Plan" />
 
       <div style={{ padding: 'var(--space-sm) var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
         <div className="info-banner">

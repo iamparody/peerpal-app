@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Robot, Handshake, Siren } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import MoodBlob from '../components/MoodBlob';
 
@@ -16,6 +17,7 @@ const TAGS = ['Anxious', 'Hopeful', 'Overwhelmed', 'Calm', 'Lonely', 'Grateful',
 
 export default function MoodCheckinScreen() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [mood, setMood] = useState(null);
   const [note, setNote] = useState('');
   const [tags, setTags] = useState([]);
@@ -34,6 +36,7 @@ export default function MoodCheckinScreen() {
     setLoading(true);
     try {
       await client.post('/api/moods', { mood_level: mood, note: note.trim() || undefined, tags: tags.map((t) => t.toLowerCase()) });
+      qc.invalidateQueries({ queryKey: ['moods'] });
       if (mood === 'very_low') {
         setShowLowPrompt(true);
       } else {

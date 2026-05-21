@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 const CATEGORIES = [
   { label: 'All',              value: '' },
@@ -30,37 +32,26 @@ function ResourcesSkeleton() {
 
 export default function ResourcesScreen() {
   const navigate = useNavigate();
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [contentType, setContentType] = useState('article');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
+  const { data, isLoading: loading, isError } = useQuery({
+    queryKey: ['resources', contentType, category.value, search],
+    queryFn: () => {
       const params = { content_type: contentType };
       if (search) params.search = search;
       if (category.value) params.category = category.value;
-      const { data } = await client.get('/api/resources', { params });
-      setArticles(data.articles ?? data ?? []);
-    } catch {
-      setError("We couldn't connect. Check your internet and try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, category, contentType]);
+      return client.get('/api/resources', { params }).then(r => r.data);
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
+  const articles = data?.articles ?? (Array.isArray(data) ? data : []);
+  const error = isError ? "We couldn't connect. Check your internet and try again." : '';
 
   return (
     <div className="screen">
-      <div className="page-header">
-        <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
-        <h2 className="page-header__title">Resources</h2>
-      </div>
+      <PageHeader title="Resources" />
 
       <div style={{ padding: '0 var(--space-md) var(--space-sm)' }}>
         {/* Articles / Stories toggle */}

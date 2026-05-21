@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PaperPlaneRight, Robot } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import { trackEvent } from '../utils/analytics';
 
@@ -25,6 +26,7 @@ function AIChatSkeleton() {
 
 export default function AIChatScreen() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [sessionId, setSessionId] = useState(null);
   const [personaName, setPersonaName] = useState('Your companion');
   const [messages, setMessages] = useState([]);
@@ -86,6 +88,7 @@ export default function AIChatScreen() {
     try {
       await client.post(`/api/ai/session/${sessionId}/end`, { rating: rating || undefined, feedback: feedback.trim() || undefined });
     } catch { /* non-fatal */ }
+    qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
     trackEvent('ai_session_completed');
     navigate('/dashboard', { replace: true });
   }

@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Notebook, Microphone, Stop } from '@phosphor-icons/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 const MOODS = [
   { value: 'very_low', emoji: '😔', color: 'var(--color-danger)',  label: 'Very Low' },
@@ -64,9 +66,7 @@ function EntryCard({ entry, onDelete }) {
 
 export default function JournalScreen() {
   const navigate = useNavigate();
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [moodFilter, setMoodFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -81,23 +81,19 @@ export default function JournalScreen() {
   const baseContentRef = useRef('');
   const confirmedRef = useRef('');
 
-  const load = useCallback(async () => {
-    setError('');
-    setLoading(true);
-    try {
+  const queryKey = ['journals', search, moodFilter];
+  const { data, isLoading: loading, isError } = useQuery({
+    queryKey,
+    queryFn: () => {
       const params = {};
       if (search) params.search = search;
       if (moodFilter) params.mood_level = moodFilter;
-      const { data } = await client.get('/api/journals', { params });
-      setEntries(data.entries ?? data ?? []);
-    } catch {
-      setError('We couldn\'t connect. Check your internet and try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [search, moodFilter]);
+      return client.get('/api/journals', { params }).then(r => r.data);
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
+  const entries = data?.entries ?? (Array.isArray(data) ? data : []);
+  const error = isError ? "We couldn't connect. Check your internet and try again." : '';
 
   function toggleFormTag(tag) {
     setFormTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
@@ -155,7 +151,7 @@ export default function JournalScreen() {
       setFormMood(null);
       setFormTags([]);
       setFormContent('');
-      load();
+      qc.invalidateQueries({ queryKey: ['journals'] });
     } catch (err) {
       setSaveError(err.response?.data?.error || 'Something went wrong. Please try again.');
     } finally {
@@ -164,27 +160,29 @@ export default function JournalScreen() {
   }
 
   async function handleDelete(id) {
+    qc.setQueryData(queryKey, (old) => {
+      if (!old) return old;
+      const prev = old.entries ?? (Array.isArray(old) ? old : []);
+      const next = prev.filter((e) => e.id !== id);
+      return old.entries !== undefined ? { ...old, entries: next } : next;
+    });
     try {
       await client.delete(`/api/journals/${id}`);
-      setEntries((prev) => prev.filter((e) => e.id !== id));
     } catch {
-      setError('Failed to delete entry.');
+      qc.invalidateQueries({ queryKey: ['journals'] });
     }
   }
 
   return (
     <div className="screen">
-      <div className="page-header">
-        <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
-        <h2 className="page-header__title">Journal</h2>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="btn btn--primary btn--sm"
-          style={{ marginLeft: 'auto', width: 'auto' }}
-        >
-          + New
-        </button>
-      </div>
+      <PageHeader
+        title="Journal"
+        right={
+          <button onClick={() => setShowForm((v) => !v)} className="btn btn--primary btn--sm" style={{ width: 'auto' }}>
+            + New
+          </button>
+        }
+      />
 
       {showForm && (
         <div className="card" style={{ margin: 'var(--space-md) var(--space-md) 0' }}>

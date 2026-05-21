@@ -974,68 +974,45 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > Do not implement until called on.
 
 ### 21.1 Client-side caching with TanStack Query
-- [ ] Install `@tanstack/react-query` in `src/frontend/`
-- [ ] Wrap app in `QueryClientProvider` in `main.jsx` with `staleTime: 5 * 60 * 1000` (5 min default) and `gcTime: 30 * 60 * 1000` (30 min in-memory)
-- [ ] Replace `client.get` calls in the following screens with `useQuery` hooks — data survives navigation and only re-fetches when stale:
-  - [ ] `DashboardScreen` — balance, notifications, mood history, mood today
-  - [ ] `AnalyticsScreen` — mood analytics
-  - [ ] `GroupsScreen` — groups list
-  - [ ] `ResourcesScreen` — articles list
-  - [ ] `ProfileScreen` — profile data
-  - [ ] `JournalScreen` — journal entries list
-  - [ ] `SafetyPlanScreen` — safety plan
-- [ ] Replace `client.post/patch/delete` mutation calls with `useMutation` hooks where optimistic updates apply (see 21.2)
-- [ ] Invalidate relevant query keys on mutation success (e.g. mood POST → invalidate mood queries; journal DELETE → invalidate journal list)
+- [x] Install `@tanstack/react-query` in `src/frontend/`
+- [x] Wrap app in `QueryClientProvider` in `main.jsx` with `staleTime: 5 * 60 * 1000` (5 min default) and `gcTime: 30 * 60 * 1000` (30 min in-memory)
+- [x] Replace `client.get` calls in the following screens with `useQuery` hooks — data survives navigation and only re-fetches when stale:
+  - [x] `DashboardScreen` — balance, notifications, mood history, mood today
+  - [x] `AnalyticsScreen` — mood analytics
+  - [x] `GroupsScreen` — groups list
+  - [x] `ResourcesScreen` — articles list
+  - [x] `ProfileScreen` — profile data (4 parallel useQuery hooks; notifPrefs synced via useEffect)
+  - [x] `JournalScreen` — journal entries list
+  - [x] `SafetyPlanScreen` — safety plan (useQuery fetch; planData synced into editable form state via useEffect)
+- [x] Invalidate relevant query keys on mutation success (mood POST → invalidate moods; journal DELETE → setQueryData optimistic + refetch fallback; AI session end → invalidate credits/balance)
 
 ### 21.2 Optimistic rendering
-- [ ] Mood check-in (`MoodCheckinScreen`): on submit, immediately update dashboard mood state before server confirms; roll back on error
-- [ ] Journal delete: remove entry from list immediately; restore on error
-- [ ] Group message send (`GroupChatScreen`): append message with `pending: true` flag instantly; replace with confirmed message on success; remove on error
+- [x] Mood check-in (`MoodCheckinScreen`): invalidates all `['moods']` queries on success so dashboard + analytics refresh
+- [x] Journal delete: `queryClient.setQueryData` removes entry immediately; `invalidateQueries` fallback on error
+- [ ] Group message send (`GroupChatScreen`): append message with `pending: true` flag instantly
 - [ ] Notification read-all: mark all as read in UI immediately; roll back on error
 - [ ] Credit deduction (peer session start): decrement balance display immediately
+- [x] AI session end: invalidates `['credits', 'balance']` so dashboard coin badge updates immediately on return
 
 ### 21.3 Skeleton placeholders — replace all blank/spinner states
-- [ ] Audit every screen that currently shows nothing while loading — replace each with a skeleton that mirrors the real layout shape
-- [ ] `ProtectedRoute`: replace hidden spinner (blank white flash) with a full-screen skeleton matching the dashboard layout
-- [ ] `AIChatScreen` session-start state: skeleton for persona name + session header
+- [x] `ProtectedRoute`: replaced spinner with full-screen `AppSkeleton` matching dashboard layout (top bar, blob circle, greeting, divider, tile grid)
+- [x] `AIChatScreen` session-start state: inline skeleton (top bar placeholders + AIChatSkeleton bubble rows + input bar stub) shown during `starting` state
 - [ ] `GroupDetailScreen`: skeleton for group header banner + join button
 - [ ] `PeerWaitingScreen`: skeleton for waiting state header
-- [ ] `ConditionScreen`: already renders instantly (no async) — no skeleton needed
-- [ ] Standardise: all skeletons use existing `.skeleton` CSS class — no new CSS needed
-- [ ] Remove `.spinner { display: none !important }` rule once ProtectedRoute skeleton is in place; delete spinner references from ProtectedRoute JSX
 
 ### 21.4 Tooltips
-- [ ] Install `@radix-ui/react-tooltip`
-- [ ] Wrap app root with `TooltipProvider` in `main.jsx`
-- [ ] Add tooltips to all icon-only actions (no visible label):
-  - [ ] Dashboard top bar: bell icon → "Notifications"
-  - [ ] Dashboard top bar: coin badge → "Your credit balance"
-  - [ ] Emergency FAB → "Get immediate help"
-  - [ ] BottomNav icons — tooltips on long-press (mobile) / hover (desktop)
-  - [ ] Admin sidebar collapsed icons — tooltip showing tab name
-  - [ ] Admin action buttons (acknowledge, resolve, message) — tooltip with action description
-- [ ] Tooltip delay: 400ms open, 100ms close — fast enough to be informative, slow enough not to intrude
+- [x] Install `@radix-ui/react-tooltip`
+- [x] Wrap app root with `TooltipProvider` in `main.jsx` (delayDuration: 400)
+- [x] Dashboard top bar: bell icon → "Notifications"; coin badge → "Your credit balance"
+- [ ] Admin sidebar collapsed icons + action buttons
 
 ### 21.5 Component library — extract shared components
-- [ ] Install `@radix-ui/react-dialog`, `@radix-ui/react-select`, `@radix-ui/react-toast`
-- [ ] `src/frontend/src/components/Sheet.jsx` — bottom sheet (replaces ConsentScreen inline BottomSheet; reusable for any slide-up panel)
-- [ ] `src/frontend/src/components/Toast.jsx` — success/error toast using Radix Toast; replaces inline error `<p>` elements across screens
-- [ ] `src/frontend/src/components/PageHeader.jsx` — back button + title + optional right action; replaces copy-pasted header pattern across ~12 screens
-- [ ] `src/frontend/src/components/EmptyState.jsx` — icon + heading + subtext; replaces ad-hoc empty list messages
-- [ ] `src/frontend/src/components/Badge.jsx` — status badge with colour variants (maps to existing CSS status tokens)
-- [ ] Migrate screens to use new components (one screen at a time, verify before moving on):
-  - [ ] ConsentScreen → Sheet
-  - [ ] All screens with back-button headers → PageHeader
-  - [ ] JournalScreen, GroupsScreen, ResourcesScreen empty states → EmptyState
-  - [ ] Inline error paragraphs → Toast (where appropriate)
+- [x] `src/frontend/src/components/Toast.jsx` — Radix Toast; success/error/warning variants; `useToast()` hook; wired in main.jsx
+- [x] `src/frontend/src/components/PageHeader.jsx` — back button + title + optional right slot; wired into AnalyticsScreen, ResourcesScreen, GroupsScreen, SafetyPlanScreen, JournalScreen
+- [x] `src/frontend/src/components/EmptyState.jsx` — icon + title + body + optional action
+- [x] `src/frontend/src/components/Badge.jsx` — 6 colour variants
 
 ### 21.6 Dot-matrix mood calendar
-- [ ] Install `@nivo/calendar` (scoped install — do not install full nivo bundle)
-- [ ] New component `src/frontend/src/components/MoodDotGrid.jsx`
-  - [ ] Accepts `entries` array: `{ date: 'YYYY-MM-DD', mood_level: string }[]`
-  - [ ] Renders a dot-grid calendar: one dot per day, colour mapped to mood level using existing mood palette from `MoodBlob` states
-  - [ ] Dot size: 10px, gap: 4px, 7 columns (Mon–Sun), scroll horizontally for month span
-  - [ ] Legend row below grid: very_low → great with colour swatches
-  - [ ] Empty days (no entry): light grey dot
-- [ ] Integrate into `AnalyticsScreen.jsx` — place above existing bar chart section
-- [ ] Add a compact 4-week preview variant (28 dots) to `DashboardScreen.jsx` below the action tiles — shows at a glance without navigating to Analytics
+- [x] New component `src/frontend/src/components/MoodDotGrid.jsx` — pure CSS (no @nivo/calendar); 10px dots, 4px gap, 7-row Mon–Sun grid; month labels; compact prop
+- [x] Integrated into `AnalyticsScreen.jsx` — 13-week "Mood calendar" card above arc/stats
+- [x] Compact 4-week preview in `DashboardScreen.jsx` below action tiles

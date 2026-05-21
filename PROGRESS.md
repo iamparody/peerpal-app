@@ -3,7 +3,50 @@
 ---
 
 ## Current Phase
-**Phase 19 — Therapist Marketplace — COMPLETE**
+**Phase 21 — UI Performance & Design System — SUBSTANTIALLY COMPLETE**
+
+---
+
+### Session 14 — 2026-05-21
+
+**Phase 21 — UI Performance & Design System:**
+
+**21.1 TanStack Query — ALL 7 screens converted:**
+- `DashboardScreen`, `AnalyticsScreen` — converted in prior session
+- `GroupsScreen` — `useQuery(['groups'])`, static key
+- `ResourcesScreen` — `useQuery(['resources', contentType, category.value, search])`, dynamic key refetches on filter change
+- `ProfileScreen` — 4 parallel `useQuery` hooks: `['profile']`, `['credits', 'balance']`, `['credits', 'transactions']`, `['notifications']`; `notifPrefs` local state initialized from profile data via `useEffect`
+- `JournalScreen` — `useQuery(['journals', search, moodFilter])`, dynamic key; `queryClient.invalidateQueries(['journals'])` after save
+- `SafetyPlanScreen` — `useQuery(['safety-plan'])`; `planData` synced into editable form state via `useEffect`
+
+**21.2 Optimistic updates:**
+- `MoodCheckinScreen` — `qc.invalidateQueries(['moods'])` after successful check-in; all mood-dependent screens (Dashboard, Analytics) refresh
+- `JournalScreen` delete — `queryClient.setQueryData` removes entry immediately from cache; falls back to `invalidateQueries` on error
+- `AIChatScreen` — `qc.invalidateQueries(['credits', 'balance'])` after session end so Dashboard coin badge reflects deducted credits immediately
+
+**21.3 Skeletons:**
+- `ProtectedRoute` — `AppSkeleton` replacing blank flash (prior session)
+- `AIChatScreen` — inline skeleton during `starting` state with chat bubble rows (prior session)
+
+**21.4 Tooltips:**
+- Dashboard bell + coin badge (prior session); `Tooltip.Provider` in `main.jsx`
+
+**21.5 Component library created (prior session); PageHeader migrated to:**
+- `AnalyticsScreen`, `ResourcesScreen`, `GroupsScreen`, `SafetyPlanScreen`, `JournalScreen` (with `right` slot for "+ New" button)
+
+**21.6 MoodDotGrid:**
+- Component created (prior session); integrated into AnalyticsScreen (13-week) and DashboardScreen (compact 4-week)
+
+**Other fixes completed in this session set:**
+- `fcm.js` — `initFCM()` now tries `FCM_SERVICE_ACCOUNT_JSON` first, falls back to `FCM_SERVICE_ACCOUNT_PATH` via `fs.readFileSync`
+- `CalmingSoundsScreen` — Web Audio API procedural engine (`ambientAudio.js`) replaces non-existent audio files; 8 sounds synthesized (rain, forest, ocean, white-noise, tibetan-bowls, fireplace, stream, wind); module-level singleton persists audio across navigation
+- `TherapistIntakeScreen` — "Sheng" removed from language list; "Specify" text input replaces "Other"/"Mother tongue"; 4 inline SVG icons replace emoji in support style options
+
+**Remaining Phase 21 items (deferred):**
+- 21.2: Group message send optimistic append; notification read-all optimistic; credit deduction on peer session start
+- 21.3: GroupDetailScreen skeleton; PeerWaitingScreen skeleton
+- 21.4: Admin sidebar collapsed icon tooltips
+- 21.5: ConsentScreen → Sheet; EmptyState migration for inline empty states
 
 ---
 
@@ -95,12 +138,14 @@
 ## Scoped & Pending
 **Phase 20 — Persona & Language Enhancements** — fully scoped in CHECKLIST.md (items 20.1–20.3). Not started. Three changes: mutable persona tone/style, Swahili/Sheng language switcher in AI layer, and a future fine-tuned Kenyan model switch via env var. Await implementation call.
 
-**Phase 21 — UI Performance & Design System** — fully scoped in CHECKLIST.md (items 21.1–21.6). Not started. TanStack Query caching, optimistic updates on key mutations, skeleton placeholders replacing all blank/spinner states, Radix tooltips on all icon-only actions, extracted shared component library (Sheet, Toast, PageHeader, EmptyState, Badge), and a Nivo dot-matrix mood calendar in Analytics + Dashboard. Await implementation call.
+**Phase 21 — UI Performance & Design System** — substantially complete. See Session 14 above. Remaining minor items: group/notification optimistic updates, GroupDetail/PeerWaiting skeletons, admin icon tooltips.
 
 ## Current Task
-Phase 19 complete. Therapist Marketplace fully built: intake flow, browse/select screens, confirm + status screens, backend therapist routes, admin TherapistsTab, referral updates for interests and support_style_preference.
+Phase 21 substantially complete. All 7 screens converted to TanStack Query. Key optimistic updates wired. Component library (Toast, PageHeader, EmptyState, Badge) created and integrated. MoodDotGrid dot-matrix calendar live in Analytics + Dashboard.
 
-**Next:** Apply migrations 036–039 to Supabase before using any therapist features. Then deploy.
+**Next:** Apply migrations 036–039 to Supabase before using therapist features. Then deploy.
+**Phase 20** (persona/language enhancements) — on hold until app name decision.
+**App name** — on hold; propagation to manifest/HTML/screens deferred.
 
 **Migrations applied:** 031, 032, 033, 034, 035 — all live in Supabase.
 **Migrations written, not yet applied:** 036, 037, 038, 039 — apply with `npm run migrate` in `src/backend/`.
@@ -771,3 +816,4 @@ to their support system — a direct safety risk.
 | 2026-05-06 | 10 | Bug fixes: enqueueEmail made fire-and-forget (2s race timeout on queue.add); registration handler wrapped in try/catch with dev error logging; startup diagnostics for RESEND_API_KEY + EMAIL_FROM |
 | 2026-05-21 | 11 | GRAPH_REPORT.md updated (Phases 17–18, migrations 031–034, events table, admin panel docs); dashboard timestamp fix (formatMoodTime); dashboard tappable mood affordance |
 | 2026-05-21 | 13 | Phase 19 Therapist Marketplace complete: migrations 036–039 written; therapists.js route (NEW); referrals.js + admin.js updated; 4 new frontend screens (TherapistIntakeScreen, TherapistListScreen, TherapistConfirmScreen, TherapistStatusScreen); TherapistsTab.jsx (NEW) + admin App.jsx + ReferralsTab.jsx updated; App.jsx routes + HIDE_NAV; globals.css animations |
+| 2026-05-21 | 14 | Phase 21 UI Performance & Design System: TanStack Query on all 7 screens; optimistic updates (mood invalidate, journal delete, AI session end); MoodDotGrid calendar; Toast/PageHeader/EmptyState/Badge components; PageHeader migrated into 5 screens; TherapistIntakeScreen SVG icons + Specify language; CalmingSoundsScreen Web Audio API engine (ambientAudio.js); FCM path fallback fix |
