@@ -66,6 +66,13 @@ Motivation: closes the habit → data → insight loop. Daily check-ins had no p
 - 21.4: Admin sidebar collapsed icon tooltips
 - 21.5: ConsentScreen → Sheet; EmptyState migration for inline empty states
 
+**Therapist smoke test — Session 15:**
+- Migration 041: `ALTER TYPE user_role ADD VALUE 'therapist'` — was missing from the original enum definition; caused `POST /admin/therapists` to always fail silently
+- `seed_therapists.js` written; two therapist profiles created in Supabase:
+  - **Amara Odhiambo** — anxiety/depression/stress; English + Swahili; in_app_chat + voice_call; available
+  - **David Mwangi** — trauma/grief/relationships; English + Swahili + Kikuyu; in_app_chat + in_person; limited; Westlands, Nairobi
+- All 41 migrations now applied
+
 ---
 
 ### Session 13 — 2026-05-21

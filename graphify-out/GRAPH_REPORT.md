@@ -62,7 +62,8 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 15) | Agent: Claude Co
 | `037_therapist_interests.sql` | therapist_interests | id UUID PK, member_user_id FK → users, therapist_id FK → therapist_profiles, referral_id FK → therapist_referrals, status enum (pending/matched/closed), created_at — **pending apply** |
 | `038_referrals_support_style.sql` | ALTER therapist_referrals | Adds support_style_preference column — **pending apply** |
 | `039_therapist_rls.sql` | RLS | Deny-anon policies for therapist_profiles and therapist_interests (consistent with migration 030 pattern) — **pending apply** |
-| `040_last_data_deletion_at.sql` | ALTER users | Adds `last_data_deletion_at TIMESTAMPTZ NULL` — analytics anchor for all-time view; will be set if a "clear mood data" feature is added — **pending apply** |
+| `040_last_data_deletion_at.sql` | ALTER users | Adds `last_data_deletion_at TIMESTAMPTZ NULL` — analytics anchor for all-time view; will be set if a "clear mood data" feature is added — **applied** |
+| `041_user_role_therapist.sql` | ALTER TYPE user_role | Adds `'therapist'` value to `user_role` enum — required for therapist profile creation; was missing from original 001 migration — **applied** |
 
 ### Route Files (17 files)
 | File | Endpoints |
@@ -542,7 +543,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 ### Remaining Actions
 | Task | Blocker |
 |---|---|
-| Apply migrations 036–040 | Run `npm run migrate` in `src/backend/` — therapist tables + RLS + last_data_deletion_at not yet live in Supabase |
+| Apply migrations 036–041 | ✅ All applied — therapist tables, RLS, last_data_deletion_at, user_role therapist value all live |
 | Test payment flow | Paystack live account + public webhook URL (Railway deploy needed) |
 | Configure TURN for production | Metered.ca paid plan or self-hosted coturn on Railway |
 | Deploy to Railway | Set all production env vars; run seed scripts; TCP Redis will connect from Railway |
@@ -558,7 +559,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Paystack not configured | `routes/credits.js` | Medium | Placeholder keys; purchase + webhook flow untestable until live Paystack account connected |
 | TURN server is free tier | `ws/signaling.js` | Low | openrelay.metered.ca adequate for testing; upgrade before launch |
 | Peer escalation uses setTimeout | `routes/peer.js` | Low | In-memory timer lost on server restart; consider BullMQ delayed job in production |
-| Migrations 036–039 not applied | Supabase | Medium | Therapist Marketplace backend tables not live; therapist routes return errors until applied |
+| Migrations 036–041 applied | Supabase | — | All therapist tables live; user_role therapist value added (was missing from 001) |
 
 ---
 
@@ -566,7 +567,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 | Category | Count |
 |---|---|
-| Database migrations | 40 SQL files (001–035 applied to Supabase; 036–040 written, pending apply) |
+| Database migrations | 41 SQL files (001–041 all applied to Supabase) |
 | Database tables | 25 live + 2 pending (therapist_profiles, therapist_interests); all RLS-enabled once 039 applied |
 | Backend route files | 17 |
 | Backend middleware | 3 |
