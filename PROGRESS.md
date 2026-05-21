@@ -3,7 +3,25 @@
 ---
 
 ## Current Phase
-**Phase 21 — UI Performance & Design System — SUBSTANTIALLY COMPLETE**
+**Phase 22 — Mood History & Pattern Reflection — COMPLETE**
+
+---
+
+### Session 15 — 2026-05-21
+
+**Phase 22 — Mood History & Pattern Reflection — COMPLETE**
+
+Motivation: closes the habit → data → insight loop. Daily check-ins had no payoff beyond a streak counter. This phase makes the calendar interactive (tap a dot → see that day's moods and journal entries) and adds a timeframe selector (7d / 30d / 90d / all time since account creation) so users can spot patterns over meaningful windows.
+
+**Completed:**
+- Migration 040: `last_data_deletion_at TIMESTAMPTZ NULL` on users (analytics anchor for future "clear mood data" feature; pending apply)
+- `GET /moods/history`: `from_date`/`to_date` params added; limit cap raised 50 → 500
+- `GET /moods/analytics?period=7d|30d|90d|all`: returns `trend[]` (daily/weekly/monthly per period), `account_start_date`, `common_mood` + `frequent_tags` scoped to period; cache key per period
+- `GET /moods/day?date=YYYY-MM-DD`: composite endpoint — moods (full note) + journals (full content) for a calendar date
+- `MoodDotGrid`: `onDotPress(dateStr)` callback, `weeks` prop override, hover scale animation on tappable dots
+- `DayDetailSheet` (new): bottom sheet; mood entries with emoji/tags/notes; journal cross-reference; safety framing + AI chat CTA for low/very_low days; slideUp animation
+- `AnalyticsScreen`: period pill selector (4 pills), adaptive bar chart (daily/weekly/monthly), period-scoped stat labels, DayDetailSheet on dot tap, dynamic dot grid weeks for all-time view
+- `globals.css`: `slideUp` keyframe added
 
 ---
 

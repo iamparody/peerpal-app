@@ -1016,3 +1016,42 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] New component `src/frontend/src/components/MoodDotGrid.jsx` — pure CSS (no @nivo/calendar); 10px dots, 4px gap, 7-row Mon–Sun grid; month labels; compact prop
 - [x] Integrated into `AnalyticsScreen.jsx` — 13-week "Mood calendar" card above arc/stats
 - [x] Compact 4-week preview in `DashboardScreen.jsx` below action tiles
+
+---
+
+## Phase 22 — Mood History & Pattern Reflection
+
+> Dot drill-down on the mood calendar to see what happened on a specific day, variable
+> timeframe selector (7d / 30d / 90d / all time), and cross-referencing journal entries
+> with mood data so users can identify patterns and triggers over time.
+> Closes the habit → data → insight loop that the app currently leaves open.
+
+### 22.1 Schema
+- [x] Migration 040: `ALTER TABLE users ADD COLUMN last_data_deletion_at TIMESTAMPTZ NULL` — anchor for "since last data reset" timeframe (pending apply; deletionJob not updated — field is set by a future "clear mood data" action, not full account deletion)
+
+### 22.2 Backend — moods route extensions
+- [x] `GET /moods/history`: raise max `limit` cap from 50 → 500 (dot grid needs full history); add `from_date`/`to_date` params
+- [x] `GET /moods/analytics`: add `period` query param (`7d`|`30d`|`90d`|`all`); return `trend` array (daily for 7d/30d, weekly for 90d, monthly for all) + `account_start_date`; update cache key to include period; `common_mood` and `frequent_tags` computed for the selected period window
+- [x] New `GET /moods/day?date=YYYY-MM-DD`: returns `{ moods: [...], journals: [...] }` for the given calendar date; moods include full note; journals include full content (not preview)
+
+### 22.3 Frontend — MoodDotGrid
+- [x] Add `onDotPress(dateStr)` callback prop — dots with a mood entry become tappable (cursor pointer, scale on hover)
+- [x] Add `weeks` prop override — allows AnalyticsScreen to pass dynamic week count based on timeframe
+
+### 22.4 Frontend — DayDetailSheet component
+- [x] New `src/frontend/src/components/DayDetailSheet.jsx` — bottom sheet; receives `date` + `onClose`
+- [x] Fetches `GET /api/moods/day?date=` on open; shows loading skeleton then content
+- [x] Mood entries section: time, emoji, level, tags as pills, note if present
+- [x] Journal entries section: content (truncated at 300 chars with "Read full entry →" link to /journal)
+- [x] Safety framing: if any mood is `very_low` or `low`, show quiet prompt with "Start a conversation →" link to /ai-chat
+- [x] Empty state: "Nothing logged on this day"
+
+### 22.5 Frontend — AnalyticsScreen
+- [x] Add `period` state: `'7d'` (default) | `'30d'` | `'90d'` | `'all'`
+- [x] Timeframe pill selector (4 pills, horizontal row) below the PageHeader
+- [x] Update history query: `limit` based on period (7d→91, 30d→180, 90d→365, all→500)
+- [x] Update MoodDotGrid `weeks` prop: computed from account_start_date for all-time, 13 for others
+- [x] Pass `period` to analytics `useQuery` key + fetch param; analytics drives trend + common_mood + frequent_tags
+- [x] Bar chart: shows `trend` from analytics response; label adapts (daily for 7d/30d, weekly for 90d, monthly for all)
+- [x] Wire `onDotPress` on MoodDotGrid → open DayDetailSheet with selected date
+- [x] Update stat labels to reflect period ("Last 7 days", "Last 30 days", etc.)

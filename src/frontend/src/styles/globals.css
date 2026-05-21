@@ -210,6 +210,12 @@ body {
   to   { opacity: 1; transform: translateY(0);   }
 }
 
+/* ── Bottom sheet slide-up ───────────────────────────────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0);    }
+}
+
 /* ── Therapist intake / browse intro animations ──────────────────────────────── */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }

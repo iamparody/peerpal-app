@@ -1,9 +1,18 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChartLine, ClockCounterClockwise } from '@phosphor-icons/react';
 import client from '../api/client';
 import MoodDotGrid from '../components/MoodDotGrid';
+import DayDetailSheet from '../components/DayDetailSheet';
 import PageHeader from '../components/PageHeader';
+
+const PERIODS = [
+  { key: '7d',  label: '7 days' },
+  { key: '30d', label: '30 days' },
+  { key: '90d', label: '90 days' },
+  { key: 'all', label: 'All time' },
+];
 
 const SCORE_COLORS = [
   { min: -2,   max: -1.5, color: 'var(--color-danger)'  },
@@ -47,18 +56,28 @@ function AnalyticsSkeleton() {
   );
 }
 
-function BarChart({ data }) {
+function BarChart({ data, period }) {
   if (!data?.length) return null;
+  // For all-time monthly bars, use the label field; otherwise derive from date
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: period === 'all' ? 2 : 3, height: 80, overflowX: 'auto' }}>
       {data.map((d, i) => {
         const color  = scoreColor(d.avg_score);
         const height = d.avg_score !== null ? ((d.avg_score + 2) / 4) * 80 : 4;
+        const barLabel = d.granularity === 'month'
+          ? d.label
+          : d.granularity === 'week'
+            ? new Date(d.date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })
+            : new Date(d.date).toLocaleDateString('en-KE', { weekday: 'narrow' });
         return (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-            <div style={{ width: '100%', height: Math.max(4, height), background: color, borderRadius: '3px 3px 0 0', transition: 'height 300ms ease' }} />
-            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1 }}>
-              {new Date(d.date).toLocaleDateString('en-KE', { weekday: 'narrow' })}
+          <div key={i} style={{ flex: 1, minWidth: period === 'all' ? 28 : undefined, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <div style={{
+              width: '100%', height: Math.max(4, height),
+              background: color, borderRadius: '3px 3px 0 0',
+              transition: 'height 300ms ease',
+            }} />
+            <div style={{ fontSize: period === 'all' ? 8 : 10, color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
+              {barLabel}
             </div>
           </div>
         );
@@ -115,12 +134,35 @@ function toLocalYMD(dateStr) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// How many weeks of dot grid to show per period
+function dotWeeksForPeriod(period, accountStartDate) {
+  if (period === '7d')  return 13;
+  if (period === '30d') return 13;
+  if (period === '90d') return 13;
+  if (period === 'all' && accountStartDate) {
+    const ms = Date.now() - new Date(accountStartDate).getTime();
+    const weeks = Math.ceil(ms / (7 * 24 * 60 * 60 * 1000)) + 1;
+    return Math.max(13, Math.min(weeks, 104)); // cap at 2 years
+  }
+  return 13;
+}
+
+// How many history entries to request per period
+function histLimitForPeriod(period) {
+  if (period === '7d')  return 91;
+  if (period === '30d') return 180;
+  if (period === '90d') return 365;
+  return 500; // all
+}
+
 export default function AnalyticsScreen() {
   const navigate = useNavigate();
+  const [period, setPeriod]       = useState('7d');
+  const [selectedDate, setSelectedDate] = useState(null);
 
   const { data: analyticsData, isLoading: aLoading, error: aError } = useQuery({
-    queryKey: ['moods', 'analytics'],
-    queryFn:  () => client.get('/api/moods/analytics').then(r => r.data),
+    queryKey: ['moods', 'analytics', period],
+    queryFn:  () => client.get(`/api/moods/analytics?period=${period}`).then(r => r.data),
   });
   const { data: arcData } = useQuery({
     queryKey: ['moods', 'arc'],
@@ -128,8 +170,8 @@ export default function AnalyticsScreen() {
     retry: false,
   });
   const { data: histData } = useQuery({
-    queryKey: ['moods', 'history', 91],
-    queryFn:  () => client.get('/api/moods/history?limit=91').then(r => r.data),
+    queryKey: ['moods', 'history', period],
+    queryFn:  () => client.get(`/api/moods/history?limit=${histLimitForPeriod(period)}`).then(r => r.data),
   });
 
   const loading = aLoading;
@@ -139,15 +181,51 @@ export default function AnalyticsScreen() {
   const commonMoodMeta = analyticsData?.common_mood ? MOOD_META[analyticsData.common_mood] : null;
   const arcEntries     = arcData?.entries ?? [];
   const histEntries    = histData?.entries ?? [];
+  const accountStart   = analyticsData?.account_start_date;
 
   const dotEntries = histEntries.map(e => ({
     date:       toLocalYMD(e.created_at),
     mood_level: e.mood_level,
   }));
 
+  const dotWeeks = dotWeeksForPeriod(period, accountStart);
+
+  const periodLabel = {
+    '7d': 'Last 7 days', '30d': 'Last 30 days',
+    '90d': 'Last 90 days', 'all': 'All time',
+  }[period];
+
   return (
     <div className="screen">
       <PageHeader title="My Insights" />
+
+      {/* Timeframe selector */}
+      <div style={{
+        display: 'flex', gap: 6, padding: 'var(--space-sm) var(--space-md) 0',
+        overflowX: 'auto',
+      }}>
+        {PERIODS.map(p => (
+          <button
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
+            style={{
+              padding: '5px 14px',
+              borderRadius: 20,
+              border: `1.5px solid ${period === p.key ? 'var(--color-accent)' : 'var(--color-border)'}`,
+              background: period === p.key ? 'var(--color-accent)' : 'transparent',
+              color: period === p.key ? '#fff' : 'var(--color-text-secondary)',
+              fontSize: 13,
+              fontWeight: period === p.key ? 600 : 400,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 180ms ease',
+              flexShrink: 0,
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       <div style={{ padding: 'var(--space-sm) var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {error && <div className="error-msg">{error}</div>}
@@ -162,11 +240,15 @@ export default function AnalyticsScreen() {
           </div>
         ) : (
           <>
-            {/* Dot-matrix mood calendar */}
+            {/* Dot-matrix mood calendar — tappable */}
             {dotEntries.length > 0 && (
               <div className="card">
                 <h3 style={{ marginBottom: 'var(--space-md)', fontSize: 16 }}>Mood calendar</h3>
-                <MoodDotGrid entries={dotEntries} />
+                <MoodDotGrid
+                  entries={dotEntries}
+                  weeks={dotWeeks}
+                  onDotPress={setSelectedDate}
+                />
               </div>
             )}
 
@@ -188,16 +270,18 @@ export default function AnalyticsScreen() {
               <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
                 <span style={{ fontSize: 36 }} aria-hidden="true">{commonMoodMeta.emoji}</span>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>Most common mood (30 days)</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>
+                    Most common mood ({periodLabel.toLowerCase()})
+                  </div>
                   <div style={{ color: commonMoodMeta.color, fontWeight: 600, marginTop: 2 }}>{commonMoodMeta.label}</div>
                 </div>
               </div>
             )}
 
-            {analyticsData.week_trend?.length > 0 && (
+            {analyticsData.trend?.length > 0 && (
               <div className="card">
-                <h3 style={{ marginBottom: 'var(--space-md)', fontSize: 16 }}>Last 7 days</h3>
-                <BarChart data={analyticsData.week_trend} />
+                <h3 style={{ marginBottom: 'var(--space-md)', fontSize: 16 }}>{periodLabel}</h3>
+                <BarChart data={analyticsData.trend} period={period} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)' }}>
                   <span>😔 Very Low</span><span>😊 Great</span>
                 </div>
@@ -206,7 +290,9 @@ export default function AnalyticsScreen() {
 
             {analyticsData.frequent_tags?.length > 0 && (
               <div className="card">
-                <h3 style={{ marginBottom: 'var(--space-md)', fontSize: 16 }}>Most frequent feelings (30 days)</h3>
+                <h3 style={{ marginBottom: 'var(--space-md)', fontSize: 16 }}>
+                  Most frequent feelings ({periodLabel.toLowerCase()})
+                </h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
                   {analyticsData.frequent_tags.map((t) => (
                     <span key={t.tag} className="pill" style={{ fontSize: 13 }}>
@@ -231,6 +317,14 @@ export default function AnalyticsScreen() {
           </>
         )}
       </div>
+
+      {/* Day detail sheet — mounts when a dot is tapped */}
+      {selectedDate && (
+        <DayDetailSheet
+          date={selectedDate}
+          onClose={() => setSelectedDate(null)}
+        />
+      )}
     </div>
   );
 }

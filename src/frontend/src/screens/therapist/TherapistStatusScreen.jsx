@@ -5,7 +5,7 @@ import client from '../../api/client';
 const STATUS_STEPS = ['pending', 'in_review', 'arranged', 'closed'];
 
 const STATUS_COPY = {
-  pending:   { label: 'Request received',    sub: 'We're reviewing your preferences.' },
+  pending:   { label: 'Request received',    sub: "We're reviewing your preferences." },
   in_review: { label: 'Under review',        sub: 'Our team is finding the right fit.' },
   arranged:  { label: 'Match in progress',   sub: 'Someone will reach out via message.' },
   escalated: { label: 'Needs attention',     sub: 'Our team has flagged this for follow-up.' },

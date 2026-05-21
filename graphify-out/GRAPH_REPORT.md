@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-21 (session 14) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-21 (session 15) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -62,6 +62,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 14) | Agent: Claude Co
 | `037_therapist_interests.sql` | therapist_interests | id UUID PK, member_user_id FK → users, therapist_id FK → therapist_profiles, referral_id FK → therapist_referrals, status enum (pending/matched/closed), created_at — **pending apply** |
 | `038_referrals_support_style.sql` | ALTER therapist_referrals | Adds support_style_preference column — **pending apply** |
 | `039_therapist_rls.sql` | RLS | Deny-anon policies for therapist_profiles and therapist_interests (consistent with migration 030 pattern) — **pending apply** |
+| `040_last_data_deletion_at.sql` | ALTER users | Adds `last_data_deletion_at TIMESTAMPTZ NULL` — analytics anchor for all-time view; will be set if a "clear mood data" feature is added — **pending apply** |
 
 ### Route Files (17 files)
 | File | Endpoints |
@@ -161,7 +162,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 14) | Agent: Claude Co
 | `WelcomeScreen.jsx` | `/welcome` | Time-based greeting + rotating support messages; auto-transitions /dashboard after 9s; PATCH /welcome-seen on first visit |
 | `DashboardScreen.jsx` | `/dashboard` | MoodBlob + greeting + 2×3 tile grid (Peer Help, AI Chat, Therapist, Journal, Groups, Emergency); 4 useQuery hooks (balance, notifications, mood today, history?limit=1); Radix tooltips on coin badge + bell; quick-link pills (My Insights, Safety Plan, Breathing) |
 | `MoodCheckinScreen.jsx` | `/mood` | MoodSelector + TagSelector + note (200 chars); invalidates ['moods'] queries on submit; streak toast; safety prompt overlay on very_low |
-| `AnalyticsScreen.jsx` | `/analytics` | MoodDotGrid 13-week calendar; TodayArc bar; 7-day bar chart; common mood card; frequent tags; streak + total check-ins; 3 useQuery hooks (analytics, arc, history?limit=91) |
+| `AnalyticsScreen.jsx` | `/analytics` | MoodDotGrid (dynamic weeks); TodayArc; timeframe pill selector (7d/30d/90d/all); adaptive bar chart (daily/weekly/monthly); common mood + frequent tags scoped to period; streak + total check-ins; DayDetailSheet on dot tap; 3 useQuery hooks (analytics?period=, arc, history?limit=) |
 | `AIChatScreen.jsx` | `/ai-chat` | POST /ai/session/start on mount; real-time chat bubbles; POST /session/:id/message; action='emergency' auto-navigates /emergency; FeedbackModal on end |
 | `JournalScreen.jsx` | `/journal` | CRUD journal entries; search + mood filter (useQuery dynamic key); voice-to-text (Web Speech API); optimistic delete via setQueryData; invalidates on save |
 | `GroupsScreen.jsx` | `/groups` | useQuery(['groups']); group cards with name, category, member count; PageHeader |
@@ -199,7 +200,8 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 14) | Agent: Claude Co
 | Component | Purpose |
 |---|---|
 | `MoodBlob.jsx` | Animated SVG blob; colour + expression changes by mood; blink + float animations |
-| `MoodDotGrid.jsx` | GitHub-style dot-matrix mood calendar; 10px dots, 7-row Mon–Sun grid, month labels; `compact` prop (4 weeks); used in AnalyticsScreen only (removed from Dashboard for clean home) |
+| `MoodDotGrid.jsx` | GitHub-style dot-matrix mood calendar; 10px dots, 7-row Mon–Sun grid, month labels; `compact` prop (4 weeks); `weeks` prop override (dynamic weeks for all-time view); `onDotPress(dateStr)` callback makes past dots with data tappable — used in AnalyticsScreen + DashboardScreen |
+| `DayDetailSheet.jsx` | Bottom sheet (Phase 22); receives `date` (YYYY-MM-DD) + `onClose`; fetches GET /api/moods/day; shows all mood entries (emoji, tags, note) + full journal entries for that date; safety framing + AI chat CTA for low/very_low days |
 | `PageHeader.jsx` | Reusable screen header: back button + title + optional `right` slot; wired into Analytics, Resources, Groups, SafetyPlan, Journal |
 | `Toast.jsx` | Radix Toast-based notification system; `useToast()` hook; success/error/warning/default variants; mounted in main.jsx via `<ToastProvider>` |
 | `EmptyState.jsx` | Icon + title + body + optional action button; standardises empty list states |
@@ -251,7 +253,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 
 | Table | Key Fields (3) | Notes |
 |---|---|---|
-| **users** | id UUID PK, alias UNIQUE, email UNIQUE | + password_hash, role, risk_level, streak_count, email_verified, jwt_issued_before, fcm_token, 4 notif booleans, condition_category (group_category enum nullable), peer_quiz_done boolean |
+| **users** | id UUID PK, alias UNIQUE, email UNIQUE | + password_hash, role, risk_level, streak_count, email_verified, jwt_issued_before, fcm_token, 4 notif booleans, condition_category (group_category enum nullable), peer_quiz_done boolean, last_data_deletion_at TIMESTAMPTZ NULL (analytics anchor — migration 040, pending apply) |
 | **ai_personas** | user_id UNIQUE FK, persona_name, tone enum | + response_style, formality, uses_alias; one per user |
 | **moods** | user_id FK, mood_level enum, created_at | + tags TEXT[], note (200 max) |
 | **credits** | user_id UNIQUE FK, balance INTEGER | CHECK balance >= 0; signup bonus = 2 credits |
@@ -304,9 +306,10 @@ PATCH  /welcome-seen          — Sets welcome_seen=true
 ```
 POST   /                      — {mood_level, tags[], note} → {mood_id, streak_count, bonus_credited}
 GET    /today                 — {entry} | {entry: null}
-GET    /history               — {entries, total, page} (paginated)
-GET    /analytics             — {week_trend, month_trend, common_mood, frequent_tags, by_hour, current_streak, total_checkins} (cached 300s)
+GET    /history               — {entries, total, page} (paginated; ?from_date, ?to_date; limit max raised to 500)
+GET    /analytics             — ?period=7d|30d|90d|all (default 7d); {trend[], common_mood, frequent_tags, current_streak, total_checkins, account_start_date, week_trend alias} (cached 300s per period)
 GET    /arc                   — {entries} — today's mood entries in chronological order for TodayArc chart
+GET    /day                   — ?date=YYYY-MM-DD; {date, moods[], journals[]} — full mood + journal content for one calendar date (Phase 22)
 ```
 
 ### Journals (`/api/journals`)
@@ -522,6 +525,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 19 | ✅ | Therapist Marketplace — intake flow, browse/select, confirm + status screens; therapists.js route; migrations 036–039 (pending apply) |
 | Phase 20 | 🔲 | Persona & Language Enhancements — on hold pending app name decision |
 | Phase 21 | ✅ | UI Performance & Design System — TanStack Query (all 7 screens), optimistic updates, AppSkeleton, Radix tooltips, PageHeader/Toast/EmptyState/Badge/MoodDotGrid components, Web Audio calming sounds engine |
+| Phase 22 | ✅ | Mood History & Pattern Reflection — tappable dot calendar, DayDetailSheet (moods + journals per day), timeframe selector (7d/30d/90d/all), period-scoped analytics, safety framing on low-mood days |
 
 ### Credentials & External Services Status
 | Service | Status | Notes |
@@ -538,7 +542,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 ### Remaining Actions
 | Task | Blocker |
 |---|---|
-| Apply migrations 036–039 | Run `npm run migrate` in `src/backend/` — therapist tables + RLS not yet live in Supabase |
+| Apply migrations 036–040 | Run `npm run migrate` in `src/backend/` — therapist tables + RLS + last_data_deletion_at not yet live in Supabase |
 | Test payment flow | Paystack live account + public webhook URL (Railway deploy needed) |
 | Configure TURN for production | Metered.ca paid plan or self-hosted coturn on Railway |
 | Deploy to Railway | Set all production env vars; run seed scripts; TCP Redis will connect from Railway |
@@ -562,7 +566,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 | Category | Count |
 |---|---|
-| Database migrations | 39 SQL files (001–035 applied to Supabase; 036–039 written, pending apply) |
+| Database migrations | 40 SQL files (001–035 applied to Supabase; 036–040 written, pending apply) |
 | Database tables | 25 live + 2 pending (therapist_profiles, therapist_interests); all RLS-enabled once 039 applied |
 | Backend route files | 17 |
 | Backend middleware | 3 |
@@ -571,13 +575,13 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Background workers | 2 |
 | Cron jobs | 3 |
 | Frontend screens (user app) | 40 |
-| Frontend shared components | 8 (incl. MoodDotGrid, PageHeader, Toast, EmptyState, Badge — Phase 21) |
+| Frontend shared components | 9 (incl. MoodDotGrid, PageHeader, Toast, EmptyState, Badge — Phase 21; DayDetailSheet — Phase 22) |
 | Frontend utilities | 1 (ambientAudio.js — Phase 21 Web Audio engine) |
 | Admin panel tabs | 9 (standalone `src/admin/` app) |
 | API endpoints (total) | ~73 (added /moods/arc) |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 20/21 (Phase 20 deferred) |
+| Build phases complete | 21/22 (Phase 20 deferred pending name decision; Phase 22 complete) |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects
