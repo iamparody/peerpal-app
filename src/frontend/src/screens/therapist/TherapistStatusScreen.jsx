@@ -248,13 +248,13 @@ const s = {
     fontWeight: 600,
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
-    color: 'var(--color-text-secondary)',
+    color: 'rgba(245,237,228,0.5)',
     marginBottom: 8,
   },
   cardText: {
     fontSize: 14,
     lineHeight: 1.65,
-    color: 'var(--color-text-primary)',
+    color: 'rgba(245,237,228,0.9)',
     fontFamily: 'Lora, Georgia, serif',
   },
   divider: {
@@ -292,7 +292,7 @@ const s = {
   },
   interestName: {
     fontSize: 11,
-    color: 'var(--color-text-secondary)',
+    color: 'rgba(245,237,228,0.65)',
   },
   matchedTag: {
     fontSize: 10,

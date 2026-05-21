@@ -194,11 +194,17 @@ export default function TherapistListScreen() {
 function TherapistCard({ therapist, isSelected, isDisabled, fitHighlights, staggerIndex, visible, onSelect, onViewProfile }) {
   const avail = AVAILABILITY_COLORS[therapist.availability_status] || AVAILABILITY_COLORS.available;
 
+  // Selected cards use a light calm-bg overlay (near-transparent green on cream page) → dark text.
+  // Unselected cards use --color-surface-card (#5C4035 dark brown) → light text.
+  const textMain = isSelected ? 'var(--color-text-primary)' : '#F5EDE4';
+  const textSub  = isSelected ? 'var(--color-text-secondary)' : 'rgba(245,237,228,0.65)';
+  const chipColor = isSelected ? 'var(--color-text-secondary)' : 'rgba(245,237,228,0.75)';
+  const chipBg    = isSelected ? 'rgba(47,38,34,0.08)' : 'rgba(245,237,228,0.1)';
+
   return (
     <div
       style={{
         ...s.card,
-        opacity: visible ? 1 : 0,
         transform: visible ? 'none' : 'translateY(14px)',
         transition: `opacity 450ms var(--easing-out) ${staggerIndex * 90}ms,
                      transform 450ms var(--easing-out) ${staggerIndex * 90}ms,
@@ -213,12 +219,12 @@ function TherapistCard({ therapist, isSelected, isDisabled, fitHighlights, stagg
         <div style={s.avatar}>
           {therapist.photo_url
             ? <img src={therapist.photo_url} alt={therapist.display_name} style={s.avatarImg} />
-            : <span style={s.avatarInitial}>{therapist.display_name.charAt(0)}</span>
+            : <span style={{ ...s.avatarInitial, color: textMain }}>{therapist.display_name.charAt(0)}</span>
           }
         </div>
         <div style={s.cardMeta}>
-          <p style={s.displayName}>{therapist.display_name}</p>
-          <p style={s.credentials}>{therapist.credentials}</p>
+          <p style={{ ...s.displayName, color: textMain }}>{therapist.display_name}</p>
+          <p style={{ ...s.credentials, color: textSub }}>{therapist.credentials}</p>
           <span style={{ ...s.availBadge, background: avail.bg, color: avail.text }}>
             {avail.label}
           </span>
@@ -227,7 +233,9 @@ function TherapistCard({ therapist, isSelected, isDisabled, fitHighlights, stagg
 
       {/* Plain language intro */}
       {therapist.plain_language_intro && (
-        <p style={s.intro}>{therapist.plain_language_intro.slice(0, 140)}…</p>
+        <p style={{ ...s.intro, color: isSelected ? 'var(--color-text-primary)' : 'rgba(245,237,228,0.85)' }}>
+          {therapist.plain_language_intro.slice(0, 140)}…
+        </p>
       )}
 
       {/* Fit highlights */}
@@ -243,14 +251,18 @@ function TherapistCard({ therapist, isSelected, isDisabled, fitHighlights, stagg
       {therapist.cultural_competencies?.length > 0 && (
         <div style={s.compRow}>
           {therapist.cultural_competencies.slice(0, 3).map((c) => (
-            <span key={c} style={s.compChip}>{c}</span>
+            <span key={c} style={{ ...s.compChip, color: chipColor, background: chipBg }}>{c}</span>
           ))}
         </div>
       )}
 
       {/* Actions */}
       <div style={s.cardActions}>
-        <button style={s.viewBtn} onClick={onViewProfile}>Full profile</button>
+        <button style={{
+          ...s.viewBtn,
+          border: isSelected ? '1.5px solid var(--color-border)' : '1.5px solid rgba(245,237,228,0.25)',
+          color: isSelected ? 'var(--color-text-secondary)' : 'rgba(245,237,228,0.7)',
+        }} onClick={onViewProfile}>Full profile</button>
         <button
           style={{
             ...s.selectBtn,
@@ -549,12 +561,12 @@ const s = {
   displayName: {
     fontSize: 17,
     fontWeight: 600,
-    color: 'var(--color-text-primary)',
+    color: '#F5EDE4',
     marginBottom: 3,
   },
   credentials: {
     fontSize: 12,
-    color: 'var(--color-text-secondary)',
+    color: 'rgba(245,237,228,0.65)',
     marginBottom: 6,
   },
   availBadge: {
@@ -567,7 +579,7 @@ const s = {
   intro: {
     fontSize: 14,
     lineHeight: 1.65,
-    color: 'var(--color-text-primary)',
+    color: 'rgba(245,237,228,0.85)',
     fontFamily: 'Lora, Georgia, serif',
     marginBottom: 12,
     fontStyle: 'italic',
@@ -594,8 +606,8 @@ const s = {
   },
   compChip: {
     fontSize: 11,
-    background: 'rgba(194,164,138,0.12)',
-    color: 'var(--color-text-secondary)',
+    background: 'rgba(245,237,228,0.1)',
+    color: 'rgba(245,237,228,0.75)',
     borderRadius: 'var(--radius-pill)',
     padding: '4px 10px',
   },
@@ -609,10 +621,10 @@ const s = {
     height: 40,
     padding: '0 16px',
     background: 'none',
-    border: '1.5px solid var(--color-border)',
+    border: '1.5px solid rgba(245,237,228,0.25)',
     borderRadius: 'var(--radius-pill)',
     fontSize: 13,
-    color: 'var(--color-text-secondary)',
+    color: 'rgba(245,237,228,0.7)',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
@@ -685,7 +697,7 @@ const s = {
   sheetHandle: {
     width: 36,
     height: 4,
-    background: 'var(--color-border-focus)',
+    background: 'rgba(245,237,228,0.25)',
     borderRadius: 2,
     margin: '12px auto 0',
     flexShrink: 0,
@@ -706,30 +718,30 @@ const s = {
     width: 96,
     height: 96,
     borderRadius: '50%',
-    background: 'var(--color-surface-secondary)',
+    background: 'rgba(245,237,228,0.12)',
     overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    border: '3px solid var(--color-border)',
+    border: '3px solid rgba(245,237,228,0.2)',
   },
   profileAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
   profileInitial: {
     fontSize: 38,
     fontWeight: 600,
-    color: 'var(--color-text-dark)',
+    color: '#F5EDE4',
     fontFamily: 'Lora, Georgia, serif',
   },
   profileName: {
     fontSize: 22,
     fontWeight: 600,
-    color: 'var(--color-text-primary)',
+    color: '#F5EDE4',
     marginBottom: 4,
   },
   profileCreds: {
     fontSize: 13,
-    color: 'var(--color-text-secondary)',
+    color: 'rgba(245,237,228,0.65)',
   },
   section: {
     marginBottom: 22,
@@ -739,24 +751,24 @@ const s = {
     fontWeight: 600,
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
-    color: 'var(--color-text-secondary)',
+    color: 'rgba(245,237,228,0.5)',
     marginBottom: 8,
   },
   introLong: {
     fontSize: 15,
     lineHeight: 1.7,
-    color: 'var(--color-text-primary)',
+    color: 'rgba(245,237,228,0.9)',
     fontFamily: 'Lora, Georgia, serif',
     fontStyle: 'italic',
   },
   bodyText: {
     fontSize: 14,
     lineHeight: 1.65,
-    color: 'var(--color-text-primary)',
+    color: 'rgba(245,237,228,0.85)',
   },
   sheetFooter: {
     padding: '12px 20px',
-    borderTop: '1px solid var(--color-border)',
+    borderTop: '1px solid rgba(245,237,228,0.12)',
     flexShrink: 0,
   },
   empty: {

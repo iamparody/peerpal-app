@@ -453,7 +453,7 @@ const styles = {
   optionLabel: {
     fontSize: 15,
     lineHeight: 1.45,
-    color: 'var(--color-text-primary)',
+    color: '#F5EDE4',
     flex: 1,
     transition: 'color 220ms ease',
   },
@@ -481,11 +481,11 @@ const styles = {
   pillRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   pill: {
     background: 'var(--color-surface-card)',
-    border: '1.5px solid var(--color-border)',
+    border: '1.5px solid rgba(245,237,228,0.15)',
     borderRadius: 'var(--radius-pill)',
     padding: '9px 18px',
     fontSize: 14,
-    color: 'var(--color-text-primary)',
+    color: '#F5EDE4',
     cursor: 'pointer',
     transition: 'border-color 200ms ease, background 200ms ease, color 200ms ease',
   },

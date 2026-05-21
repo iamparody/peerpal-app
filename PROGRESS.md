@@ -7,6 +7,19 @@
 
 ---
 
+### Session 16 — 2026-05-21
+
+**Therapist UI contrast fix — all 4 therapist screens**
+
+Root cause: all dark-surface elements (`--color-surface-card` #5C4035, `--color-bg-deep` #2F2622) were using the same dark text variables (`--color-text-primary` #2F2622, `--color-text-secondary` #6B4F3A), making text nearly invisible.
+
+- `TherapistListScreen`: ProfileSheet text → cream (`#F5EDE4` / rgba(245,237,228,…)); card text adapts dynamically (light when unselected dark bg, dark when selected light calm-bg); compChip, viewBtn, sheetHandle, sheetFooter all updated
+- `TherapistStatusScreen`: card label + card body text → cream
+- `TherapistConfirmScreen`: summaryCard label + body text → cream
+- `TherapistIntakeScreen`: option labels + pill text → cream when on dark surface, selected-state overrides remain dark for the light calm-bg
+
+---
+
 ### Session 15 — 2026-05-21
 
 **Phase 22 — Mood History & Pattern Reflection — COMPLETE**
