@@ -1055,3 +1055,17 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] Bar chart: shows `trend` from analytics response; label adapts (daily for 7d/30d, weekly for 90d, monthly for all)
 - [x] Wire `onDotPress` on MoodDotGrid → open DayDetailSheet with selected date
 - [x] Update stat labels to reflect period ("Last 7 days", "Last 30 days", etc.)
+
+---
+
+## Phase 22.x — Therapist UI Contrast Fix
+
+> All four therapist screens used dark text variables on dark-surface backgrounds
+> (--color-surface-card #5C4035, --color-bg-deep #2F2622), making text nearly
+> invisible. Fixed by overriding text to cream (rgba(245,237,228,…)) in every
+> dark-surface context.
+
+- [x] `TherapistListScreen`: ProfileSheet body text, section labels, handle, footer divider → cream; card text dynamic (light when unselected dark bg, dark when selected light calm-bg)
+- [x] `TherapistStatusScreen`: "What you shared" card label + body text → cream
+- [x] `TherapistConfirmScreen`: summary card label + body text → cream
+- [x] `TherapistIntakeScreen`: option labels + preference pills → cream (unselected); selected-state dark text overrides preserved for light calm-bg
