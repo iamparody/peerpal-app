@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-21 (session 11) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-21 (session 12) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -20,7 +20,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 11) | Agent: Claude Co
 | `src/backend/db/index.js` | pg Pool (max 20 connections, 30s idle timeout); exports `query()` and `getClient()` for transactions |
 | `src/backend/migrations/run.js` | Reads/executes numbered SQL files 001–028; tracks applied migrations in `migrations_log`; uses DATABASE_DIRECT_URL for DDL |
 
-### Migrations (34 SQL files, 001–034 all applied to Supabase)
+### Migrations (35 SQL files, 001–035 all applied to Supabase)
 | File | Table/Change | Key Fields |
 |---|---|---|
 | `001_users.sql` | users | UUID PK, alias UNIQUE, email UNIQUE, password_hash, role enum, risk_level enum, streak_count, consent fields, notif prefs, fcm_token |
@@ -44,7 +44,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 11) | Agent: Claude Co
 | `019_escalation_logs.sql` | escalation_logs | session_id FK, trigger_type enum, escalated_to enum, timestamp |
 | `020_therapist_referrals.sql` | therapist_referrals | user_id FK, preferred_time enum, contact_method enum, contact_detail TEXT (encrypted), specific_needs, status enum, admin_notes |
 | `021_feedback.sql` | feedback | NO user_id (anonymous by design), type enum, rating CHECK 1–5, session_id FK nullable, comment |
-| `022_psychoeducation_articles.sql` | psychoeducation_articles | title, category enum (9), content TEXT, estimated_read_minutes, tags[], status enum, created_by FK, published_at |
+| `022_psychoeducation_articles.sql` | psychoeducation_articles | title, category enum (11 — incl. trauma, relationships), content TEXT, estimated_read_minutes, tags[], status enum, created_by FK, published_at, content_type ('article'/'story'), author_name, author_bio, source_url |
 | `023_auth_recovery.sql` | ALTER users | Adds reset_token_hash, reset_token_expires |
 | `024_welcome_seen.sql` | ALTER users | Adds welcome_seen boolean (default false) |
 | `025_email_verification.sql` | ALTER users | Adds email_verified, email_verify_token_hash, email_verify_expires, jwt_issued_before |
@@ -57,6 +57,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 11) | Agent: Claude Co
 | `032_users_condition_category.sql` | ALTER users | Adds condition_category (group_category enum, nullable) — set at onboarding condition step; index on non-null values |
 | `033_peer_quiz_done.sql` | ALTER users | Adds peer_quiz_done BOOLEAN (default false) — tracks volunteer readiness quiz completion |
 | `034_events.sql` | events | id UUID PK, user_id FK nullable, event_name VARCHAR(64), properties JSONB, created_at; 3 indexes (name, user_id, created_at DESC) — basic funnel analytics |
+| `035_articles_trauma_relationships_stories.sql` | ALTER article_category enum + ALTER psychoeducation_articles | Adds 'trauma' + 'relationships' to article_category enum; adds content_type VARCHAR(10) DEFAULT 'article' (CHECK IN ('article','story')), author_name VARCHAR(100) NULL, author_bio TEXT NULL, source_url VARCHAR(500) NULL; index on content_type |
 
 ### Route Files (16 files)
 | File | Endpoints |
@@ -232,7 +233,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | **escalation_logs** | session_id FK, trigger_type enum, escalated_to | Trigger types: user_initiated, ai_escalation, peer_escalation |
 | **therapist_referrals** | user_id FK, contact_detail TEXT (encrypted), status | + preferred_time, contact_method, specific_needs, admin_notes |
 | **feedback** | type enum, rating CHECK 1-5, session_id FK | NO user_id — fully anonymous by design |
-| **psychoeducation_articles** | title, category enum (9), status enum | + content, estimated_read_minutes, tags[], created_by FK, published_at |
+| **psychoeducation_articles** | title, category enum (11), status enum, content_type | + content, estimated_read_minutes, tags[], created_by FK, published_at; content_type ∈ {article, story}; author_name/bio/source_url for stories; 55 seeded articles |
 | **ai_usage** | user_id FK, date, token_count | UNIQUE(user_id, date); supports 50k daily limit |
 | **events** | user_id FK nullable, event_name VARCHAR(64), properties JSONB | Basic funnel analytics; user_id SET NULL on delete; 3 indexes (name, user_id, created_at DESC) |
 

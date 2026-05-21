@@ -47,7 +47,7 @@
 - Backend resources.js: `content_type` query parameter supported; cache key updated to include content_type
 - Backend admin.js: GET /admin/resources includes new columns; POST/PATCH /admin/resources accepts and saves all story fields
 
-**Run required:** Migration 035 must be applied before stories can be created or trauma/relationships articles seeded..
+**Migration 035 applied (2026-05-21):** `trauma` + `relationships` added to `article_category` enum; `content_type`, `author_name`, `author_bio`, `source_url` columns live in Supabase. All 55 articles seeded — 45 original + 10 new (5 trauma, 5 relationships). Article peer review in progress — user + peer reviewers assessing helpfulness.
 
 ## Scoped & Pending
 **Phase 19 — Therapist Marketplace** — fully scoped in CHECKLIST.md (items 19.1–19.11). Not started. Transforms the referral module into a browse-and-express-interest flow with real therapist profiles, admin-managed onboarding, and a new Therapists tab in the admin panel. Await implementation call.
@@ -61,7 +61,7 @@ Phase 18 UI polish complete. All 8 tabs built, collapsible sidebar, mobile respo
 
 **Next:** Deploy src/admin/ separately (Railway or Netlify). Set `VITE_API_URL` to the backend Railway URL. Run seeds on production DB before first admin login.
 
-**Migrations applied:** 031, 032, 033, 034 — all live in Supabase.
+**Migrations applied:** 031, 032, 033, 034, 035 — all live in Supabase.
 
 ---
 

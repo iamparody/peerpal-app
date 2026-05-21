@@ -9,18 +9,9 @@
 
 ---
 
-## Action required — run migration 035
+## Migration 035 — DONE ✅ (2026-05-21)
 
-```bash
-cd src/backend && npm run migrate
-```
-
-Then seed the new articles:
-```bash
-node src/backend/scripts/seed_articles.js <admin_email>
-```
-
-(Safe to re-run — skips existing titles.)
+Applied to Supabase: `trauma` + `relationships` enum values added, `content_type`/`author_name`/`author_bio`/`source_url` columns live. All 55 articles seeded (45 original + 10 new trauma/relationships). Article peer review in progress.
 
 ---
 
