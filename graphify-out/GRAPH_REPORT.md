@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-21 (session 13) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-21 (session 14) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -99,7 +99,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 13) | Agent: Claude Co
 | `utils/aliasGenerator.js` | generateAlias(): [Adjective][Animal][Number], collision-checked, 3M combinations |
 | `utils/riskClassifier.js` | classify(text): 6 keyword categories — 2 critical (self_harm 11+, suicidal_ideation 13+), 3 high (abuse, severe_distress, substance_crisis), 1 medium (moderate_distress) |
 | `utils/sanitizer.js` | sanitize(text): removes diagnostic/prescriptive language via regex; stripHtml(): removes HTML tags; >40% stripped returns safe fallback |
-| `utils/fcm.js` | sendPushNotification(token, title, body, data) via firebase-admin; enqueuePushNotification() uses BullMQ or falls back to direct |
+| `utils/fcm.js` | sendPushNotification(token, title, body, data) via firebase-admin; enqueuePushNotification() uses BullMQ or falls back to direct; initFCM() tries FCM_SERVICE_ACCOUNT_JSON (inline JSON env var) first, falls back to FCM_SERVICE_ACCOUNT_PATH via fs.readFileSync |
 | `utils/notificationWriter.js` | writeNotification(user_id, type, payload, channel): INSERTs notification, calls enqueuePushNotification if channel includes 'push' |
 | `utils/creditDeductor.js` | deductCredit(user_id, session_id, channel): checks balance >= 1, deducts 1 credit, INSERTs transaction, sends credit_low notification if balance < 2; voice allows 2min grace on last credit |
 | `utils/paystack.js` | initializeTransaction(), verifyWebhookSignature() (HMAC-SHA512); PACKAGES const: starter 50KSh/3cr, standard 100KSh/7cr, plus 200KSh/15cr, support 500KSh/40cr |
@@ -159,22 +159,22 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 13) | Agent: Claude Co
 | Screen | Route | Purpose |
 |---|---|---|
 | `WelcomeScreen.jsx` | `/welcome` | Time-based greeting + rotating support messages; auto-transitions /dashboard after 9s; PATCH /welcome-seen on first visit |
-| `DashboardScreen.jsx` | `/dashboard` | MoodBlob + 2×3 tile grid (Peer Help, AI Chat, Therapist, Journal, Groups, Emergency); parallel fetch: today's mood, credits, notifications |
-| `MoodCheckinScreen.jsx` | `/mood` | MoodSelector + TagSelector + note (200 chars); streak toast; safety prompt overlay on very_low; milestone toast at 3/7/30 days |
-| `AnalyticsScreen.jsx` | `/analytics` | 7-day bar chart (recharts); common mood card; frequent tags; current streak; total check-ins |
+| `DashboardScreen.jsx` | `/dashboard` | MoodBlob + greeting + 2×3 tile grid (Peer Help, AI Chat, Therapist, Journal, Groups, Emergency); 4 useQuery hooks (balance, notifications, mood today, history?limit=1); Radix tooltips on coin badge + bell; quick-link pills (My Insights, Safety Plan, Breathing) |
+| `MoodCheckinScreen.jsx` | `/mood` | MoodSelector + TagSelector + note (200 chars); invalidates ['moods'] queries on submit; streak toast; safety prompt overlay on very_low |
+| `AnalyticsScreen.jsx` | `/analytics` | MoodDotGrid 13-week calendar; TodayArc bar; 7-day bar chart; common mood card; frequent tags; streak + total check-ins; 3 useQuery hooks (analytics, arc, history?limit=91) |
 | `AIChatScreen.jsx` | `/ai-chat` | POST /ai/session/start on mount; real-time chat bubbles; POST /session/:id/message; action='emergency' auto-navigates /emergency; FeedbackModal on end |
-| `JournalScreen.jsx` | `/journal` | CRUD journal entries; search (debounce 300ms); filters (mood, tag, date); paginated list |
-| `GroupsScreen.jsx` | `/groups` | GET /groups; group cards with name, category, member count |
+| `JournalScreen.jsx` | `/journal` | CRUD journal entries; search + mood filter (useQuery dynamic key); voice-to-text (Web Speech API); optimistic delete via setQueryData; invalidates on save |
+| `GroupsScreen.jsx` | `/groups` | useQuery(['groups']); group cards with name, category, member count; PageHeader |
 | `GroupDetailScreen.jsx` | `/groups/:id` | Join button (→ AgreementScreen) or Enter Chat (→ GroupChatScreen); banned users see removal message |
 | `GroupAgreementScreen.jsx` | `/groups/:id/agree` | 5-rule community agreement; POST /groups/:id/join on confirm |
 | `GroupChatScreen.jsx` | `/groups/:id/chat` | Pinned messages + scrollable chat; polls every 5s; long-press → ReportModal; Leave Group button |
 | `EmergencyScreen.jsx` | `/emergency` | Befrienders Kenya 0800 723 253 tap-to-call; POST /emergency/trigger; BreathingWidget inline; polls notifications every 10s; no back navigation |
-| `SafetyPlanScreen.jsx` | `/safety-plan` | 6-field form (all optional); GET on mount; PUT /safety-plan; contacts up to 3 (name + encrypted phone) |
-| `ResourcesScreen.jsx` | `/resources` | GET /resources; 9-category filter tabs + search; article card list |
+| `SafetyPlanScreen.jsx` | `/safety-plan` | 6-field form (all optional); useQuery(['safety-plan']); planData synced to editable form state via useEffect; PUT /safety-plan; contacts up to 3 (name + encrypted phone) |
+| `ResourcesScreen.jsx` | `/resources` | useQuery(['resources', contentType, category.value, search]); Articles/Stories toggle; 11-category filter; article card list; PageHeader |
 | `ArticleScreen.jsx` | `/resources/:id` | Full article with read-time; bookmark to localStorage |
 | `BreathingScreen.jsx` | `/breathing` | 4 exercise cards: Box, 4-7-8, Grounding 5-4-3-2-1, PMR |
-| `CalmingSoundsScreen.jsx` | `/sounds` | 8 ambient tracks from public/sounds/; one plays at a time; volume slider |
-| `ProfileScreen.jsx` | `/profile` | Account (alias, masked email), AI persona, Credits (balance + transactions + buy), Privacy (consent version, Delete Data, Clear Journal), Notifications (4 toggles), Referrals, Feedback |
+| `CalmingSoundsScreen.jsx` | `/sounds` | 8 procedurally synthesized ambient sounds via Web Audio API (ambientAudio.js singleton); rain, forest, ocean, white-noise, tibetan-bowls, fireplace, stream, wind; volume slider; stop button in header; no audio files required |
+| `ProfileScreen.jsx` | `/profile` | 4 parallel useQuery hooks (profile, credits/balance, credits/transactions, notifications); Account (alias, email), AI persona, Credits, Privacy (Delete Data, Clear Journal), Notifications (4 toggles), Feedback |
 | `ReferralScreen.jsx` | `/referral` | Therapist referral form (struggles, preferred_time, contact_method/detail); POST /referrals; confirmation screen |
 | `PublicEmergencyScreen.jsx` | `/emergency-public` | No auth; Befrienders Kenya tap-to-call; breathing animation |
 | `AdminDashboard.jsx` | `/admin` | **Removed from user app (Phase 18)** — route + import deleted from App.jsx |
@@ -190,10 +190,34 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 13) | Agent: Claude Co
 ### Therapist Marketplace Screens (`src/frontend/src/screens/therapist/`) — Phase 19
 | Screen | Route | Purpose |
 |---|---|---|
-| `TherapistIntakeScreen.jsx` | `/therapists` | 3-step conversational intake (struggles → support style → preferences); checks for existing open referral → redirects to /therapists/status; cross-fade transitions 400ms ease-out; creates referral on submit, navigates to /therapists/browse |
+| `TherapistIntakeScreen.jsx` | `/therapists` | 3-step conversational intake (struggles → support style → preferences); language list: English/Swahili/Specify (text input); support style uses inline SVG icons; checks for existing open referral → redirects /therapists/status; creates referral on submit |
 | `TherapistListScreen.jsx` | `/therapists/browse` | 1.8s warm intro moment (pulsing dots); staggered card entrance (90ms delay, 450ms ease-out); fit highlights per intake answers; ProfileSheet bottom sheet (350ms); max 3 selections; sticky CTA bar |
 | `TherapistConfirmScreen.jsx` | `/therapists/confirm` | Therapist first names in Lora font; intake summary card; home + status buttons; intentional no-auto-navigate |
 | `TherapistStatusScreen.jsx` | `/therapists/status` | Animated timeline (pending → in_review → arranged → closed); expressed interests display (avatar + name chips); re-match path for closed referrals |
+
+### Shared Components (`src/frontend/src/components/`) — Phase 21
+| Component | Purpose |
+|---|---|
+| `MoodBlob.jsx` | Animated SVG blob; colour + expression changes by mood; blink + float animations |
+| `MoodDotGrid.jsx` | GitHub-style dot-matrix mood calendar; 10px dots, 7-row Mon–Sun grid, month labels; `compact` prop (4 weeks); used in AnalyticsScreen only (removed from Dashboard for clean home) |
+| `PageHeader.jsx` | Reusable screen header: back button + title + optional `right` slot; wired into Analytics, Resources, Groups, SafetyPlan, Journal |
+| `Toast.jsx` | Radix Toast-based notification system; `useToast()` hook; success/error/warning/default variants; mounted in main.jsx via `<ToastProvider>` |
+| `EmptyState.jsx` | Icon + title + body + optional action button; standardises empty list states |
+| `Badge.jsx` | Inline status chip; 6 colour variants (default/success/warning/danger/calm/muted) |
+| `ProtectedRoute.jsx` | Auth + onboarding gate; shows `AppSkeleton` (full dashboard-shaped skeleton) during auth check instead of blank flash |
+| `BottomNav.jsx` | 5-tab nav (Home, Resources, Sounds, Breathing, Profile); NavLink active state |
+
+### Frontend Utilities (`src/frontend/src/utils/`) — Phase 21
+| File | Purpose |
+|---|---|
+| `ambientAudio.js` | Web Audio API procedural sound engine; `AmbientSound` class builds noise buffers + oscillators per sound type; 8 sounds (rain/forest/ocean/white-noise/tibetan-bowls/fireplace/stream/wind); module-level `getAmbient()` singleton persists across React navigation; no audio files needed |
+
+### Frontend Dependencies (Phase 21 additions)
+| Package | Purpose |
+|---|---|
+| `@tanstack/react-query` v5 | Server state cache; QueryClientProvider in main.jsx; staleTime 5min, gcTime 30min |
+| `@radix-ui/react-tooltip` | Tooltip primitive; TooltipProvider in main.jsx (delayDuration 400ms) |
+| `@radix-ui/react-toast` | Toast primitive; used in Toast.jsx component |
 
 ### Standalone Admin Panel (`src/admin/`) — Phase 18 + Phase 19
 Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_API_URL` to backend Railway URL.
@@ -282,6 +306,7 @@ POST   /                      — {mood_level, tags[], note} → {mood_id, strea
 GET    /today                 — {entry} | {entry: null}
 GET    /history               — {entries, total, page} (paginated)
 GET    /analytics             — {week_trend, month_trend, common_mood, frequent_tags, by_hour, current_streak, total_checkins} (cached 300s)
+GET    /arc                   — {entries} — today's mood entries in chronological order for TodayArc chart
 ```
 
 ### Journals (`/api/journals`)
@@ -473,7 +498,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 ## 8. CURRENT PHASE STATUS & REMAINING TASKS
 
-### Completed Phases (19/19)
+### Completed Phases (21/21 core; Phase 20 deferred)
 | Phase | Status | Description |
 |---|---|---|
 | Phase 1 | ✅ | Database migrations (35 SQL files applied, 4 pending; 25+ tables) |
@@ -486,21 +511,17 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 8 | ✅ | Notifications (FCM + BullMQ) |
 | Phase 9 | ✅ | Admin dashboard APIs |
 | Phase 10 | ✅ | Resources, feedback, referrals, profile, cron jobs |
-| Phase 11 | ✅ | React PWA frontend (36 screens) |
+| Phase 11 | ✅ | React PWA frontend (40 screens) |
 | Phase 12 | ✅ | Safety tests (10/10 PASSED) |
 | Phase 13 | ✅ | Launch prep (seed scripts, Docker, smoke test) |
-| Phase 14 | ✅ | Voice journaling, calming sounds, welcome screen |
+| Phase 14 | ✅ | Voice journaling, calming sounds (Web Audio API), welcome screen |
 | Phase 15 | ✅ | Email verification + password reset flow |
 | Phase 16 | ✅ | Performance, security, scale (Redis, RLS, indexes, BullMQ) |
-| Phase 17 | ✅ | Feature triage: peer incentives, onboarding condition step, peer quiz gate, group profile UI, Sentry/analytics (migrations 031–034), groups read-only for members |
-| Phase 18 | ✅ | Standalone admin panel at `src/admin/` — 8-tab redesign, collapsible sidebar, animated stat cards, mobile responsive; AdminDashboard removed from user app |
-| Phase 19 | ✅ | Therapist Marketplace — intake flow, browse/select screens, confirm + status screens; therapists.js route (NEW); referrals.js + admin.js updated; TherapistsTab.jsx (NEW); migrations 036–039 written (pending apply to Supabase) |
-
-### Scoped & Pending (not started — await implementation call)
-| Phase | Status | Description |
-|---|---|---|
-| Phase 20 | 🔲 | Persona & Language Enhancements — mutable persona, Swahili/Sheng switcher |
-| Phase 21 | 🔲 | UI Performance & Design System — TanStack Query, skeletons, Radix tooltips, shared components, Nivo mood calendar |
+| Phase 17 | ✅ | Feature triage: peer incentives, onboarding condition step, peer quiz gate, group profile UI, Sentry/analytics (migrations 031–034) |
+| Phase 18 | ✅ | Standalone admin panel at `src/admin/` — 8-tab redesign, collapsible sidebar, animated stat cards, mobile responsive |
+| Phase 19 | ✅ | Therapist Marketplace — intake flow, browse/select, confirm + status screens; therapists.js route; migrations 036–039 (pending apply) |
+| Phase 20 | 🔲 | Persona & Language Enhancements — on hold pending app name decision |
+| Phase 21 | ✅ | UI Performance & Design System — TanStack Query (all 7 screens), optimistic updates, AppSkeleton, Radix tooltips, PageHeader/Toast/EmptyState/Badge/MoodDotGrid components, Web Audio calming sounds engine |
 
 ### Credentials & External Services Status
 | Service | Status | Notes |
@@ -508,7 +529,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | **Supabase DB** | ✅ Connected | DATABASE_URL + POOLER_URL set; migrations 001–030 all applied |
 | **Groq AI** | ✅ Configured | GROQ_API_KEY set; llama-3.3-70b-versatile primary |
 | **Resend Email** | ✅ Configured | RESEND_API_KEY set; EMAIL_FROM=onboarding@resend.dev (Resend shared sender, no domain verification needed) |
-| **Firebase FCM** | ⚠️ Partial | Service account JSON present at `src/backend/config/` (gitignored); FCM_SERVICE_ACCOUNT_PATH set but FCM_SERVICE_ACCOUNT_JSON env not populated — verify which load path `utils/fcm.js` uses |
+| **Firebase FCM** | ✅ Configured | Service account JSON at `src/backend/config/` (gitignored); FCM_SERVICE_ACCOUNT_PATH set in .env; `utils/fcm.js` tries FCM_SERVICE_ACCOUNT_JSON env first, falls back to FCM_SERVICE_ACCOUNT_PATH via fs.readFileSync |
 | **Upstash Redis (REST)** | ✅ Connected | UPSTASH_REDIS_REST_URL + TOKEN set; @upstash/redis REST client active for cache + rate limiting; PING verified; cache set/get/del round-trip verified |
 | **Upstash Redis (TCP)** | ⚠️ Blocked locally | UPSTASH_REDIS_URL set but port 6380 blocked on local network; ioredis gives up after 3 retries (family:4 fix prevents AggregateError flood); BullMQ falls back to sync delivery locally; will connect on Railway |
 | **Paystack** | ❌ Not configured | PAYSTACK_SECRET_KEY still placeholder; needs live account |
@@ -517,10 +538,11 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 ### Remaining Actions
 | Task | Blocker |
 |---|---|
-| Verify FCM path | Check `utils/fcm.js` — uses `FCM_SERVICE_ACCOUNT_JSON` env or `FCM_SERVICE_ACCOUNT_PATH` file; confirm which and set accordingly |
+| Apply migrations 036–039 | Run `npm run migrate` in `src/backend/` — therapist tables + RLS not yet live in Supabase |
 | Test payment flow | Paystack live account + public webhook URL (Railway deploy needed) |
 | Configure TURN for production | Metered.ca paid plan or self-hosted coturn on Railway |
 | Deploy to Railway | Set all production env vars; run seed scripts; TCP Redis will connect from Railway |
+| App name decision | Propagate to manifest.json, index.html, DashboardScreen topbar, legal page [Your Name] placeholders |
 
 ---
 
@@ -529,10 +551,10 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Issue | Location | Severity | Notes |
 |---|---|---|---|
 | BullMQ TCP blocked locally | `config/redis.js` | Low | Port 6380 blocked on local network; ioredis retries 3× then stops (no crash, no flood); BullMQ falls back to sync delivery; resolves automatically on Railway |
-| FCM load path unclear | `utils/fcm.js` | Medium | Firebase JSON file exists at `src/backend/config/` (gitignored); verify fcm.js reads via `FCM_SERVICE_ACCOUNT_PATH` or `FCM_SERVICE_ACCOUNT_JSON` env |
-| Paystack not configured | `routes/credits.js` | Medium | Placeholder keys; purchase + webhook flow untestable |
-| TURN server is free tier | `ws/signaling.js` | Low | openrelay.metered.ca is adequate for testing; upgrade before launch |
+| Paystack not configured | `routes/credits.js` | Medium | Placeholder keys; purchase + webhook flow untestable until live Paystack account connected |
+| TURN server is free tier | `ws/signaling.js` | Low | openrelay.metered.ca adequate for testing; upgrade before launch |
 | Peer escalation uses setTimeout | `routes/peer.js` | Low | In-memory timer lost on server restart; consider BullMQ delayed job in production |
+| Migrations 036–039 not applied | Supabase | Medium | Therapist Marketplace backend tables not live; therapist routes return errors until applied |
 
 ---
 
@@ -542,18 +564,20 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 |---|---|
 | Database migrations | 39 SQL files (001–035 applied to Supabase; 036–039 written, pending apply) |
 | Database tables | 25 live + 2 pending (therapist_profiles, therapist_interests); all RLS-enabled once 039 applied |
-| Backend route files | 17 (added therapists.js) |
+| Backend route files | 17 |
 | Backend middleware | 3 |
 | Backend utilities | 9 |
 | Backend services | 2 |
 | Background workers | 2 |
 | Cron jobs | 3 |
-| Frontend screens (user app) | 40 (added TherapistIntakeScreen, TherapistListScreen, TherapistConfirmScreen, TherapistStatusScreen) |
-| Admin panel tabs | 9 (standalone `src/admin/` app; added TherapistsTab) |
-| API endpoints (total) | ~72 |
+| Frontend screens (user app) | 40 |
+| Frontend shared components | 8 (incl. MoodDotGrid, PageHeader, Toast, EmptyState, Badge — Phase 21) |
+| Frontend utilities | 1 (ambientAudio.js — Phase 21 Web Audio engine) |
+| Admin panel tabs | 9 (standalone `src/admin/` app) |
+| API endpoints (total) | ~73 (added /moods/arc) |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 19/19 |
+| Build phases complete | 20/21 (Phase 20 deferred) |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects
