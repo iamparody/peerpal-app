@@ -3,34 +3,30 @@
 ---
 
 ## Current Phase
-**Phase 23 — Notifications UX, Emergency Response Gap, Admin Depth — COMPLETE**
+**Phase 25 — Admin Bug Fixes + Credits UX — COMPLETE**
 
 ---
 
 ## Planned Work
 
 ### Phase 24 — Help a Friend Module (content-pending)
-Build blocked on clinical content sign-off. Logged in CHECKLIST.md.
+Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 
 ---
 
-**23.1 — Notifications Screen (stratified)**
-Problem: 9+ badge with no way to read or act on notifications. All 13 notification types are stored but never surfaced in a list.
-Plan: New `NotificationsScreen` with 4 tabbed lanes (Activity / Support / Payments / System), type-specific icons, human-readable labels, deep-link actions per type. Dashboard bell + ProfileScreen badge both link to this screen.
+### Session 19 — 2026-05-22
 
-**23.2 — Emergency Response Gap**
-Problem: User who presses Emergency gets hotlines and silence from the app. No confirmation their SOS was received. Admin acknowledgement has no effect on the user's screen. Admin "message user" action is buried in a separate tab.
-Plan: (a) EmergencyScreen polls emergency log status — shows "Someone has seen this" when acknowledged_at is set. (b) After 5 min with no ack, escalate hotline prompt. (c) Admin emergency tile gets a "Message this user now" quick action inline.
+**Phase 25 — Admin Bug Fixes + Credits UX — COMPLETE**
 
-**23.3 — Admin Stats Depth**
-Problem: Admin StatsTab shows flat counts. No time-series view. No way to identify high-utilisation users who may need proactive outreach.
-Plan: Per-day usage line chart (DAU, AI sessions, peer sessions, emergencies). New "Patterns" tab flagging users with 3+ emergency triggers, 2+ open therapist referrals, or 5+ peer sessions in 7 days — with a direct "Message" action.
+**Admin infinite-loading bug (Phase 23.3 post-merge fixes)**
+- Root cause: Express 4 does not auto-catch unhandled promise rejections in async route handlers — SQL errors in the two new admin endpoints caused requests to hang forever
+- `GET /api/admin/stats/daily` — rewrote `generate_series` using `generate_series(0, days-1)` integer offset + `CURRENT_DATE - n` (date arithmetic, no interval cast). Added `try/catch` returning 500 on failure
+- `GET /api/admin/users/patterns` — fixed two SQL bugs: column `user_id` → `member_user_id` on `therapist_interests` table; status filter `NOT IN ('arranged','closed')` → `NOT IN ('matched','closed')` to match actual CHECK constraint. Added `try/catch`
 
-### Phase 24 — Help a Friend Module (content-pending)
-Concept confirmed 2026-05-22. Build is blocked on clinical content sign-off.
-Concept: Equip existing app users with bystander intervention skills for helping someone in their network who is struggling — before they're in a position to help the person access the app. CPR analogy: you don't need to be a therapist, you need enough to keep someone stable until professional help arrives.
-Format: 6–8 scenario cards (friend with heavy substance use, friend withdrawn/hopeless, friend after major loss, alarming statement, panic attack, awkward check-in, when to escalate). Each card: signs → what to say → what NOT to say → when to get more help → share button (shareable without login).
-Blocker: Scenarios and copy must be clinically validated (WHO mhGAP / MHFA Kenya / Befrienders guidelines) before build starts. Wrong content on suicide/self-harm is harmful. Log as Phase 24 pending content.
+**Credits UX — dedicated CreditsScreen**
+- `CreditsScreen.jsx` (new) at `/credits` — large balance display, 4 top-up packages with descriptions, full transaction history with human-readable labels (Top up / Session / Bonus / Refund)
+- Accessible from: DashboardScreen balance badge (now a `<button>` → `/credits`), `credit_low` and `payment_confirmed` notification taps (updated from `/profile`), ProfileScreen "Manage →" / "Top up now" link
+- ProfileScreen credits card simplified to balance summary + link only — purchase flow no longer buried inside settings
 
 ---
 

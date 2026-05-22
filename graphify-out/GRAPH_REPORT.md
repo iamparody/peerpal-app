@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-22 (session 18) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -531,6 +531,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 21 | ✅ | UI Performance & Design System — TanStack Query (all 7 screens), optimistic updates (group send, notification read-all, credits invalidation), skeletons, Radix tooltips, component library, Web Audio calming sounds engine |
 | Phase 22 | ✅ | Mood History & Pattern Reflection — tappable dot calendar, DayDetailSheet (moods + journals per day), timeframe selector (7d/30d/90d/all), period-scoped analytics, safety framing on low-mood days |
 | Phase 23 | ✅ | Notifications UX (NotificationsScreen, 4 lanes, deep-links), Emergency feedback loop (GET /emergency/status, polling, ack/escalate/resolve states), Admin depth (daily chart, GET /admin/stats/daily, PatternsTab, GET /admin/users/patterns) |
+| Phase 25 | ✅ | Admin stats/patterns SQL bug fixes (generate_series integer offset; member_user_id; matched|closed); CreditsScreen at /credits (balance, packages, history); balance badge clickable; credit_low notification → /credits |
 
 ### Credentials & External Services Status
 | Service | Status | Notes |
@@ -579,14 +580,14 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Backend services | 2 |
 | Background workers | 2 |
 | Cron jobs | 3 |
-| Frontend screens (user app) | 42 (+ NotificationsScreen) |
+| Frontend screens (user app) | 43 (+ NotificationsScreen, CreditsScreen) |
 | Frontend shared components | 9 (incl. MoodDotGrid, PageHeader, Toast, EmptyState, Badge — Phase 21; DayDetailSheet — Phase 22) |
 | Frontend utilities | 1 (ambientAudio.js — Phase 21 Web Audio engine) |
 | Admin panel tabs | 10 (+ PatternsTab) |
 | API endpoints (total) | ~77 (+ GET /emergency/status, GET /admin/stats/daily, GET /admin/users/patterns, PATCH /notifications/:id/read) |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 23/23 (Phase 23 complete; Phase 20.3 custom model pending external collaboration) |
+| Build phases complete | 25/25 (Phase 23 + 25 complete; Phase 20.3 custom model pending external collaboration; Phase 24 blocked on clinical content) |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects

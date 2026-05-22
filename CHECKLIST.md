@@ -1131,6 +1131,29 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ---
 
+## Phase 25 — Admin Bug Fixes + Credits UX
+
+> Fixes and improvements identified during session 19 (2026-05-22).
+
+### 25.1 — Admin Stats/Patterns Infinite Load (Bug Fixes)
+
+> Root cause: Express 4 does not auto-catch async errors in route handlers. Both new Phase 23 admin endpoints had SQL bugs causing unhandled rejections → request hangs indefinitely.
+
+- [x] `GET /api/admin/stats/daily` — rewrite `generate_series` using integer offset (`CURRENT_DATE - n` where n is `generate_series(0, days-1)`); `date - integer = date` in PG, no interval cast ambiguity; add `try/catch` so failures return 500 instead of hanging
+- [x] `GET /api/admin/users/patterns` — fix column `user_id` → `member_user_id` on `therapist_interests`; fix status filter `NOT IN ('arranged','closed')` → `NOT IN ('matched','closed')` to match actual CHECK constraint; add `try/catch`
+
+### 25.2 — Dedicated Credits Screen
+
+> Problem: Purchase flow and transaction history were buried inside ProfileScreen (a settings screen). Users low on credits mid-session had to navigate Profile → scroll → find credits section.
+
+- [x] New `CreditsScreen.jsx` at `/credits` — large balance display, all 4 purchase packages with descriptions, full transaction history with human-readable type labels
+- [x] `DashboardScreen`: balance badge changed from non-interactive `<span>` to `<button>` navigating to `/credits`; tooltip updated to "Credits · tap to top up"
+- [x] `NotificationsScreen`: `credit_low` and `payment_confirmed` notification tap routes updated `/profile` → `/credits`
+- [x] `ProfileScreen`: credits card simplified to balance summary + "Manage →" / "Top up now" link; full purchase UI, packages, and transaction list removed from ProfileScreen
+- [x] `App.jsx`: `CreditsScreen` imported, `/credits` route added, `/credits` added to `HIDE_NAV_ON`
+
+---
+
 ## Phase 24 — Help a Friend Module
 
 > Concept confirmed 2026-05-22. **Build blocked on clinical content sign-off.**
