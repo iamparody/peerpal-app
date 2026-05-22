@@ -1062,3 +1062,107 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] `TherapistStatusScreen`: "What you shared" card label + body text → cream
 - [x] `TherapistConfirmScreen`: summary card label + body text → cream
 - [x] `TherapistIntakeScreen`: option labels + preference pills → cream (unselected); selected-state dark text overrides preserved for light calm-bg
+
+---
+
+## Phase 23 — Notifications UX, Emergency Response Gap, Admin Depth
+
+> Three gaps identified on 2026-05-22.
+> 23.1: notification data exists but is never surfaced to the user.
+> 23.2: emergency SOS has no feedback loop — user presses the button and hears nothing back from the app.
+> 23.3: admin stats are flat counts; no time-series; no high-utilisation flagging.
+
+### 23.1 — Notifications Screen (stratified)
+
+> Problem: 13 notification types stored in DB, only a badge count shown. User cannot read, act on, or understand any notification.
+
+**Backend:**
+- [ ] Verify `GET /api/notifications` returns `type`, `payload`, `read_at`, `created_at` for all notifications (no new endpoint needed if this already returns full records)
+- [ ] Verify `PATCH /api/notifications/:id/read` exists or add it — mark single notification as read
+- [ ] Confirm `PATCH /api/notifications/read-all` works (already implemented — verify)
+
+**Frontend:**
+- [ ] New screen `NotificationsScreen.jsx` at `/notifications`
+  - [ ] 4 tabs: **Activity** (milestone, peer_broadcast, journal_prompt) · **Support** (therapist_update, referral_status, admin_message, emergency_alert for member) · **Payments** (credit_low, payment_confirmed) · **System** (account_notice, generic)
+  - [ ] Each tab shows unread count badge on the tab label
+  - [ ] Each notification row: type icon + human-readable title + relative time + unread dot
+  - [ ] Tap action routes to relevant screen per type: peer_broadcast → `/peer`, milestone → `/analytics`, credit_low → `/profile`, therapist_update → `/therapists/status`, admin_message → stays open and marks read, journal_prompt → `/journal`
+  - [ ] Swipe-to-read or tap-to-mark-read; read notifications visually dimmed
+  - [ ] Empty state per tab: "Nothing here yet"
+- [ ] Update `DashboardScreen`: bell icon routes to `/notifications` (currently links to ProfileScreen or does nothing)
+- [ ] Update `ProfileScreen`: unread badge and "X new" label links to `/notifications`
+- [ ] Add `/notifications` route to `App.jsx`
+
+### 23.2 — Emergency Response Gap
+
+> Problem: User who presses Emergency gets hotlines + silence. No confirmation SOS was received. Admin acknowledgement has no effect on user's screen. "Message this user" action is buried away from the emergency tile in admin.
+
+**Backend:**
+- [ ] `GET /api/emergency/status` — returns latest open emergency log for the authed user: `{ id, status, acknowledged_at, resolved_at }` (auth-protected, user sees only their own)
+
+**Frontend — EmergencyScreen:**
+- [ ] Add `useEffect` polling `GET /api/emergency/status` every 8s while screen is mounted
+- [ ] State: `ackStatus` = `null | 'acknowledged' | 'resolved'`
+- [ ] When `acknowledged_at` is set: replace the "Finding someone" indicator with a calm banner — **"Someone has seen this. You are not alone. Stay on this screen."** Pulse animation stops; banner uses `--color-calm` accent
+- [ ] When 5 minutes elapse with no acknowledgement: escalate hotline section — larger tap targets, bold text, secondary message "No response yet — please call now. The line is free and available 24/7."
+- [ ] When `resolved_at` is set: show gentle close prompt — "The team has followed up on your alert. Please reach out again if you need more support." + button back to Dashboard
+
+**Admin panel — EmergencyTab:**
+- [ ] Add "Message now" inline button on each open emergency row — opens MessageModal pre-filled with user alias; no tab-switching required
+- [ ] Show elapsed time since trigger clearly on each row (already exists — verify it's visible enough)
+- [ ] Acknowledge button updates `acknowledged_at` on the emergency log (verify this is wired; if not, add `PATCH /api/admin/emergency/:id/acknowledge`)
+
+### 23.3 — Admin Stats Depth
+
+> Problem: StatsTab shows flat lifetime counts. No time-series. No way to find high-utilisation users who may need proactive outreach.
+
+**Backend:**
+- [ ] `GET /api/admin/stats/daily?days=30` — returns array of daily buckets: `{ date, dau, ai_sessions, peer_sessions, emergencies, new_users }` — queries sessions, emergency_logs, users tables grouped by DATE(created_at)
+- [ ] `GET /api/admin/users/patterns` — returns users matching any of: 3+ emergency triggers (all time), 2+ therapist referrals with no `arranged`/`closed` status, 5+ peer sessions in last 7 days; returns `{ user_alias, pattern_flags[], last_seen, counts }` — no PII exposed, alias only
+
+**Admin panel — StatsTab:**
+- [ ] Replace or extend current flat-count display with a **line chart** (reuse existing chart library or add lightweight one — Recharts already in use if so, else add) showing DAU, AI sessions, peer sessions, emergencies over last 30 days
+- [ ] Y-axis per metric togglable; X-axis = date labels
+
+**Admin panel — new "Patterns" tab:**
+- [ ] New tab added to admin tab bar: **Patterns**
+- [ ] Lists users returned by `GET /api/admin/users/patterns`
+- [ ] Per row: alias · pattern flags as colour-coded chips (e.g. "3 emergencies" in red, "peer ×6 this week" in amber, "2 open referrals" in orange) · last active date · "Message" button → MessageModal
+- [ ] Empty state: "No high-utilisation patterns detected"
+- [ ] Refresh button; auto-refreshes on tab focus
+
+---
+
+## Phase 24 — Help a Friend Module
+
+> Concept confirmed 2026-05-22. **Build blocked on clinical content sign-off.**
+> Do not implement UI until scenario copy has been reviewed by a clinical consultant
+> or validated against WHO mhGAP / MHFA Kenya / Befrienders training materials.
+
+### 24.0 Content (prerequisite — must complete before any build)
+- [ ] Define 6–8 scenarios with titles, signs to look for, what to say, what NOT to say, when to escalate
+  - Scenario 1: Friend who seems withdrawn, hopeless, stopped engaging
+  - Scenario 2: Friend with heavy substance use (alcohol, other) — the "don't gatekeep" problem
+  - Scenario 3: Friend after major loss (job, relationship, bereavement)
+  - Scenario 4: Friend who says something alarming ("I just want it to stop", "what's the point")
+  - Scenario 5: Friend in a panic attack — what to do in the room right now
+  - Scenario 6: How to check in without it feeling awkward or intrusive
+  - Scenario 7: When you are not enough — how to hand off to professional help without abandoning them
+  - Scenario 8 (optional): Supporting yourself after supporting someone else (helper fatigue)
+- [ ] Clinical review of all scenario copy — must not overclaim, must not advise dangerous actions, must include "call for help" escalation in every scenario
+- [ ] Decide attribution: WHO mhGAP lay guide, MHFA Kenya, Befrienders, or original with consultant sign-off
+
+### 24.1 Backend
+- [ ] New `content_type` value `'guide'` in psychoeducation_articles (or separate `support_guides` table if content structure differs significantly)
+- [ ] Seed script for the 6–8 scenarios — each stored with: `title`, `scenario_tag` (slug), `signs_text`, `what_to_say` (array), `what_not_to_say` (array), `when_to_escalate`, `share_slug` (short URL-safe identifier)
+- [ ] `GET /api/support-guides` — returns all active guides; no auth required (shareable without login)
+- [ ] `GET /api/support-guides/:slug` — returns single guide by share_slug; no auth required
+
+### 24.2 Frontend
+- [ ] New screen `SupportAFriendScreen.jsx` at `/support-friend` — accessible from Resources screen and Dashboard (add tile or link)
+- [ ] Card list: scenario icon + title + one-line hook
+- [ ] Tap → `ScenarioDetailScreen.jsx` at `/support-friend/:slug`
+  - Signs section · What to say section (do list) · What NOT to say section (don't list) · When to get more help section · Share button
+  - Share button: copies a link `[app-url]/support-friend/:slug` — opens without login (public route)
+- [ ] Add `/support-friend` and `/support-friend/:slug` as public routes in `App.jsx`
+- [ ] Add "Support a Friend" entry to `ResourcesScreen` or as a Dashboard tile
