@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-22 (session 21) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -20,7 +20,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Co
 | `src/backend/db/index.js` | pg Pool (max 20 connections, 30s idle timeout); exports `query()` and `getClient()` for transactions |
 | `src/backend/migrations/run.js` | Reads/executes numbered SQL files 001–028; tracks applied migrations in `migrations_log`; uses DATABASE_DIRECT_URL for DDL |
 
-### Migrations (39 SQL files, 001–035 applied to Supabase; 036–039 written, pending apply)
+### Migrations (44 SQL files, 001–042 applied; 043–044 written, pending apply)
 | File | Table/Change | Key Fields |
 |---|---|---|
 | `001_users.sql` | users | UUID PK, alias UNIQUE, email UNIQUE, password_hash, role enum, risk_level enum, streak_count, consent fields, notif prefs, fcm_token |
@@ -62,8 +62,11 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Co
 | `037_therapist_interests.sql` | therapist_interests | id UUID PK, member_user_id FK → users, therapist_id FK → therapist_profiles, referral_id FK → therapist_referrals, status enum (pending/matched/closed), created_at — **pending apply** |
 | `038_referrals_support_style.sql` | ALTER therapist_referrals | Adds support_style_preference column — **pending apply** |
 | `039_therapist_rls.sql` | RLS | Deny-anon policies for therapist_profiles and therapist_interests (consistent with migration 030 pattern) — **pending apply** |
-| `040_last_data_deletion_at.sql` | ALTER users | Adds `last_data_deletion_at TIMESTAMPTZ NULL` — analytics anchor for all-time view; will be set if a "clear mood data" feature is added — **applied** |
-| `041_user_role_therapist.sql` | ALTER TYPE user_role | Adds `'therapist'` value to `user_role` enum — required for therapist profile creation; was missing from original 001 migration — **applied** |
+| `040_last_data_deletion_at.sql` | ALTER users | Adds `last_data_deletion_at TIMESTAMPTZ NULL` — analytics anchor for all-time view — **applied** |
+| `041_user_role_therapist.sql` | ALTER TYPE user_role | Adds `'therapist'` value to `user_role` enum — **applied** |
+| `042_ai_persona_language_and_updated_at.sql` | ALTER ai_personas | Adds `language VARCHAR(20) DEFAULT 'english'` + `updated_at TIMESTAMPTZ`; CHECK IN (english/swahili/sheng) — **applied** |
+| `043_credit_system_v2.sql` | ALTER credit_transactions + enums | Adds `duration_minutes INTEGER NULL`; adds `'refund'` to `credit_tx_type`; adds `'ai'` and `'referral'` to `credit_tx_channel` — **pending apply** |
+| `044_peer_stats.sql` | CREATE peer_stats + enums | New table: user_id UNIQUE FK, sessions_completed INT, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2), redeemed_credits_lifetime DECIMAL(10,2); adds `'peer_earning'` to `credit_tx_type` and `credit_tx_channel`; RLS deny-anon — **pending apply** |
 
 ### Route Files (17 files)
 | File | Endpoints |
@@ -73,7 +76,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Co
 | `routes/moods.js` | POST /, GET /today, GET /history, GET /analytics |
 | `routes/journals.js` | POST /, GET /, GET /:id, PATCH /:id, DELETE /:id, DELETE / |
 | `routes/ai.js` | POST /session/start, POST /session/:id/message, POST /session/:id/end |
-| `routes/credits.js` | GET /balance, GET /transactions, POST /purchase, POST /webhook, POST /deduct |
+| `routes/credits.js` | GET /balance, GET /transactions, POST /purchase, POST /webhook |
 | `routes/peer.js` | POST /request, GET /requests/open, PATCH /request/:id/accept, PATCH /request/:id/close, GET /session/:id, GET /request/:id/status |
 | `routes/groups.js` | GET /, GET /:id, POST /:id/join, POST /:id/leave, GET /:id/messages, POST /:id/messages, POST /:id/messages/:msgId/report |
 | `routes/emergency.js` | POST /trigger |
@@ -103,7 +106,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Co
 | `utils/sanitizer.js` | sanitize(text): removes diagnostic/prescriptive language via regex; stripHtml(): removes HTML tags; >40% stripped returns safe fallback |
 | `utils/fcm.js` | sendPushNotification(token, title, body, data) via firebase-admin; enqueuePushNotification() uses BullMQ or falls back to direct; initFCM() tries FCM_SERVICE_ACCOUNT_JSON (inline JSON env var) first, falls back to FCM_SERVICE_ACCOUNT_PATH via fs.readFileSync |
 | `utils/notificationWriter.js` | writeNotification(user_id, type, payload, channel): INSERTs notification, calls enqueuePushNotification if channel includes 'push' |
-| `utils/creditDeductor.js` | deductCredit(user_id, session_id, channel): checks balance >= 1, deducts 1 credit, INSERTs transaction, sends credit_low notification if balance < 2; voice allows 2min grace on last credit |
+| `utils/creditDeductor.js` | `deductCredit(user_id, amount, session_id, channel)`: atomic decrement by `amount` (1 or 2); session_id nullable (backfilled later); INSERTs credit_transaction type='debit'; sends credit_low notification if balance < 2. `refundCredit(user_id, amount, session_id, channel, reason)`: adds credits back, INSERTs type='refund', sends account_notice notification |
 | `utils/paystack.js` | initializeTransaction(), verifyWebhookSignature() (HMAC-SHA512); PACKAGES const: starter 50KSh/3cr, standard 100KSh/7cr, plus 200KSh/15cr, support 500KSh/40cr |
 
 ### Services (2 files)
@@ -170,13 +173,15 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Co
 | `GroupDetailScreen.jsx` | `/groups/:id` | Join button (→ AgreementScreen) or Enter Chat (→ GroupChatScreen); banned users see removal message |
 | `GroupAgreementScreen.jsx` | `/groups/:id/agree` | 5-rule community agreement; POST /groups/:id/join on confirm |
 | `GroupChatScreen.jsx` | `/groups/:id/chat` | Pinned messages + scrollable chat; polls every 5s; long-press → ReportModal; Leave Group button; optimistic message send (pending:true at 0.55 opacity) |
-| `EmergencyScreen.jsx` | `/emergency` | Befrienders Kenya 0800 723 253 tap-to-call; POST /emergency/trigger; BreathingWidget inline; polls notifications every 10s; no back navigation |
+| `EmergencyScreen.jsx` | `/emergency` | Befrienders Kenya 0800 723 253 tap-to-call; POST /emergency/trigger; polls GET /emergency/status every 8s; shows "Someone has seen this" on ack; escalates to hotlines after 5 min if no ack; gentle close on resolve; stale-closure handled via ackStatusRef |
 | `SafetyPlanScreen.jsx` | `/safety-plan` | 6-field form (all optional); useQuery(['safety-plan']); planData synced to editable form state via useEffect; PUT /safety-plan; contacts up to 3 (name + encrypted phone) |
 | `ResourcesScreen.jsx` | `/resources` | useQuery(['resources', contentType, category.value, search]); Articles/Stories toggle; 11-category filter; article card list; PageHeader |
 | `ArticleScreen.jsx` | `/resources/:id` | Full article with read-time; bookmark to localStorage |
 | `BreathingScreen.jsx` | `/breathing` | 4 exercise cards: Box, 4-7-8, Grounding 5-4-3-2-1, PMR |
 | `CalmingSoundsScreen.jsx` | `/sounds` | 8 procedurally synthesized ambient sounds via Web Audio API (ambientAudio.js singleton); rain, forest, ocean, white-noise, tibetan-bowls, fireplace, stream, wind; volume slider; stop button in header; no audio files required |
-| `ProfileScreen.jsx` | `/profile` | 4 parallel useQuery hooks (profile, credits/balance, credits/transactions, notifications); Account (alias, email), AI persona (+ Edit button → /persona/edit, shows language), Credits, Privacy, Notifications (4 toggles + "Mark all read" optimistic button), Feedback |
+| `NotificationsScreen.jsx` | `/notifications` | 4 stratified lanes (Activity / Support / Payments / System); unread badge per tab; tap marks read optimistically + deep-links by notification type; Mark-all-read; skeleton loading; TYPE_META map drives icon + label + route per type |
+| `CreditsScreen.jsx` | `/credits` | Large balance display; 4 top-up packages (Starter 50KSh/3cr → Support 500KSh/40cr); "How credits work" block (peer text 1cr, voice 2cr, referral 1cr, always-free list, refund policy); transaction history with rich labels using type+channel+duration_minutes; peer_earning shown as "Earned from peer support"; navigated from Dashboard coin badge, credit_low notifications |
+| `ProfileScreen.jsx` | `/profile` | useQuery hooks: profile, credits/balance, notifications, peer/stats; Account card; AI persona card (+ Edit); Credits summary card (→ /credits); "Your Peer Impact" card (shown if sessions_completed > 0 or pending_credits > 0): progress bar pending/2.00, lifetime stats, collapsible "How it works"; Privacy & Data; Notifications toggles; Feedback; Logout |
 | `EditPersonaScreen.jsx` | `/persona/edit` | Mutable persona settings: tone, response_style, formality, uses_alias, language; seeds from profile cache; PATCH /api/ai/persona on save; invalidates profile cache; no-nav screen |
 | `ReferralScreen.jsx` | `/referral` | Therapist referral form (struggles, preferred_time, contact_method/detail); POST /referrals; confirmation screen |
 | `PublicEmergencyScreen.jsx` | `/emergency-public` | No auth; Befrienders Kenya tap-to-call; breathing animation |
@@ -185,10 +190,10 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 19) | Agent: Claude Co
 ### Peer Support Screens (`src/frontend/src/screens/peer/`)
 | Screen | Route | Purpose |
 |---|---|---|
-| `PeerRequestScreen.jsx` | `/peer` | Balance check; channel selector (Text/Voice); POST /peer/request |
+| `PeerRequestScreen.jsx` | `/peer` | Channel selector (Text/Voice); flat cost display (1cr / 2cr); balance check is channel-aware; inline "top up" link if insufficient; "Top Up" → /credits; Leaderboard tab; POST /peer/request deducts at submission |
 | `PeerWaitingScreen.jsx` | `/peer/waiting` | 90s countdown; polls GET /peer/request/:id/status every 3s; on active → invalidates credits cache + navigates session screen; 120ms skeleton before timer fades in |
-| `PeerTextChatScreen.jsx` | `/peer/text/:id` | Text chat; credit countdown per 15min; End Session → FeedbackModal |
-| `PeerVoiceCallScreen.jsx` | `/peer/voice/:id` | WebRTC audio via ws/signaling; mute toggle; credit countdown per 5min; 2min grace on last credit |
+| `PeerTextChatScreen.jsx` | `/peer/session/:id/text` | Text chat via WebSocket; End Session → PATCH /peer/request/:id/close; no time-based credit logic (billing is flat, server-side) |
+| `PeerVoiceCallScreen.jsx` | `/peer/session/:id/voice` | WebRTC audio via ws/signaling; mute toggle; End Call → PATCH /peer/request/:id/close; no time-based credit logic |
 
 ### Therapist Marketplace Screens (`src/frontend/src/screens/therapist/`) — Phase 19
 | Screen | Route | Purpose |
@@ -238,7 +243,8 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | `tabs/ReportsTab.jsx` | Group reports with Pending/Reviewed/All filter tabs; onCountChange badge |
 | `tabs/RiskTab.jsx` | Risk-flagged users; onCountChange badge |
 | `tabs/ContentTab.jsx` | Psychoeducation articles CRUD; right slide panel (480px) replaces modal |
-| `tabs/StatsTab.jsx` | DAU + session stats with rating bar indicators |
+| `tabs/StatsTab.jsx` | DAU + session stats with rating bar indicators; Recharts LineChart for daily series (7/14/30/60 day range selector); tracks DAU, AI sessions, peer sessions, emergencies, new users |
+| `tabs/PatternsTab.jsx` | High-utilisation user monitoring; PatternChips per user (red: 3+ emergencies, amber: open referrals, orange: peer sessions this week); Message button → MessageModal |
 | `tabs/TherapistsTab.jsx` | Therapist profiles table; inline availability toggle; active/inactive toggle; full create/edit slide panel with all fields incl. plain_language_intro, cultural_competencies, approach_plain (NEW Phase 19) |
 | `styles/globals.css` | Full brand token system: sidebar `#2F2622`, cream `#FAF6F2`, status colours |
 
@@ -262,7 +268,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | **sessions** | user_id FK, type enum, status enum | + channel, ended_at, peer_request_id FK |
 | **peer_requests** | user_id FK, status enum, channel_preference | + accepted_by FK, session_id FK, escalation_job_id |
 | **ai_interactions** | session_id FK, input_text, flagged boolean | user_id nullable (anonymized on deletion but retained); context_snapshot JSONB |
-| **credit_transactions** | user_id FK, type enum, amount_credits | + amount_currency, payment_method, status, payment_reference |
+| **credit_transactions** | user_id FK, type enum, amount_credits | + amount_currency, payment_method, status, payment_reference, session_id FK nullable, channel enum, duration_minutes INTEGER NULL; type ∈ {purchase/debit/bonus/refund/peer_earning}; channel ∈ {text/voice/purchase/ai/referral/peer_earning} |
 | **notifications** | user_id FK, type enum (13), status enum | + payload JSONB, channel, read_at; types include journal_prompt (added migration 031) |
 | **journals** | user_id FK, content TEXT, risk_flagged | + mood_id FK, tags[], created_at |
 | **safety_plans** | user_id UNIQUE FK, contacts JSONB, warning_signs | contacts encrypted app-side; emergency_resources pre-filled (Befrienders Kenya) |
@@ -280,6 +286,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | **psychoeducation_articles** | title, category enum (11), status enum, content_type | + content, estimated_read_minutes, tags[], created_by FK, published_at; content_type ∈ {article, story}; author_name/bio/source_url for stories; 55 seeded articles |
 | **ai_usage** | user_id FK, date, token_count | UNIQUE(user_id, date); supports 50k daily limit |
 | **events** | user_id FK nullable, event_name VARCHAR(64), properties JSONB | Basic funnel analytics; user_id SET NULL on delete; 3 indexes (name, user_id, created_at DESC) |
+| **peer_stats** | user_id UNIQUE FK, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2) | + redeemed_credits_lifetime DECIMAL(10,2), sessions_completed INT; fractional peer earnings accumulate here; converts to credits.balance when pending >= 2.0 (Math.floor); RLS deny-anon — **pending migration 044** |
 
 ---
 
@@ -326,8 +333,8 @@ DELETE /                      — Bulk delete all; {deleted_count}
 
 ### AI Chat (`/api/ai`)
 ```
-POST   /session/start         — {persona_name} → {session_id}
-POST   /session/:id/message   — {input_text max 2000} → {response_text, flagged, action, session_flag_count}
+POST   /session/start         — {persona_name} → {session_id}; 403 if no persona; 429 DAILY_SESSION_LIMIT if >= 5 AI sessions today (counted from sessions table)
+POST   /session/:id/message   — {input_text max 2000} → {response_text, flagged, action, session_flag_count}; 429 on 30/session or 100/day msg limit or 50k token limit
 POST   /session/:id/end       — {ended_at}
 PATCH  /persona               — {tone?, response_style?, formality?, uses_alias?, language?} → {persona}; busts persona cache; name field rejected (immutable)
 GET    /sessions              — Paginated AI session history
@@ -336,20 +343,25 @@ GET    /sessions              — Paginated AI session history
 ### Credits (`/api/credits`)
 ```
 GET    /balance               — {balance} (cached 30s)
-GET    /transactions          — {transactions, total, page} (paginated)
+GET    /transactions          — {transactions, total, page} (paginated; includes duration_minutes, channel for rich display)
 POST   /purchase              — {package_id} → {payment_url, reference} (Paystack)
 POST   /webhook               — Paystack webhook; HMAC-SHA512 signature verification; updates balance on charge.success
-POST   /deduct                — {session_id, channel} → {new_balance}
 ```
+Note: `POST /deduct` endpoint removed in Phase 26. Credit deduction is now server-side at request submission.
 
 ### Peer Support (`/api/peer`)
 ```
-POST   /request               — {channel_preference} → {request_id}
+POST   /request               — {channel_preference} → {request_id}; deducts credits at submission (1cr text / 2cr voice); 402 if insufficient; refunded on 90s expiry
 GET    /requests/open         — {requests}
-PATCH  /request/:id/accept    — {session_id, request_id, channel}
-PATCH  /request/:id/close     — {ended_at}
-GET    /request/:id/status    — {session_id, status} (polling endpoint)
+GET    /quiz/status           — {peer_quiz_done}
+POST   /quiz/complete         — marks peer_quiz_done=true
+PATCH  /request/:id/accept    — {session_id, request_id, channel}; backfills session_id on debit tx
+PATCH  /request/:id/close     — {ended_at}; writes duration_minutes to credit_transactions; triggers fractional peer earning (0.25cr text / 0.50cr voice → peer_stats; converts to balance when pending >= 2.0)
+GET    /request/:id/status    — {session_id, status} (polling endpoint for waiting screen)
 GET    /session/:id           — Session details for participants
+GET    /stats                 — {sessions_completed, pending_credits, earned_credits_lifetime, redeemed_credits_lifetime, credits_earned, rank}
+GET    /leaderboard           — Top 10 peers by sessions_completed (alias only)
+GET    /history               — Paginated peer session history
 ```
 
 ### Groups (`/api/groups`)
@@ -366,6 +378,7 @@ POST   /:id/messages/:msgId/report — {reason, details} → {report_id}; admin 
 ### Emergency (`/api/emergency`)
 ```
 POST   /trigger               — {log_id}; INSERTs emergency_logs; alerts admin
+GET    /status                — {active, acknowledged_at, resolved_at}; returns most recent open/acknowledged log for polling
 ```
 
 ### Safety Plan (`/api/safety-plan`)
@@ -395,7 +408,7 @@ GET    /:id                   — Full article
 
 ### Referrals (`/api/referrals`)
 ```
-POST   /                      — {struggles, preferred_time, contact_method, contact_detail, specific_needs, support_style_preference}
+POST   /                      — {struggles, preferred_time, contact_method, contact_detail, specific_needs, support_style_preference}; deducts 1cr at submission; 402 if insufficient; refunded if admin marks escalated
 GET    /my                    — {referrals} with status; each referral includes interests array
 POST   /:id/interests         — {therapist_ids[]} — max 3 per referral; enforces deduplication
 ```
@@ -423,7 +436,7 @@ PATCH  /reports/:id/action    — {action: warn|ban|dismiss, admin_notes}
 GET    /emergency-queue
 GET    /escalations
 GET    /referrals             — ?status filter; each referral includes interests array + support_style_preference
-PATCH  /referrals/:id         — {status, admin_notes}
+PATCH  /referrals/:id         — {status, admin_notes}; triggers refundCredit(1cr) when status='escalated'
 GET    /risk-flags
 POST   /users/:alias/message  — {message} → in-app notification
 GET    /resources             — All statuses (admin view)
@@ -433,6 +446,8 @@ PATCH  /resources/:id/publish
 PATCH  /resources/:id/archive
 GET    /feedback              — {avg_rating_by_type, recent_comments}
 GET    /stats                 — {dau, checkins_today, peer_sessions_today, ai_sessions_today, credits_purchased_today}
+GET    /stats/daily           — ?days=7|14|30|60 (max 90); {series[]} daily DAU/ai_sessions/peer_sessions/emergencies/new_users; Recharts line chart in StatsTab
+GET    /users/patterns        — High-utilisation users: 3+ emergencies (red), open referrals (amber), peer sessions this week (orange); used in PatternsTab
 GET    /therapists            — All therapist profiles
 POST   /therapists            — Create user (role=therapist) + therapist_profiles row
 PATCH  /therapists/:id        — Update any profile field
@@ -461,7 +476,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 ### Timer Job (ad-hoc)
 | Job | Trigger | Purpose |
 |---|---|---|
-| Peer Escalation | 90s after peer_request INSERT | If status still 'open' at 90s → mark escalated, notify admin |
+| Peer Escalation | 90s after peer_request INSERT | If status still 'open' at 90s → mark escalated, refund credits to requester (1cr text / 2cr voice), notify requester + admin |
 
 ---
 
@@ -505,7 +520,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 ## 8. CURRENT PHASE STATUS & REMAINING TASKS
 
-### Completed Phases (21/21 core; Phase 20 deferred)
+### Completed Phases (27/27; Phase 20.3 deferred; Phase 24 blocked on clinical content)
 | Phase | Status | Description |
 |---|---|---|
 | Phase 1 | ✅ | Database migrations (35 SQL files applied, 4 pending; 25+ tables) |
@@ -531,7 +546,10 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 21 | ✅ | UI Performance & Design System — TanStack Query (all 7 screens), optimistic updates (group send, notification read-all, credits invalidation), skeletons, Radix tooltips, component library, Web Audio calming sounds engine |
 | Phase 22 | ✅ | Mood History & Pattern Reflection — tappable dot calendar, DayDetailSheet (moods + journals per day), timeframe selector (7d/30d/90d/all), period-scoped analytics, safety framing on low-mood days |
 | Phase 23 | ✅ | Notifications UX (NotificationsScreen, 4 lanes, deep-links), Emergency feedback loop (GET /emergency/status, polling, ack/escalate/resolve states), Admin depth (daily chart, GET /admin/stats/daily, PatternsTab, GET /admin/users/patterns) |
+| Phase 24 | ⚠️ BLOCKED | Help a Friend Module — blocked on clinical content sign-off (scenarios must be reviewed against WHO mhGAP / MHFA Kenya / Befrienders guidelines before build) |
 | Phase 25 | ✅ | Admin stats/patterns SQL bug fixes (generate_series integer offset; member_user_id; matched|closed); CreditsScreen at /credits (balance, packages, history); balance badge clickable; credit_low notification → /credits |
+| Phase 26 | ✅ | Credit System v2 — flat per-session billing (1cr text / 2cr voice); `deductCredit(user_id, amount, session_id, channel)` + `refundCredit`; session_id backfill on peer accept; duration_minutes written on close; AI 5 sessions/day cap; POST /deduct removed; migration 043 |
+| Phase 27 | ✅ | Peer Incentive System — fractional earnings (0.25cr text / 0.50cr voice → pending_credits); conversion threshold 2.0 (Math.floor converts to spendable balance); peer_stats table; Profile Impact card with progress bar + collapsible explainer; migration 044 |
 
 ### Credentials & External Services Status
 | Service | Status | Notes |
@@ -572,8 +590,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 | Category | Count |
 |---|---|
-| Database migrations | 42 SQL files (001–042; 042 pending apply to Supabase) |
-| Database tables | 25 live + 2 pending (therapist_profiles, therapist_interests); all RLS-enabled once 039 applied |
+| Database migrations | 44 SQL files (001–042 applied; 043–044 written, pending apply) |
+| Database tables | 25 live + 3 pending (therapist_profiles, therapist_interests, peer_stats); all RLS-enabled once applied |
 | Backend route files | 17 |
 | Backend middleware | 3 |
 | Backend utilities | 9 |
@@ -587,7 +605,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | API endpoints (total) | ~77 (+ GET /emergency/status, GET /admin/stats/daily, GET /admin/users/patterns, PATCH /notifications/:id/read) |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 25/25 (Phase 23 + 25 complete; Phase 20.3 custom model pending external collaboration; Phase 24 blocked on clinical content) |
+| Build phases complete | 27/27 (Phases 23–27 complete; Phase 20.3 custom model pending external collaboration; Phase 24 blocked on clinical content) |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects
