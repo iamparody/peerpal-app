@@ -53,6 +53,7 @@ import AnalyticsScreen from './screens/AnalyticsScreen';
 import SessionHistoryScreen from './screens/SessionHistoryScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EditPersonaScreen from './screens/EditPersonaScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 
 // Peer
 import PeerRequestScreen from './screens/peer/PeerRequestScreen';
@@ -192,8 +193,9 @@ function Layout() {
         <Route path="/breathing"   element={<BreathingScreen />} />
         <Route path="/analytics"   element={<ProtectedRoute><AnalyticsScreen /></ProtectedRoute>} />
         <Route path="/sessions"    element={<ProtectedRoute><SessionHistoryScreen /></ProtectedRoute>} />
-        <Route path="/profile"     element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
-        <Route path="/persona/edit" element={<ProtectedRoute><EditPersonaScreen /></ProtectedRoute>} />
+        <Route path="/profile"        element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
+        <Route path="/notifications"  element={<ProtectedRoute><NotificationsScreen /></ProtectedRoute>} />
+        <Route path="/persona/edit"   element={<ProtectedRoute><EditPersonaScreen /></ProtectedRoute>} />
 
         {/* Peer support */}
         <Route path="/peer"              element={<ProtectedRoute><PeerRequestScreen /></ProtectedRoute>} />

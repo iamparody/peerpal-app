@@ -10,10 +10,11 @@ import RiskTab        from './tabs/RiskTab';
 import ContentTab      from './tabs/ContentTab';
 import StatsTab        from './tabs/StatsTab';
 import TherapistsTab   from './tabs/TherapistsTab';
+import PatternsTab     from './tabs/PatternsTab';
 import {
   House, Siren, Handshake, Stethoscope,
   Flag, Warning, BookOpen, ChartBar, UserCircle,
-  CaretLeft, CaretRight, List,
+  CaretLeft, CaretRight, List, ChartLineUp,
 } from '@phosphor-icons/react';
 
 const TABS = [
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'content',     label: 'Content',     Icon: BookOpen },
   { id: 'therapists',  label: 'Therapists',  Icon: UserCircle },
   { id: 'stats',       label: 'Stats',       Icon: ChartBar },
+  { id: 'patterns',    label: 'Patterns',    Icon: ChartLineUp },
 ];
 
 function AdminShell() {
@@ -56,6 +58,7 @@ function AdminShell() {
       case 'content':     return <ContentTab />;
       case 'therapists':  return <TherapistsTab />;
       case 'stats':       return <StatsTab />;
+      case 'patterns':    return <PatternsTab />;
       default:            return null;
     }
   };

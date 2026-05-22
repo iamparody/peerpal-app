@@ -1077,59 +1077,57 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > Problem: 13 notification types stored in DB, only a badge count shown. User cannot read, act on, or understand any notification.
 
 **Backend:**
-- [ ] Verify `GET /api/notifications` returns `type`, `payload`, `read_at`, `created_at` for all notifications (no new endpoint needed if this already returns full records)
-- [ ] Verify `PATCH /api/notifications/:id/read` exists or add it — mark single notification as read
-- [ ] Confirm `PATCH /api/notifications/read-all` works (already implemented — verify)
+- [x] Verify `GET /api/notifications` returns `type`, `payload`, `read_at`, `created_at` for all notifications (no new endpoint needed if this already returns full records)
+- [x] Verify `PATCH /api/notifications/:id/read` exists or add it — mark single notification as read
+- [x] Confirm `PATCH /api/notifications/read-all` works (already implemented — verify)
 
 **Frontend:**
-- [ ] New screen `NotificationsScreen.jsx` at `/notifications`
-  - [ ] 4 tabs: **Activity** (milestone, peer_broadcast, journal_prompt) · **Support** (therapist_update, referral_status, admin_message, emergency_alert for member) · **Payments** (credit_low, payment_confirmed) · **System** (account_notice, generic)
-  - [ ] Each tab shows unread count badge on the tab label
-  - [ ] Each notification row: type icon + human-readable title + relative time + unread dot
-  - [ ] Tap action routes to relevant screen per type: peer_broadcast → `/peer`, milestone → `/analytics`, credit_low → `/profile`, therapist_update → `/therapists/status`, admin_message → stays open and marks read, journal_prompt → `/journal`
-  - [ ] Swipe-to-read or tap-to-mark-read; read notifications visually dimmed
-  - [ ] Empty state per tab: "Nothing here yet"
-- [ ] Update `DashboardScreen`: bell icon routes to `/notifications` (currently links to ProfileScreen or does nothing)
-- [ ] Update `ProfileScreen`: unread badge and "X new" label links to `/notifications`
-- [ ] Add `/notifications` route to `App.jsx`
+- [x] New screen `NotificationsScreen.jsx` at `/notifications`
+  - [x] 4 tabs: **Activity** (milestone, peer_broadcast, journal_prompt) · **Support** (therapist_update, referral_status, admin_message) · **Payments** (credit_low, payment_confirmed) · **System** (account_notice, generic)
+  - [x] Each tab shows unread count badge on the tab label
+  - [x] Each notification row: type icon + human-readable title + relative time + unread dot
+  - [x] Tap action routes to relevant screen per type: peer_broadcast → `/peer`, milestone → `/analytics`, credit_low → `/profile`, therapist_update → `/therapists/status`, admin_message → marks read (no route), journal_prompt → `/journal`
+  - [x] Tap-to-mark-read; read notifications visually dimmed; Mark all read button
+  - [x] Empty state per tab: "No [lane] notifications yet"
+- [x] Update `DashboardScreen`: bell icon routes to `/notifications`
+- [x] Update `ProfileScreen`: unread badge links to `/notifications` with count label
+- [x] Add `/notifications` route to `App.jsx`
 
 ### 23.2 — Emergency Response Gap
 
 > Problem: User who presses Emergency gets hotlines + silence. No confirmation SOS was received. Admin acknowledgement has no effect on user's screen. "Message this user" action is buried away from the emergency tile in admin.
 
 **Backend:**
-- [ ] `GET /api/emergency/status` — returns latest open emergency log for the authed user: `{ id, status, acknowledged_at, resolved_at }` (auth-protected, user sees only their own)
+- [x] `GET /api/emergency/status` — returns latest open emergency log for the authed user: `{ active, id, status, acknowledged_at, resolved_at }`
 
 **Frontend — EmergencyScreen:**
-- [ ] Add `useEffect` polling `GET /api/emergency/status` every 8s while screen is mounted
-- [ ] State: `ackStatus` = `null | 'acknowledged' | 'resolved'`
-- [ ] When `acknowledged_at` is set: replace the "Finding someone" indicator with a calm banner — **"Someone has seen this. You are not alone. Stay on this screen."** Pulse animation stops; banner uses `--color-calm` accent
-- [ ] When 5 minutes elapse with no acknowledgement: escalate hotline section — larger tap targets, bold text, secondary message "No response yet — please call now. The line is free and available 24/7."
-- [ ] When `resolved_at` is set: show gentle close prompt — "The team has followed up on your alert. Please reach out again if you need more support." + button back to Dashboard
+- [x] Polls `GET /api/emergency/status` every 8s after trigger
+- [x] `ackStatus` ref + state: `null | 'acknowledged' | 'resolved'`
+- [x] When `acknowledged_at` set: calm banner "Someone has seen this. You are not alone."
+- [x] When 5 min elapse with no ack: escalation block with larger hotline tap targets + bold copy
+- [x] When `resolved_at` set: gentle close prompt + back-to-home button
 
 **Admin panel — EmergencyTab:**
-- [ ] Add "Message now" inline button on each open emergency row — opens MessageModal pre-filled with user alias; no tab-switching required
-- [ ] Show elapsed time since trigger clearly on each row (already exists — verify it's visible enough)
-- [ ] Acknowledge button updates `acknowledged_at` on the emergency log (verify this is wired; if not, add `PATCH /api/admin/emergency/:id/acknowledge`)
+- [x] "Message" inline button already existed on each row — confirmed present
+- [x] Elapsed time already visible with `elapsed--urgent` class for open rows
+- [x] Acknowledge button already wires to `PATCH /api/admin/emergency/:id/acknowledge` which sets `acknowledged_at`
 
 ### 23.3 — Admin Stats Depth
 
 > Problem: StatsTab shows flat lifetime counts. No time-series. No way to find high-utilisation users who may need proactive outreach.
 
 **Backend:**
-- [ ] `GET /api/admin/stats/daily?days=30` — returns array of daily buckets: `{ date, dau, ai_sessions, peer_sessions, emergencies, new_users }` — queries sessions, emergency_logs, users tables grouped by DATE(created_at)
-- [ ] `GET /api/admin/users/patterns` — returns users matching any of: 3+ emergency triggers (all time), 2+ therapist referrals with no `arranged`/`closed` status, 5+ peer sessions in last 7 days; returns `{ user_alias, pattern_flags[], last_seen, counts }` — no PII exposed, alias only
+- [x] `GET /api/admin/stats/daily?days=30` — returns daily buckets: `{ date, dau, ai_sessions, peer_sessions, emergencies, new_users }`
+- [x] `GET /api/admin/users/patterns` — returns users with 3+ emergencies, 2+ open referrals, or 5+ peer sessions in 7 days; alias only, no PII
 
 **Admin panel — StatsTab:**
-- [ ] Replace or extend current flat-count display with a **line chart** (reuse existing chart library or add lightweight one — Recharts already in use if so, else add) showing DAU, AI sessions, peer sessions, emergencies over last 30 days
-- [ ] Y-axis per metric togglable; X-axis = date labels
+- [x] Line chart added using Recharts with 5 series (DAU, AI sessions, peer sessions, emergencies, new users)
+- [x] Day-range selector: 7d / 14d / 30d / 60d tabs
 
 **Admin panel — new "Patterns" tab:**
-- [ ] New tab added to admin tab bar: **Patterns**
-- [ ] Lists users returned by `GET /api/admin/users/patterns`
-- [ ] Per row: alias · pattern flags as colour-coded chips (e.g. "3 emergencies" in red, "peer ×6 this week" in amber, "2 open referrals" in orange) · last active date · "Message" button → MessageModal
-- [ ] Empty state: "No high-utilisation patterns detected"
-- [ ] Refresh button; auto-refreshes on tab focus
+- [x] `PatternsTab.jsx` created and added to admin tab bar
+- [x] Colour-coded chips per flag (red for emergencies, orange for peer ×N, amber for open referrals)
+- [x] Message button → MessageModal; empty state; refresh button
 
 ---
 

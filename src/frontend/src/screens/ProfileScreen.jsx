@@ -294,27 +294,12 @@ export default function ProfileScreen() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
             <h3>Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={async () => {
-                  qc.setQueryData(['notifications'], (old) => {
-                    if (!old) return old;
-                    const now = new Date().toISOString();
-                    const list = old.notifications ?? (Array.isArray(old) ? old : []);
-                    const updated = list.map((n) => n.read_at ? n : { ...n, read_at: now });
-                    return Array.isArray(old) ? updated : { ...old, notifications: updated };
-                  });
-                  try {
-                    await client.patch('/api/notifications/read-all');
-                  } catch {
-                    qc.invalidateQueries({ queryKey: ['notifications'] });
-                  }
-                }}
-                style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-pill)', padding: '4px 12px', fontSize: 12, color: 'var(--color-text-secondary)', cursor: 'pointer' }}
-              >
-                Mark all read
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/notifications')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--color-calm)', fontWeight: 600, padding: '4px 0' }}
+            >
+              {unreadCount > 0 ? `View (${unreadCount > 9 ? '9+' : unreadCount} unread)` : 'View all'}
+            </button>
           </div>
           {[
             { key: 'peer_broadcast',   label: 'Peer request broadcasts' },

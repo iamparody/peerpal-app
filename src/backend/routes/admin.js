@@ -379,6 +379,60 @@ router.get('/stats', async (req, res) => {
   });
 });
 
+// ─── GET /admin/stats/daily ───────────────────────────────────────────────────
+router.get('/stats/daily', async (req, res) => {
+  const days = Math.min(90, Math.max(1, parseInt(req.query.days) || 30));
+  const { rows } = await query(
+    `WITH date_series AS (
+       SELECT generate_series(
+         (CURRENT_DATE - ($1 - 1) * INTERVAL '1 day')::date,
+         CURRENT_DATE,
+         '1 day'::interval
+       )::date AS d
+     )
+     SELECT
+       ds.d::text AS date,
+       COUNT(DISTINCT m.user_id)::int    AS dau,
+       COUNT(DISTINCT s_ai.id)::int      AS ai_sessions,
+       COUNT(DISTINCT s_peer.id)::int    AS peer_sessions,
+       COUNT(DISTINCT el.id)::int        AS emergencies,
+       COUNT(DISTINCT u.id)::int         AS new_users
+     FROM date_series ds
+     LEFT JOIN moods          m      ON m.created_at::date      = ds.d
+     LEFT JOIN sessions       s_ai   ON s_ai.started_at::date   = ds.d AND s_ai.type  = 'ai'
+     LEFT JOIN sessions       s_peer ON s_peer.started_at::date = ds.d AND s_peer.type = 'peer'
+     LEFT JOIN emergency_logs el     ON el.triggered_at::date   = ds.d
+     LEFT JOIN users          u      ON u.created_at::date      = ds.d AND u.role      = 'user'
+     GROUP BY ds.d
+     ORDER BY ds.d ASC`,
+    [days]
+  );
+  return res.status(200).json({ days, series: rows });
+});
+
+// ─── GET /admin/users/patterns ────────────────────────────────────────────────
+router.get('/users/patterns', async (req, res) => {
+  const { rows } = await query(
+    `SELECT
+       u.alias,
+       u.last_active_at,
+       (SELECT COUNT(*) FROM emergency_logs el WHERE el.user_id = u.id)::int                                          AS emergency_count,
+       (SELECT COUNT(*) FROM therapist_interests ti WHERE ti.user_id = u.id AND ti.status NOT IN ('arranged','closed'))::int AS open_referrals,
+       (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.type = 'peer' AND s.started_at > NOW() - INTERVAL '7 days')::int AS peer_sessions_7d
+     FROM users u
+     WHERE u.role = 'user' AND u.is_active = true
+       AND (
+         (SELECT COUNT(*) FROM emergency_logs el WHERE el.user_id = u.id) >= 3
+         OR
+         (SELECT COUNT(*) FROM therapist_interests ti WHERE ti.user_id = u.id AND ti.status NOT IN ('arranged','closed')) >= 2
+         OR
+         (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.type = 'peer' AND s.started_at > NOW() - INTERVAL '7 days') >= 5
+       )
+     ORDER BY emergency_count DESC, peer_sessions_7d DESC`
+  );
+  return res.status(200).json({ patterns: rows });
+});
+
 // ─── GET /admin/therapists ────────────────────────────────────────────────────
 router.get('/therapists', async (req, res) => {
   const { rows } = await query(

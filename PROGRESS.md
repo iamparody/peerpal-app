@@ -3,14 +3,16 @@
 ---
 
 ## Current Phase
-**Phase 23 — Notifications UX, Emergency Response Gap, Admin Depth — PLANNED**
+**Phase 23 — Notifications UX, Emergency Response Gap, Admin Depth — COMPLETE**
 
 ---
 
 ## Planned Work
 
-### Phase 23 — Notifications, Emergency, Admin Depth
-Three self-contained tracks identified on 2026-05-22. All logged in CHECKLIST.md as Phase 23.1–23.3.
+### Phase 24 — Help a Friend Module (content-pending)
+Build blocked on clinical content sign-off. Logged in CHECKLIST.md.
+
+---
 
 **23.1 — Notifications Screen (stratified)**
 Problem: 9+ badge with no way to read or act on notifications. All 13 notification types are stored but never surfaced in a list.
@@ -31,6 +33,31 @@ Format: 6–8 scenario cards (friend with heavy substance use, friend withdrawn/
 Blocker: Scenarios and copy must be clinically validated (WHO mhGAP / MHFA Kenya / Befrienders guidelines) before build starts. Wrong content on suicide/self-harm is harmful. Log as Phase 24 pending content.
 
 ---
+
+### Session 18 — 2026-05-22
+
+**Phase 23 — Notifications, Emergency Gap, Admin Depth — COMPLETE**
+
+**23.1 — Stratified Notifications Screen**
+- `NotificationsScreen.jsx` (new) at `/notifications` — 4 lanes (Activity / Support / Payments / System) each with unread count badge on tab
+- Each notification row: type icon, human-readable label, relative time, unread dot; tap marks read and deep-links per type
+- Mark-all-read button in header; optimistic read update with rollback; empty state per lane; skeleton loading
+- `DashboardScreen`: bell navigate changed `/profile` → `/notifications`
+- `ProfileScreen`: notifications card header changed to "View all" / "View (N unread)" link → `/notifications`; removed inline mark-all-read button
+- `App.jsx`: `NotificationsScreen` imported, `/notifications` route added
+
+**23.2 — Emergency Response Feedback Loop**
+- `routes/emergency.js`: `GET /api/emergency/status` added — returns user's latest open/acknowledged log `{ active, id, status, acknowledged_at, resolved_at }`
+- `EmergencyScreen.jsx` rewritten — after trigger: polls status every 8s; shows calm "Someone has seen this" banner on ack; escalated hotline block (larger tap targets) after 5 min with no ack; gentle resolve prompt when resolved_at set
+- Stale-closure bug avoided via `ackStatusRef` that mirrors React state for use inside intervals/timeouts
+- Admin EmergencyTab already had Message button, elapsed time, and acknowledge wired — no changes needed
+
+**23.3 — Admin Stats Depth**
+- `routes/admin.js`: `GET /api/admin/stats/daily?days=N` — per-day buckets (DAU, ai_sessions, peer_sessions, emergencies, new_users) using generate_series + LEFT JOINs
+- `routes/admin.js`: `GET /api/admin/users/patterns` — alias-only list of users with 3+ emergencies, 2+ open referrals, or 5+ peer sessions in 7 days
+- `StatsTab.jsx` updated — Recharts `LineChart` added with 5 series; 7d/14d/30d/60d range selector
+- `PatternsTab.jsx` (new) — colour-coded flag chips, last-active date, Message button → MessageModal; empty state; refresh button
+- Admin `App.jsx`: `PatternsTab` imported, "Patterns" tab added to TABS list with `ChartLineUp` icon
 
 ---
 

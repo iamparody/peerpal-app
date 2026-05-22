@@ -122,7 +122,7 @@ export default function DashboardScreen() {
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <button
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate('/notifications')}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer', position: 'relative',
                   width: 'var(--touch-target-min)', height: 'var(--touch-target-min)',
