@@ -1154,6 +1154,54 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ---
 
+## Phase 26 — Credit System v2 (Flat Pricing + Abuse Guardrails)
+
+> Finalised 2026-05-22. Replaces time-based per-interval billing with flat per-session model.
+> Adds AI daily session cap, server-side deduction at submission, and automatic refunds on expiry.
+
+### 26.1 — Migration
+
+- [x] `043_credit_system_v2.sql` — add `duration_minutes INTEGER NULL` to `credit_transactions`; add `'refund'` to `credit_tx_type` enum; add `'ai'` and `'referral'` to `credit_tx_channel` enum
+
+### 26.2 — Backend: Credit Deductor Rewrite
+
+- [x] `utils/creditDeductor.js` — new signature `deductCredit(user_id, amount, session_id, channel)`: removes grace period, supports `amount > 1`, `session_id` nullable; new `refundCredit(user_id, amount, session_id, channel, reason)` function
+
+### 26.3 — Backend: Peer Routes
+
+- [x] `routes/peer.js` `POST /request` — deduct credits at submission (1cr text, 2cr voice); rollback (delete request) if insufficient
+- [x] `routes/peer.js` `PATCH /request/:id/accept` — backfill `session_id` on debit transaction via subquery update
+- [x] `routes/peer.js` `PATCH /request/:id/close` — calculate `duration_minutes` and write to `credit_transactions`
+- [x] `jobs/peerEscalation.js` — refund credits (1cr text / 2cr voice) when request expires with no acceptance; notify user
+
+### 26.4 — Backend: Referral Credits
+
+- [x] `routes/referrals.js` `POST /` — deduct 1cr on submission; return 402 if insufficient
+- [x] `routes/admin.js` `PATCH /referrals/:id` — call `refundCredit` when status set to `'escalated'`
+
+### 26.5 — Backend: AI Session Rate Limit
+
+- [x] `routes/ai.js` `POST /session/start` — count today's sessions from `sessions` table; return 429 if >= 5
+
+### 26.6 — Backend: Remove Obsolete Endpoint
+
+- [x] `routes/credits.js` — removed `POST /credits/deduct` (was frontend time-ticker endpoint); removed stale `deductCredit` import
+
+### 26.7 — Frontend: Peer Request Screen
+
+- [x] `PeerRequestScreen.jsx` — update `COST_INFO` to flat rates (1cr text / 2cr voice flat); update balance check to use channel cost; inline "top up" link below disabled button; "Top Up" button navigates to `/credits`
+
+### 26.8 — Frontend: Remove Time-Based Credit Countdowns
+
+- [x] `PeerTextChatScreen.jsx` — remove `TEXT_CREDIT_INTERVAL`, `creditTimerRef`, `deductCredit` callback, `balance` state + UI; remove `data.credit_balance` read
+- [x] `PeerVoiceCallScreen.jsx` — remove `VOICE_CREDIT_INTERVAL`, `creditTimerRef`, `deductCredit` callback, `balance` state + UI
+
+### 26.9 — Frontend: Credits Screen Copy Update
+
+- [x] `CreditsScreen.jsx` — replace one-liner pricing note with a full "How credits work" block: peer text 1cr, voice 2cr, referral 1cr, always-free list; improved `txLabel` uses `channel` field for context; `txDetail` shows `duration_minutes` in history rows
+
+---
+
 ## Phase 24 — Help a Friend Module
 
 > Concept confirmed 2026-05-22. **Build blocked on clinical content sign-off.**

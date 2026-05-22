@@ -4,7 +4,6 @@ import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
-const TEXT_CREDIT_INTERVAL = 15 * 60 * 1000; // 1 credit per 15 min
 
 export default function PeerTextChatScreen() {
   const { id: sessionId } = useParams();
@@ -13,27 +12,13 @@ export default function PeerTextChatScreen() {
   const [input, setInput] = useState('');
   const [connected, setConnected] = useState(false);
   const [peerLeft, setPeerLeft] = useState(false);
-  const [balance, setBalance] = useState(null);
   const [error, setError] = useState('');
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
-  const creditTimerRef = useRef(null);
-
-  const deductCredit = useCallback(async () => {
-    try {
-      const { data } = await client.post('/api/credits/deduct', { session_id: sessionId, channel: 'text' });
-      setBalance(data.balance);
-      if (data.blocked) {
-        setError('Out of credits. Session ended.');
-        handleEndSession();
-      }
-    } catch { /* non-fatal */ }
-  }, [sessionId]);
 
   const requestIdRef = useRef(null);
 
   const handleEndSession = useCallback(async () => {
-    clearInterval(creditTimerRef.current);
     wsRef.current?.close();
     const reqId = requestIdRef.current;
     if (reqId) {
@@ -48,7 +33,6 @@ export default function PeerTextChatScreen() {
       try {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         requestIdRef.current = data.session?.request_id ?? null;
-        setBalance(data.credit_balance ?? null);
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
         wsRef.current = ws;
         ws.onopen = () => {
@@ -64,17 +48,13 @@ export default function PeerTextChatScreen() {
           }
         };
         ws.onclose = () => setConnected(false);
-        creditTimerRef.current = setInterval(deductCredit, TEXT_CREDIT_INTERVAL);
       } catch {
         setError('Could not connect to session.');
       }
     }
     init();
-    return () => {
-      clearInterval(creditTimerRef.current);
-      wsRef.current?.close();
-    };
-  }, [sessionId, deductCredit]);
+    return () => { wsRef.current?.close(); };
+  }, [sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,16 +91,9 @@ export default function PeerTextChatScreen() {
             {peerLeft ? 'Peer has left' : connected ? 'Connected' : 'Connecting…'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {balance !== null && (
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: balance < 2 ? 'var(--color-emergency)' : 'var(--color-text)' }}>
-              {balance} cr
-            </span>
-          )}
-          <button onClick={handleEndSession} style={{ background: 'var(--color-danger)', color: 'var(--color-text-primary)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
-            End
-          </button>
-        </div>
+        <button onClick={handleEndSession} style={{ background: 'var(--color-danger)', color: 'var(--color-text-primary)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+          End
+        </button>
       </div>
 
       {peerLeft && (

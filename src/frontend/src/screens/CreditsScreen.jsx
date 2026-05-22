@@ -11,14 +11,29 @@ const PACKAGES = [
   { id: 'support',  label: 'Support',  price: 500, credits: 40, desc: 'Power user' },
 ];
 
-function txLabel(type) {
-  switch (type) {
-    case 'purchase':  return 'Top up';
-    case 'debit':     return 'Session';
-    case 'bonus':     return 'Bonus';
-    case 'refund':    return 'Refund';
-    default:          return type;
+function txLabel(tx) {
+  if (tx.type === 'purchase') return 'Top up';
+  if (tx.type === 'bonus') return tx.session_id ? 'Session reward' : 'Welcome bonus';
+  if (tx.type === 'refund') {
+    if (tx.channel === 'text' || tx.channel === 'voice') return 'Refund — no peer available';
+    if (tx.channel === 'referral') return 'Refund — referral not arranged';
+    return 'Refund';
   }
+  if (tx.type === 'debit') {
+    if (tx.channel === 'text') return 'Peer text session';
+    if (tx.channel === 'voice') return 'Peer voice call';
+    if (tx.channel === 'referral') return 'Therapist referral';
+    if (tx.channel === 'ai') return 'AI session';
+    return 'Session';
+  }
+  return tx.type;
+}
+
+function txDetail(tx) {
+  if (tx.duration_minutes != null && tx.duration_minutes > 0) {
+    return `${tx.duration_minutes} min`;
+  }
+  return null;
 }
 
 export default function CreditsScreen() {
@@ -127,9 +142,20 @@ export default function CreditsScreen() {
               );
             })}
           </div>
-          <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 10, textAlign: 'center' }}>
-            1 credit = 1 AI session · 2 credits = 1 peer or therapist session
-          </p>
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--color-surface-secondary)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 4 }}>How credits work</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span>💬 Peer text chat — <strong>1 credit</strong> flat per session</span>
+              <span>🎙️ Peer voice call — <strong>2 credits</strong> flat per session</span>
+              <span>🩺 Therapist referral — <strong>1 credit</strong> (refunded if not arranged)</span>
+            </div>
+            <div style={{ marginTop: 6, borderTop: '1px solid var(--color-divider)', paddingTop: 6, color: 'var(--color-text-muted)' }}>
+              Always free: AI chat · Journal · Mood check-in · Breathing · Resources · Emergency
+            </div>
+            <div style={{ marginTop: 4, color: 'var(--color-text-muted)' }}>
+              Unused credits from cancelled or expired requests are automatically refunded.
+            </div>
+          </div>
         </div>
 
         {/* Transaction history */}
@@ -147,26 +173,31 @@ export default function CreditsScreen() {
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px 0' }}>No transactions yet.</p>
           ) : (
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              {transactions.map((tx, i) => (
-                <div key={tx.id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '10px 14px', fontSize: 13,
-                  borderBottom: i < transactions.length - 1 ? '1px solid var(--color-divider)' : 'none',
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{txLabel(tx.type)}</span>
-                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                      {new Date(tx.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {transactions.map((tx, i) => {
+                const detail = txDetail(tx);
+                const isDebit = tx.type === 'debit';
+                return (
+                  <div key={tx.id} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '10px 14px', fontSize: 13,
+                    borderBottom: i < transactions.length - 1 ? '1px solid var(--color-divider)' : 'none',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{txLabel(tx)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {detail && <>{detail} · </>}
+                        {new Date(tx.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <span style={{
+                      fontWeight: 700, fontSize: 15,
+                      color: isDebit ? 'var(--color-danger)' : 'var(--color-calm)',
+                    }}>
+                      {isDebit ? '-' : '+'}{tx.amount_credits ?? tx.amount} cr
                     </span>
                   </div>
-                  <span style={{
-                    fontWeight: 700, fontSize: 15,
-                    color: tx.type === 'debit' ? 'var(--color-danger)' : 'var(--color-calm)',
-                  }}>
-                    {tx.type === 'debit' ? '-' : '+'}{tx.amount_credits ?? tx.amount} cr
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

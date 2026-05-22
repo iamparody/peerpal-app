@@ -70,6 +70,8 @@ ${persona.uses_alias ? `Address the user as "${userAlias}".` : 'Do not address t
   return [layer1, layer2, layer2_5, layer3].filter(Boolean).join('\n\n');
 }
 
+const AI_DAILY_SESSION_LIMIT = 5;
+
 // ─── POST /ai/session/start ───────────────────────────────────────────────────
 router.post('/session/start', auth, async (req, res) => {
   const { rows: userRows } = await query(
@@ -78,6 +80,18 @@ router.post('/session/start', auth, async (req, res) => {
   );
   if (!userRows[0]?.persona_created) {
     return res.status(403).json({ error: 'Complete persona setup before starting AI chat', code: 'PERSONA_REQUIRED' });
+  }
+
+  // Rate limit: 5 AI sessions per day
+  const { rows: sessionCountRows } = await query(
+    `SELECT COUNT(*) FROM sessions WHERE user_id = $1 AND type = 'ai' AND started_at::date = CURRENT_DATE`,
+    [req.user.id]
+  );
+  if (parseInt(sessionCountRows[0].count) >= AI_DAILY_SESSION_LIMIT) {
+    return res.status(429).json({
+      error: `Daily AI session limit reached (${AI_DAILY_SESSION_LIMIT}). Come back tomorrow.`,
+      code: 'DAILY_SESSION_LIMIT',
+    });
   }
 
   let persona = await cache.get(`persona:${req.user.id}`);

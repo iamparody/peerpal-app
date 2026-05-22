@@ -1,13 +1,16 @@
 const { query } = require('../db');
+const { refundCredit } = require('../utils/creditDeductor');
 
 // Called after 90s if no member accepts the peer request.
 // Checks current status before acting — safe to call even if already accepted (no-op).
 async function escalatePeerRequest(request_id) {
   const { rows } = await query(
-    'SELECT status FROM peer_requests WHERE id = $1',
+    'SELECT status, user_id, channel_preference FROM peer_requests WHERE id = $1',
     [request_id]
   );
   if (!rows.length || rows[0].status !== 'open') return;
+
+  const { user_id, channel_preference } = rows[0];
 
   await query(
     `UPDATE peer_requests
@@ -15,6 +18,11 @@ async function escalatePeerRequest(request_id) {
       WHERE id = $1`,
     [request_id]
   );
+
+  // Refund the credits that were deducted at request submission
+  const amount = channel_preference === 'voice' ? 2 : 1;
+  const reason = `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} request expired — no peer was available. ${amount} credit${amount > 1 ? 's' : ''} refunded.`;
+  await refundCredit(user_id, amount, null, channel_preference, reason);
 
   // Alert all admins — push + in-app
   const payload = JSON.stringify({ request_id });

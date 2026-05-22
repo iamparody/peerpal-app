@@ -4,8 +4,8 @@ import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
 const COST_INFO = {
-  text: { rate: '1 credit per 15 min', label: 'Text Chat' },
-  voice: { rate: '1 credit per 5 min', label: 'Voice Call' },
+  text:  { cost: 1, label: 'Text Chat',  desc: '1 credit flat' },
+  voice: { cost: 2, label: 'Voice Call', desc: '2 credits flat' },
 };
 
 const QUIZ_STEPS = [
@@ -161,7 +161,11 @@ export default function PeerRequestScreen() {
   }
 
   async function handleRequest() {
-    if (balance < 1) { setError('You need at least 1 credit to request peer support.'); return; }
+    const cost = COST_INFO[channel].cost;
+    if (balance < cost) {
+      setError(`You need ${cost} credit${cost > 1 ? 's' : ''} for a ${COST_INFO[channel].label.toLowerCase()}. Top up to continue.`);
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -248,7 +252,7 @@ export default function PeerRequestScreen() {
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: balanceLow ? 'var(--color-emergency)' : 'var(--color-text)' }}>{balance ?? '—'}</div>
             </div>
             {balanceLow && (
-              <button onClick={() => navigate('/profile')} className="btn btn--ghost btn--sm" style={{ width: 'auto' }}>Top Up</button>
+              <button onClick={() => navigate('/credits')} className="btn btn--ghost btn--sm" style={{ width: 'auto' }}>Top Up</button>
             )}
           </div>
 
@@ -270,17 +274,27 @@ export default function PeerRequestScreen() {
                   }}
                 >
                   <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)' }}>{val === 'text' ? '💬' : '🎙️'} {info.label}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{info.rate}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{info.desc}</div>
                 </button>
               ))}
             </div>
 
             {error && <div className="error-msg" style={{ marginBottom: 12 }}>{error}</div>}
 
-            <button className="btn btn--primary" onClick={handleRequest} disabled={submitting || balance < 1}>
+            <button className="btn btn--primary" onClick={handleRequest} disabled={submitting || balance < COST_INFO[channel].cost}>
               {submitting ? 'Requesting…' : 'Request Help'}
             </button>
-            {balance < 1 && <p style={{ marginTop: 8, fontSize: '0.8rem', textAlign: 'center' }}>Not enough credits</p>}
+            {balance < COST_INFO[channel].cost && (
+              <p style={{ marginTop: 8, fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                Not enough credits —{' '}
+                <button
+                  onClick={() => navigate('/credits')}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}
+                >
+                  top up
+                </button>
+              </p>
+            )}
           </div>
 
           {/* Open requests — gated by quiz */}

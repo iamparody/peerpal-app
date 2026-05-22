@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 25 — Admin Bug Fixes + Credits UX — COMPLETE**
+**Phase 26 — Credit System v2 (Flat Pricing + Abuse Guardrails) — COMPLETE**
 
 ---
 
@@ -11,6 +11,54 @@
 
 ### Phase 24 — Help a Friend Module (content-pending)
 Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
+
+---
+
+### Session 20 — 2026-05-22
+
+**Phase 26 — Credit System v2 — COMPLETE**
+
+**Migration 043**
+- `043_credit_system_v2.sql`: adds `duration_minutes INTEGER NULL` to `credit_transactions`; adds `'refund'` to `credit_tx_type` enum; adds `'ai'` and `'referral'` to `credit_tx_channel` enum
+
+**Backend — creditDeductor.js rewrite**
+- New signature: `deductCredit(user_id, amount, session_id, channel)` — `amount` is variable (1 or 2), `session_id` nullable
+- New export: `refundCredit(user_id, amount, session_id, channel, reason)` — adds credits back, inserts refund transaction, sends account_notice notification
+- Grace period logic removed; no longer supports time-based deduction
+
+**Backend — peer.js**
+- `POST /request`: deducts credits at submission (1cr text, 2cr voice); if blocked, deletes the request and returns 402
+- `PATCH /accept`: backfills `session_id` on the requester's debit transaction (was NULL at submission) using a subquery UPDATE
+- `PATCH /close`: calculates `duration_minutes` from `started_at`/`ended_at`, writes to `credit_transactions`
+
+**Backend — peerEscalation.js**
+- On 90s expiry: looks up `user_id` and `channel_preference`; refunds 1cr (text) or 2cr (voice) with user notification
+
+**Backend — referrals.js**
+- `POST /`: deducts 1cr via `deductCredit` before inserting referral; returns 402 if insufficient
+
+**Backend — admin.js**
+- `PATCH /referrals/:id`: refunds 1cr when status set to `'escalated'` (no arrangement in 48hrs)
+
+**Backend — ai.js**
+- `POST /session/start`: counts today's AI sessions from `sessions` table; returns 429 `DAILY_SESSION_LIMIT` if >= 5
+
+**Backend — credits.js**
+- Removed `POST /credits/deduct` endpoint (was time-ticker frontend API, now obsolete)
+- Removed stale `deductCredit` import
+
+**Frontend — PeerRequestScreen.jsx**
+- COST_INFO updated to flat rates: "1 credit flat" (text), "2 credits flat" (voice)
+- Balance check uses channel-specific cost; shows inline "top up" link when insufficient
+- "Top Up" button navigates to `/credits` (was `/profile`)
+
+**Frontend — PeerTextChatScreen.jsx + PeerVoiceCallScreen.jsx**
+- Removed all time-based credit logic: `TEXT_CREDIT_INTERVAL`, `VOICE_CREDIT_INTERVAL`, `creditTimerRef`, periodic `deductCredit` callback, balance state and balance display in header
+
+**Frontend — CreditsScreen.jsx**
+- Replaced one-liner pricing note with "How credits work" block: peer text 1cr, voice 2cr, referral 1cr, always-free list, refund policy
+- `txLabel` updated to use both `type` and `channel` fields for rich labels (e.g. "Peer voice call", "Therapist referral", "Refund — no peer available")
+- `txDetail` shows `duration_minutes` as "[N] min ·" prefix in history rows
 
 ---
 

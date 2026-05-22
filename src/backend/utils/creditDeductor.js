@@ -1,47 +1,42 @@
 const { query } = require('../db');
 const cache = require('../services/cache');
 
-// Deducts 1 credit for the given session channel.
-// Returns: { blocked, grace, balance }
-//   blocked: true if no credits available (session must end)
-//   grace:   true if this was the last credit on a voice channel (2-min grace period begins)
-//   balance: new balance after deduction
-async function deductCredit(user_id, session_id, channel) {
+// Deducts `amount` credits for a user.
+// session_id may be NULL when no session exists yet (e.g. peer request submission).
+// Returns: { blocked, balance }
+//   blocked: true if balance < amount (no deduction performed)
+//   balance: new balance after deduction (or current balance if blocked)
+async function deductCredit(user_id, amount, session_id, channel) {
   const { rows } = await query(
     'SELECT balance FROM credits WHERE user_id = $1',
     [user_id]
   );
   const balance = rows[0]?.balance ?? 0;
 
-  if (balance < 1) {
-    return { blocked: true, grace: false, balance: 0 };
+  if (balance < amount) {
+    return { blocked: true, balance };
   }
 
   // Atomic decrement — guards against concurrent deductions
   const { rowCount } = await query(
-    'UPDATE credits SET balance = balance - 1, updated_at = NOW() WHERE user_id = $1 AND balance >= 1',
-    [user_id]
+    'UPDATE credits SET balance = balance - $1, updated_at = NOW() WHERE user_id = $2 AND balance >= $1',
+    [amount, user_id]
   );
 
   if (!rowCount) {
-    // Race condition: concurrent call took the last credit first
-    return { blocked: true, grace: false, balance: 0 };
+    return { blocked: true, balance: await getCurrentBalance(user_id) };
   }
 
-  const newBalance = balance - 1;
-
-  // Blueprint 6.4: voice gets a 2-min grace when the last credit is consumed
-  const grace = newBalance === 0 && channel === 'voice';
+  const newBalance = balance - amount;
 
   await query(
     `INSERT INTO credit_transactions
        (user_id, type, amount_credits, payment_method, session_id, channel, status)
-     VALUES ($1, 'debit', 1, 'bonus', $2, $3, 'confirmed')`,
-    [user_id, session_id, channel]
+     VALUES ($1, 'debit', $2, 'bonus', $3, $4, 'confirmed')`,
+    [user_id, amount, session_id, channel]
   );
   await cache.del(`credits:${user_id}`);
 
-  // Blueprint 6.4: notify when balance drops below 2
   if (newBalance < 2) {
     await query(
       `INSERT INTO notifications (user_id, type, payload, channel)
@@ -50,7 +45,35 @@ async function deductCredit(user_id, session_id, channel) {
     );
   }
 
-  return { blocked: false, grace, balance: newBalance };
+  return { blocked: false, balance: newBalance };
 }
 
-module.exports = { deductCredit };
+async function refundCredit(user_id, amount, session_id, channel, reason) {
+  await query(
+    'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
+    [amount, user_id]
+  );
+
+  await query(
+    `INSERT INTO credit_transactions
+       (user_id, type, amount_credits, payment_method, session_id, channel, status)
+     VALUES ($1, 'refund', $2, 'bonus', $3, $4, 'confirmed')`,
+    [user_id, amount, session_id, channel]
+  );
+  await cache.del(`credits:${user_id}`);
+
+  if (reason) {
+    await query(
+      `INSERT INTO notifications (user_id, type, payload, channel)
+       VALUES ($1, 'account_notice', $2, 'in_app')`,
+      [user_id, JSON.stringify({ message: reason })]
+    );
+  }
+}
+
+async function getCurrentBalance(user_id) {
+  const { rows } = await query('SELECT balance FROM credits WHERE user_id = $1', [user_id]);
+  return rows[0]?.balance ?? 0;
+}
+
+module.exports = { deductCredit, refundCredit };

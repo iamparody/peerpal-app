@@ -2,6 +2,7 @@ const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
 const { encrypt } = require('../utils/encryption');
+const { deductCredit } = require('../utils/creditDeductor');
 
 const router = express.Router();
 
@@ -23,6 +24,12 @@ router.post('/', auth, async (req, res) => {
   }
   if (!VALID_CONTACT_METHODS.includes(contact_method)) {
     return res.status(400).json({ error: `contact_method must be one of: ${VALID_CONTACT_METHODS.join(', ')}`, code: 'INVALID_CONTACT_METHOD' });
+  }
+
+  // Credit gate: 1 credit to submit a referral
+  const { blocked } = await deductCredit(req.user.id, 1, null, 'referral');
+  if (blocked) {
+    return res.status(402).json({ error: 'Insufficient credits — top up to request a therapist referral', code: 'INSUFFICIENT_CREDITS' });
   }
 
   const encryptedDetail = contact_method === 'phone' && contact_detail

@@ -2,6 +2,7 @@ const express = require('express');
 const { query } = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const cache = require('../services/cache');
+const { refundCredit } = require('../utils/creditDeductor');
 
 const router = express.Router();
 
@@ -217,6 +218,14 @@ router.patch('/referrals/:id', async (req, res) => {
     `UPDATE therapist_referrals SET ${setClauses.join(', ')} WHERE id = $${idx}`,
     params
   );
+
+  // Refund 1 credit when referral is escalated (no arrangement in 48hrs)
+  if (status === 'escalated') {
+    await refundCredit(
+      refRows[0].user_id, 1, null, 'referral',
+      'Your therapist referral could not be arranged in time. 1 credit refunded.'
+    );
+  }
 
   // Notify user of status update
   await query(

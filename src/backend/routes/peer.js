@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const { escalatePeerRequest } = require('../jobs/peerEscalation');
 const { ICE_SERVERS } = require('../ws/signaling');
 const cache = require('../services/cache');
+const { deductCredit } = require('../utils/creditDeductor');
 
 const router = express.Router();
 
@@ -23,21 +24,20 @@ router.post('/request', auth, async (req, res) => {
     });
   }
 
-  // Credit gate — blueprint 6.4
-  const { rows: creditRows } = await query(
-    'SELECT balance FROM credits WHERE user_id = $1',
-    [req.user.id]
-  );
-  if (!creditRows.length || creditRows[0].balance < 1) {
-    return res.status(402).json({ error: 'Insufficient credits — top up to request peer support', code: 'INSUFFICIENT_CREDITS' });
-  }
-
   const { rows: reqRows } = await query(
     `INSERT INTO peer_requests (user_id, channel_preference)
      VALUES ($1, $2) RETURNING id`,
     [req.user.id, channel_preference]
   );
   const requestId = reqRows[0].id;
+
+  // Deduct credits at submission: 1cr text, 2cr voice
+  const creditCost = channel_preference === 'voice' ? 2 : 1;
+  const { blocked } = await deductCredit(req.user.id, creditCost, null, channel_preference);
+  if (blocked) {
+    await query('DELETE FROM peer_requests WHERE id = $1', [requestId]);
+    return res.status(402).json({ error: 'Insufficient credits — top up to request peer support', code: 'INSUFFICIENT_CREDITS' });
+  }
 
   // Broadcast to all active members except requester — push + in-app
   const notifPayload = JSON.stringify({ request_id: requestId, channel_preference });
@@ -145,6 +145,18 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
     [sessionId, requestId]
   );
 
+  // Backfill session_id on the requester's debit transaction (created at submission with session_id=NULL)
+  await query(
+    `UPDATE credit_transactions
+     SET session_id = $1
+     WHERE id = (
+       SELECT id FROM credit_transactions
+       WHERE user_id = $2 AND channel = $3 AND type = 'debit' AND session_id IS NULL
+       ORDER BY created_at DESC LIMIT 1
+     )`,
+    [sessionId, requesterId, channel_preference]
+  );
+
   // Notify requester — in-app only (blueprint: session_confirmation)
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
@@ -185,7 +197,7 @@ router.patch('/request/:id/close', auth, async (req, res) => {
 
   const { rows: sessionRows } = await query(
     `UPDATE sessions SET status = 'completed', ended_at = NOW()
-     WHERE id = $1 RETURNING ended_at`,
+     WHERE id = $1 RETURNING ended_at, started_at`,
     [session_id]
   );
 
@@ -193,6 +205,17 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     `UPDATE peer_requests SET status = 'closed', updated_at = NOW() WHERE id = $1`,
     [req.params.id]
   );
+
+  // Record duration on the requester's debit transaction
+  if (sessionRows[0]?.started_at && sessionRows[0]?.ended_at) {
+    const durationMinutes = Math.round(
+      (new Date(sessionRows[0].ended_at) - new Date(sessionRows[0].started_at)) / 60000
+    );
+    await query(
+      `UPDATE credit_transactions SET duration_minutes = $1 WHERE session_id = $2 AND type = 'debit'`,
+      [durationMinutes, session_id]
+    );
+  }
 
   // Award 1 credit to the peer who accepted the session
   if (responderId) {

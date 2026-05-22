@@ -4,37 +4,22 @@ import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
-const VOICE_CREDIT_INTERVAL = 5 * 60 * 1000; // 1 credit per 5 min
 
 export default function PeerVoiceCallScreen() {
   const { id: sessionId } = useParams();
   const navigate = useNavigate();
   const [callState, setCallState] = useState('connecting'); // connecting | active | ended
   const [muted, setMuted] = useState(false);
-  const [balance, setBalance] = useState(null);
   const [error, setError] = useState('');
   const wsRef = useRef(null);
   const pcRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
-  const creditTimerRef = useRef(null);
   const isInitiator = useRef(false);
-
-  const deductCredit = useCallback(async () => {
-    try {
-      const { data } = await client.post('/api/credits/deduct', { session_id: sessionId, channel: 'voice' });
-      setBalance(data.balance);
-      if (data.blocked) {
-        setError('Out of credits. Call ended.');
-        endCall();
-      }
-    } catch { /* non-fatal */ }
-  }, [sessionId]);
 
   const requestIdRef = useRef(null);
 
   const endCall = useCallback(async () => {
-    clearInterval(creditTimerRef.current);
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     pcRef.current?.close();
     wsRef.current?.close();
@@ -52,7 +37,6 @@ export default function PeerVoiceCallScreen() {
       try {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         requestIdRef.current = data.session?.request_id ?? null;
-        setBalance(data.credit_balance ?? null);
         const iceServers = data.ice_servers || [{ urls: 'stun:stun.l.google.com:19302' }];
 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -68,7 +52,6 @@ export default function PeerVoiceCallScreen() {
             remoteAudioRef.current.play().catch(() => {});
           }
           setCallState('active');
-          creditTimerRef.current = setInterval(deductCredit, VOICE_CREDIT_INTERVAL);
         };
 
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
@@ -116,12 +99,11 @@ export default function PeerVoiceCallScreen() {
 
     init();
     return () => {
-      clearInterval(creditTimerRef.current);
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc?.close();
       wsRef.current?.close();
     };
-  }, [sessionId, deductCredit]);
+  }, [sessionId]);
 
   function toggleMute() {
     if (!localStreamRef.current) return;
@@ -150,11 +132,6 @@ export default function PeerVoiceCallScreen() {
         <p style={{ fontSize: '0.9rem' }}>
           {callState === 'active' ? 'Anonymous · Peer' : callState === 'connecting' ? 'Establishing connection…' : 'Your peer has left the call'}
         </p>
-        {balance !== null && (
-          <div style={{ marginTop: 'var(--space-sm)', color: balance < 2 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
-            {balance} credit{balance !== 1 ? 's' : ''} remaining
-          </div>
-        )}
       </div>
 
       <div style={{ display: 'flex', gap: 'var(--space-lg)' }}>
