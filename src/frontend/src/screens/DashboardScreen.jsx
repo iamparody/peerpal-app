@@ -106,14 +106,19 @@ export default function DashboardScreen() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <span className={`credit-badge${balanceLow ? ' credit-badge--low' : ''}`} aria-label={`${balance} credits`}>
+              <button
+                onClick={() => navigate('/credits')}
+                className={`credit-badge${balanceLow ? ' credit-badge--low' : ''}`}
+                aria-label={`${balance} credits — tap to top up`}
+                style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+              >
                 <Coin size={16} weight="duotone" aria-hidden="true" />
                 {balance !== null ? balance : '—'}
-              </span>
+              </button>
             </Tooltip.Trigger>
             <Tooltip.Portal>
               <Tooltip.Content className="tooltip-content" sideOffset={6}>
-                Your credit balance
+                Credits · tap to top up
                 <Tooltip.Arrow className="tooltip-arrow" />
               </Tooltip.Content>
             </Tooltip.Portal>

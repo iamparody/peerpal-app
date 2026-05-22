@@ -17,8 +17,8 @@ const TYPE_META = {
   therapist_update:  { icon: '🩺', label: 'Therapist update',   route: '/therapists/status' },
   referral_status:   { icon: '📋', label: 'Referral update',    route: '/referral' },
   admin_message:     { icon: '💬', label: 'Message from admin', route: null },
-  credit_low:        { icon: '⚠️', label: 'Low balance',        route: '/profile' },
-  payment_confirmed: { icon: '✅', label: 'Payment confirmed',  route: '/profile' },
+  credit_low:        { icon: '⚠️', label: 'Low balance',        route: '/credits' },
+  payment_confirmed: { icon: '✅', label: 'Payment confirmed',  route: '/credits' },
   account_notice:    { icon: 'ℹ️', label: 'Account notice',     route: '/profile' },
   generic:           { icon: '🔔', label: 'Notification',       route: null },
 };

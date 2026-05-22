@@ -5,12 +5,6 @@ import { Coin, SignOut } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 
-const PACKAGES = [
-  { id: 'starter',  label: 'Starter',  price: 50,  credits: 3 },
-  { id: 'standard', label: 'Standard', price: 100, credits: 7 },
-  { id: 'plus',     label: 'Plus',     price: 200, credits: 15 },
-  { id: 'support',  label: 'Support',  price: 500, credits: 40 },
-];
 
 function ProfileSkeleton() {
   return (
@@ -28,7 +22,6 @@ export default function ProfileScreen() {
   const qc = useQueryClient();
   const [notifPrefs, setNotifPrefs] = useState(null);
   const [error, setError] = useState('');
-  const [purchasing, setPurchasing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -46,10 +39,6 @@ export default function ProfileScreen() {
     queryKey: ['credits', 'balance'],
     queryFn: () => client.get('/api/credits/balance').then(r => r.data),
   });
-  const { data: txData } = useQuery({
-    queryKey: ['credits', 'transactions'],
-    queryFn: () => client.get('/api/credits/transactions').then(r => r.data),
-  });
   const { data: notifsData } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => client.get('/api/notifications').then(r => r.data),
@@ -65,18 +54,6 @@ export default function ProfileScreen() {
       });
     }
   }, [profile, notifPrefs]);
-
-  async function handlePurchase(pkg) {
-    setPurchasing(pkg.id);
-    try {
-      const { data } = await client.post('/api/credits/purchase', { package: pkg.id });
-      if (data.payment_url) window.location.href = data.payment_url;
-    } catch (err) {
-      setError(err.response?.data?.error || 'Your payment didn\'t go through. Please try a different method.');
-    } finally {
-      setPurchasing(null);
-    }
-  }
 
   async function updateNotifPref(key, value) {
     setNotifPrefs((p) => ({ ...p, [key]: value }));
@@ -132,7 +109,6 @@ export default function ProfileScreen() {
 
   const loading = isLoading;
   const balance = balanceData?.balance ?? null;
-  const transactions = txData?.transactions ?? (Array.isArray(txData) ? txData : []);
   const notifications = notifsData?.notifications ?? (Array.isArray(notifsData) ? notifsData : []);
 
   if (loading) {
@@ -217,49 +193,23 @@ export default function ProfileScreen() {
 
         {/* Credits */}
         <div className="card">
-          <h3 style={{ marginBottom: 'var(--space-md)' }}>Credits</h3>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-lg)' }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Balance</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-                <Coin size={24} weight="duotone" color={balanceLow ? 'var(--color-danger)' : 'var(--color-accent)'} aria-hidden="true" />
-                <span style={{ fontSize: 32, fontWeight: 600, color: balanceLow ? 'var(--color-danger)' : 'var(--color-text-primary)' }}>{balance ?? '—'}</span>
-              </div>
-              {balanceLow && <div style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>You need more credits for this. Top up to continue.</div>}
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+            <h3>Credits</h3>
+            <button
+              onClick={() => navigate('/credits')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--color-calm)', fontWeight: 600, padding: '4px 0' }}
+            >
+              {balanceLow ? 'Top up now' : 'Manage →'}
+            </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-            {PACKAGES.map((pkg) => (
-              <button
-                key={pkg.id}
-                onClick={() => handlePurchase(pkg)}
-                disabled={!!purchasing}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: 'var(--radius-md)',
-                  border: `1.5px solid ${purchasing === pkg.id ? 'var(--color-border-focus)' : 'var(--color-border)'}`,
-                  background: 'var(--color-surface-card)',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  opacity: purchasing && purchasing !== pkg.id ? 0.5 : 1,
-                  transition: 'opacity var(--duration-fast)',
-                }}
-              >
-                <div style={{ fontWeight: 600, color: 'var(--color-accent)', fontSize: 15 }}>{pkg.credits} cr</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>KSh {pkg.price}</div>
-                {purchasing === pkg.id && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Loading…</div>}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            <Coin size={22} weight="duotone" color={balanceLow ? 'var(--color-danger)' : 'var(--color-accent)'} aria-hidden="true" />
+            <span style={{ fontSize: 28, fontWeight: 700, color: balanceLow ? 'var(--color-danger)' : 'var(--color-text-primary)' }}>{balance ?? '—'}</span>
+            <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>credits remaining</span>
           </div>
-          {transactions.slice(0, 5).map((tx) => (
-            <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '6px 0', borderBottom: '1px solid var(--color-divider)' }}>
-              <span style={{ color: 'var(--color-text-muted)' }}>{new Date(tx.created_at).toLocaleDateString()}</span>
-              <span style={{ textTransform: 'capitalize', color: 'var(--color-text-muted)' }}>{tx.type}</span>
-              <span style={{ fontWeight: 600, color: tx.type === 'debit' ? 'var(--color-danger)' : 'var(--color-calm)' }}>
-                {tx.type === 'debit' ? '-' : '+'}{tx.amount} cr
-              </span>
-            </div>
-          ))}
+          {balanceLow && (
+            <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>Running low — tap "Top up now" to continue using sessions.</p>
+          )}
         </div>
 
         {/* Privacy & Data */}
