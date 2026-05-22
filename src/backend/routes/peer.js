@@ -1,10 +1,13 @@
 const express = require('express');
-const { query } = require('../db');
+const { query, getClient } = require('../db');
 const auth = require('../middleware/auth');
 const { escalatePeerRequest } = require('../jobs/peerEscalation');
 const { ICE_SERVERS } = require('../ws/signaling');
 const cache = require('../services/cache');
 const { deductCredit } = require('../utils/creditDeductor');
+
+const PEER_EARNING_RATE = 0.25;   // peer earns 25% of what requester spent
+const CONVERSION_THRESHOLD = 2.0; // pending credits unlock as spendable in batches of 2
 
 const router = express.Router();
 
@@ -183,13 +186,13 @@ router.get('/request/:id/status', auth, async (req, res) => {
 // ─── PATCH /peer/request/:id/close ───────────────────────────────────────────
 router.patch('/request/:id/close', auth, async (req, res) => {
   const { rows } = await query(
-    `SELECT pr.id, pr.session_id, pr.user_id, pr.accepted_by
+    `SELECT pr.id, pr.session_id, pr.user_id, pr.accepted_by, pr.channel_preference
      FROM peer_requests pr WHERE pr.id = $1`,
     [req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Request not found', code: 'NOT_FOUND' });
 
-  const { session_id, user_id: requesterId, accepted_by: responderId } = rows[0];
+  const { session_id, user_id: requesterId, accepted_by: responderId, channel_preference } = rows[0];
 
   if (req.user.id !== requesterId && req.user.id !== responderId) {
     return res.status(403).json({ error: 'Not a participant in this session', code: 'FORBIDDEN' });
@@ -217,24 +220,72 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     );
   }
 
-  // Award 1 credit to the peer who accepted the session
+  // Fractional peer earning — 25% of requester spend, accumulates to threshold of 2.0
   if (responderId) {
-    await query(
-      'UPDATE credits SET balance = balance + 1, updated_at = NOW() WHERE user_id = $1',
-      [responderId]
-    );
-    await query(
-      `INSERT INTO credit_transactions
-         (user_id, type, amount_credits, payment_method, session_id, channel, status)
-       VALUES ($1, 'bonus', 1, 'bonus', $2, 'purchase', 'confirmed')`,
-      [responderId, session_id]
-    );
-    await cache.del(`credits:${responderId}`);
-    await query(
-      `INSERT INTO notifications (user_id, type, payload, channel)
-       VALUES ($1, 'milestone', $2, 'in_app')`,
-      [responderId, JSON.stringify({ message: 'You earned 1 credit for completing a peer session.' })]
-    );
+    const requesterSpent = channel_preference === 'voice' ? 2 : 1;
+    const earned = +(requesterSpent * PEER_EARNING_RATE).toFixed(2);
+
+    const dbClient = await getClient();
+    try {
+      await dbClient.query('BEGIN');
+
+      const { rows: statsRows } = await dbClient.query(
+        `INSERT INTO peer_stats (user_id, sessions_completed, pending_credits, earned_credits_lifetime)
+         VALUES ($1, 1, $2, $2)
+         ON CONFLICT (user_id) DO UPDATE
+           SET sessions_completed       = peer_stats.sessions_completed + 1,
+               pending_credits          = peer_stats.pending_credits + $2,
+               earned_credits_lifetime  = peer_stats.earned_credits_lifetime + $2,
+               updated_at               = NOW()
+         RETURNING pending_credits`,
+        [responderId, earned]
+      );
+
+      const newPending = parseFloat(statsRows[0].pending_credits);
+
+      if (newPending >= CONVERSION_THRESHOLD) {
+        const toConvert = Math.floor(newPending);
+        const remaining = parseFloat((newPending - toConvert).toFixed(2));
+
+        await dbClient.query(
+          `UPDATE peer_stats
+             SET pending_credits          = $1,
+                 redeemed_credits_lifetime = redeemed_credits_lifetime + $2,
+                 updated_at               = NOW()
+           WHERE user_id = $3`,
+          [remaining, toConvert, responderId]
+        );
+
+        await dbClient.query(
+          'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
+          [toConvert, responderId]
+        );
+
+        await dbClient.query(
+          `INSERT INTO credit_transactions
+             (user_id, type, amount_credits, payment_method, session_id, channel, status)
+           VALUES ($1, 'peer_earning', $2, 'bonus', $3, 'peer_earning', 'confirmed')`,
+          [responderId, toConvert, session_id]
+        );
+
+        await cache.del(`credits:${responderId}`);
+
+        await dbClient.query(
+          `INSERT INTO notifications (user_id, type, payload, channel)
+           VALUES ($1, 'milestone', $2, 'in_app')`,
+          [responderId, JSON.stringify({
+            message: `You've earned ${toConvert} credit${toConvert > 1 ? 's' : ''} from supporting others. It's been added to your balance.`,
+          })]
+        );
+      }
+
+      await dbClient.query('COMMIT');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      console.error('Peer earning error:', err.message);
+    } finally {
+      dbClient.release();
+    }
   }
 
   return res.status(200).json({ ended_at: sessionRows[0]?.ended_at });
@@ -282,6 +333,7 @@ router.get('/history', auth, async (req, res) => {
 
 // ─── GET /peer/stats ─────────────────────────────────────────────────────────
 router.get('/stats', auth, async (req, res) => {
+  // sessions_completed from peer_requests — authoritative, includes pre-Phase 27 history
   const { rows: completedRows } = await query(
     `SELECT COUNT(*) AS sessions_completed
      FROM peer_requests WHERE accepted_by = $1 AND status = 'closed'`,
@@ -289,13 +341,17 @@ router.get('/stats', auth, async (req, res) => {
   );
   const sessionsCompleted = parseInt(completedRows[0].sessions_completed);
 
-  // Credits earned specifically from peer sessions (session_id IS NOT NULL excludes signup bonus)
-  const { rows: creditRows } = await query(
-    `SELECT COALESCE(SUM(amount_credits), 0) AS credits_earned
-     FROM credit_transactions
-     WHERE user_id = $1 AND type = 'bonus' AND session_id IS NOT NULL`,
+  // Earning stats from peer_stats (starts accumulating from Phase 27 onward)
+  const { rows: earningRows } = await query(
+    `SELECT pending_credits, earned_credits_lifetime, redeemed_credits_lifetime
+     FROM peer_stats WHERE user_id = $1`,
     [req.user.id]
   );
+  const earning = earningRows[0] || {
+    pending_credits: 0,
+    earned_credits_lifetime: 0,
+    redeemed_credits_lifetime: 0,
+  };
 
   // Rank: how many other peers have more completed sessions + 1
   const { rows: rankRows } = await query(
@@ -311,7 +367,10 @@ router.get('/stats', auth, async (req, res) => {
 
   return res.status(200).json({
     sessions_completed: sessionsCompleted,
-    credits_earned: parseInt(creditRows[0].credits_earned),
+    pending_credits: parseFloat(earning.pending_credits),
+    earned_credits_lifetime: parseFloat(earning.earned_credits_lifetime),
+    redeemed_credits_lifetime: parseFloat(earning.redeemed_credits_lifetime),
+    credits_earned: parseFloat(earning.redeemed_credits_lifetime), // backward compat for PeerRequestScreen
     rank: parseInt(rankRows[0].rank),
   });
 });

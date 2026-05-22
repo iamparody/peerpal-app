@@ -30,6 +30,7 @@ export default function ProfileScreen() {
   const [feedbackType, setFeedbackType] = useState('general');
   const [sendingFeedback, setSendingFeedback] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [impactOpen, setImpactOpen] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile'],
@@ -42,6 +43,10 @@ export default function ProfileScreen() {
   const { data: notifsData } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => client.get('/api/notifications').then(r => r.data),
+  });
+  const { data: peerStats } = useQuery({
+    queryKey: ['peer', 'stats'],
+    queryFn: () => client.get('/api/peer/stats').then(r => r.data),
   });
 
   useEffect(() => {
@@ -211,6 +216,76 @@ export default function ProfileScreen() {
             <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>Running low — tap "Top up now" to continue using sessions.</p>
           )}
         </div>
+
+        {/* Peer Impact — only shown if user has completed any peer sessions */}
+        {((peerStats?.sessions_completed ?? 0) > 0 || (peerStats?.pending_credits ?? 0) > 0) && (() => {
+          const pending = parseFloat(peerStats.pending_credits ?? 0);
+          const pct = Math.min(100, (pending / 2) * 100);
+          const toGo = Math.max(0, 2 - pending);
+          return (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                <h3>Your Peer Impact</h3>
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                  {peerStats.sessions_completed} session{peerStats.sessions_completed !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* Accumulating progress */}
+              <div style={{ marginBottom: 'var(--space-md)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Accumulating</span>
+                  <span style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: 17 }}>
+                    {pending.toFixed(2)} / 2.00 cr
+                  </span>
+                </div>
+                <div style={{ background: 'var(--color-border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 4, background: 'var(--color-calm)',
+                    width: `${pct}%`, transition: 'width 0.4s ease',
+                  }} />
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 5 }}>
+                  {pending >= 1.5
+                    ? `${toGo.toFixed(2)} credits away — almost there!`
+                    : 'Each session you help adds to this. Unlock 2 credits when you hit 2.00.'}
+                </p>
+              </div>
+
+              {/* Lifetime stats row */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-around',
+                padding: '10px 0', borderTop: '1px solid var(--color-divider)',
+                marginBottom: 'var(--space-sm)',
+              }}>
+                {[
+                  { label: 'Total earned', value: parseFloat(peerStats.earned_credits_lifetime ?? 0).toFixed(2) + ' cr' },
+                  { label: 'Redeemed',     value: (peerStats.redeemed_credits_lifetime ?? 0) + ' cr' },
+                  { label: 'Rank',         value: `#${peerStats.rank ?? '—'}` },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text-primary)' }}>{value}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* How it works — collapsible */}
+              <button
+                onClick={() => setImpactOpen(v => !v)}
+                style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontSize: 12, cursor: 'pointer', padding: 0, fontWeight: 600 }}
+              >
+                {impactOpen ? 'Hide details ▲' : 'How it works ▼'}
+              </button>
+              {impactOpen && (
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.65, marginTop: 8 }}>
+                  <p>You earn 25% of what the person you helped spent. Text sessions earn 0.25 cr, voice sessions earn 0.50 cr.</p>
+                  <p style={{ marginTop: 6 }}>Credits accumulate here and are added to your balance automatically once you reach 2.00 — then use them for your own sessions.</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Privacy & Data */}
         <div className="card">

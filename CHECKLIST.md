@@ -1202,6 +1202,43 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ---
 
+## Phase 27 — Peer Incentive System (Fractional Earnings)
+
+> Finalised 2026-05-22. Replaces flat 1cr peer bonus with 25% fractional earning model.
+> Conversion threshold = 2.0 credits (retention mechanic: must accumulate before unlocking).
+
+### 27.1 — Migration
+
+- [x] `044_peer_stats.sql` — create `peer_stats` table (user_id UNIQUE FK, sessions_completed, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2), redeemed_credits_lifetime DECIMAL(10,2)); add `'peer_earning'` to `credit_tx_type` and `credit_tx_channel` enums; RLS deny-anon policy
+
+### 27.2 — Backend: PATCH /peer/request/:id/close
+
+- [x] Pull `channel_preference` from initial peer_requests SELECT
+- [x] Replace flat 1cr bonus with fractional earning: earned = channel_preference === 'voice' ? 0.50 : 0.25
+- [x] Upsert `peer_stats` (sessions_completed +1, pending_credits += earned, earned_credits_lifetime += earned) using `ON CONFLICT (user_id) DO UPDATE`
+- [x] If `pending_credits >= 2.0`: convert `Math.floor(pending_credits)` to spendable credits (UPDATE credits.balance), write `credit_transactions` type='peer_earning' channel='peer_earning', send 'milestone' notification; update `redeemed_credits_lifetime`
+- [x] Entire earning block wrapped in `getClient()` BEGIN/COMMIT/ROLLBACK transaction; errors non-fatal (session still closes)
+
+### 27.3 — Backend: GET /peer/stats
+
+- [x] Reads `pending_credits`, `earned_credits_lifetime`, `redeemed_credits_lifetime` from `peer_stats` table (falls back to zeros if no row)
+- [x] `sessions_completed` and `rank` still computed from `peer_requests` (authoritative, includes pre-Phase 27 history)
+- [x] Added `credits_earned` alias (= `redeemed_credits_lifetime`) for backward compat with PeerRequestScreen leaderboard
+
+### 27.4 — Frontend: ProfileScreen "Your Peer Impact" card
+
+- [x] Added `useQuery(['peer', 'stats'])` fetching `/api/peer/stats`
+- [x] Card shown only if `sessions_completed > 0` or `pending_credits > 0`
+- [x] Progress bar: `pending_credits / 2.00` with context-aware label ("almost there" above 1.5, encouragement below)
+- [x] Lifetime stats row: total earned (decimal), redeemed (integer), rank
+- [x] Collapsible "How it works" (state: `impactOpen`) explaining 25% model and conversion rule
+
+### 27.5 — Frontend: CreditsScreen transaction labels
+
+- [x] `txLabel`: added `'peer_earning'` → "Earned from peer support"
+
+---
+
 ## Phase 24 — Help a Friend Module
 
 > Concept confirmed 2026-05-22. **Build blocked on clinical content sign-off.**

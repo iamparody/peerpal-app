@@ -19,6 +19,7 @@ function txLabel(tx) {
     if (tx.channel === 'referral') return 'Refund — referral not arranged';
     return 'Refund';
   }
+  if (tx.type === 'peer_earning') return 'Earned from peer support';
   if (tx.type === 'debit') {
     if (tx.channel === 'text') return 'Peer text session';
     if (tx.channel === 'voice') return 'Peer voice call';

@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 26 — Credit System v2 (Flat Pricing + Abuse Guardrails) — COMPLETE**
+**Phase 27 — Peer Incentive System (Fractional Earnings) — COMPLETE**
 
 ---
 
@@ -11,6 +11,45 @@
 
 ### Phase 24 — Help a Friend Module (content-pending)
 Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
+
+---
+
+### Session 21 — 2026-05-22
+
+**Phase 27 — Peer Incentive System (Fractional Earnings) — COMPLETE**
+
+**Design rationale**
+- Flat 1cr bonus replaced with 25% fractional model: text = 0.25cr, voice = 0.50cr per session
+- Conversion threshold = 2.0cr (retention mechanic; peer must accumulate before any credits unlock)
+- Once threshold hit: `Math.floor(pending)` converts to spendable balance, remainder stays pending
+- Credits are fungible once unlocked — no category restriction needed (all credit features already peer/referral)
+
+**Migration 044**
+- Creates `peer_stats` table: `user_id UNIQUE`, `sessions_completed`, `pending_credits DECIMAL(10,2)`, `earned_credits_lifetime DECIMAL(10,2)`, `redeemed_credits_lifetime DECIMAL(10,2)`
+- Adds `'peer_earning'` to `credit_tx_type` and `credit_tx_channel` enums
+- RLS deny-anon policy consistent with migration 030 pattern
+
+**Backend — peer.js PATCH /close**
+- Pulls `channel_preference` from initial peer_requests SELECT (avoids second query)
+- Upserts `peer_stats` via ON CONFLICT with atomic increment
+- Conversion block wrapped in `getClient()` BEGIN/COMMIT/ROLLBACK — non-fatal if it fails (session still closes)
+- Writes `credit_transactions type='peer_earning' channel='peer_earning'` on conversion
+- Sends 'milestone' notification on credit unlock
+
+**Backend — GET /peer/stats**
+- New fields: `pending_credits`, `earned_credits_lifetime`, `redeemed_credits_lifetime` from peer_stats table
+- `sessions_completed` and `rank` still read from peer_requests (historical data preserved)
+- `credits_earned` kept as alias for `redeemed_credits_lifetime` (backward compat for PeerRequestScreen leaderboard)
+
+**Frontend — ProfileScreen**
+- Added `useQuery(['peer', 'stats'])` call
+- "Your Peer Impact" card shown only when `sessions_completed > 0 || pending_credits > 0`
+- Progress bar: `pending / 2.0`, context-aware label (encouragement below 1.5, "almost there" above 1.5)
+- Lifetime stats: earned (decimal), redeemed (integer), rank
+- Collapsible "How it works" with `impactOpen` state
+
+**Frontend — CreditsScreen**
+- `txLabel` handles `'peer_earning'` → "Earned from peer support"; shows with `+N cr` in calm colour
 
 ---
 
