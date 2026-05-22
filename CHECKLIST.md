@@ -936,26 +936,19 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > Do not implement until called on.
 
 ### 20.1 Change 1 — Mutable Persona (partial)
-- [ ] Migration 037: Remove any immutability constraint on `tone`, `response_style`, `formality` columns in `ai_personas` table; add `updated_at` column if not present
-- [ ] Backend: `PATCH /api/ai/persona` endpoint — allow updating tone, response_style, formality; name field must be rejected (immutable); update `updated_at`
-- [ ] Frontend: Add "Edit Companion" entry in `ProfileScreen.jsx` settings list
-- [ ] New screen `EditPersonaScreen.jsx` at route `/persona/edit`
-  - [ ] Heading: "How has your companion evolved?" (not "Change settings")
-  - [ ] Show current persona name (read-only, with brief note: "Your companion's name is part of who they are")
-  - [ ] Editable fields: tone selector, response_style selector, formality selector (reuse options from `PersonaScreen.jsx`)
-  - [ ] Save → `PATCH /api/ai/persona`; success feedback; back to Profile
-- [ ] Add `/persona/edit` to `HIDE_NAV_ON` in `App.jsx`
+- [x] Migration 042: Add `updated_at TIMESTAMPTZ` and `language VARCHAR(20)` to `ai_personas` (combined with 20.2 — migrations 037/038 were already taken by therapist features)
+- [x] Backend: `PATCH /api/ai/persona` endpoint — allows tone, response_style, formality, uses_alias, language updates; persona_name silently ignored; busts `persona:${userId}` cache
+- [x] Frontend: Add "Edit" button to AI Companion card in `ProfileScreen.jsx`; shows language field; updates "cannot be changed" copy to clarify only name is permanent
+- [x] New screen `EditPersonaScreen.jsx` at route `/persona/edit` — seeds form from profile query; saves via PATCH; invalidates profile cache; success animation then back to profile
+- [x] Add `/persona/edit` to `HIDE_NAV_ON` in `App.jsx`
 
 ### 20.2 Change 2 — Language Switcher
-- [ ] Migration 038: Add `language` column to `ai_personas` — ENUM('english','swahili','sheng'), DEFAULT 'english'
-- [ ] Backend: include `language` in `PATCH /api/ai/persona` allowed fields
-- [ ] Backend: `routes/ai.js` — system prompt construction adds language instruction as Layer 2.5 (after persona layer, before safety layer):
-  - `english`: no addition (current behaviour)
-  - `swahili`: append "Respond in Swahili. Use warm, conversational Swahili — not formal textbook Swahili."
-  - `sheng`: append "Respond in Kenyan Sheng. Urban, warm, youth-friendly. Mix Swahili and English naturally."
-- [ ] Frontend: Add language selector to `EditPersonaScreen.jsx` — three options: English / Swahili / Sheng
-- [ ] Language can be changed at any time — no lock, no confirmation required
-- [ ] `PersonaScreen.jsx` (onboarding): add language selector step with same three options; default English
+- [x] Migration 042 (combined above): `language VARCHAR(20) NOT NULL DEFAULT 'english' CHECK (language IN ('english','swahili','sheng'))`
+- [x] Backend: `language` included in `PATCH /api/ai/persona`
+- [x] Backend: `routes/ai.js` — Layer 2.5 added in `buildSystemPrompt`: english=no-op, swahili=full Swahili instruction, sheng=Kenyan Sheng instruction
+- [x] Frontend: Language selector added to `EditPersonaScreen.jsx` — English / Swahili / Sheng with descriptions
+- [x] `PersonaScreen.jsx` (onboarding): language pill selector added (3 options); default English; note "can be changed anytime"; "permanent" copy restricted to name only
+- [x] `POST /onboarding/persona` updated to accept and store `language` field
 
 ### 20.3 Change 3 — Fine-tuned Kenyan Model (future, pending external collaboration)
 - [ ] `.env.example`: add `AI_PROVIDER=groq|custom`, `CUSTOM_AI_ENDPOINT=`, `CUSTOM_AI_KEY=`
@@ -989,22 +982,22 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 ### 21.2 Optimistic rendering
 - [x] Mood check-in (`MoodCheckinScreen`): invalidates all `['moods']` queries on success so dashboard + analytics refresh
 - [x] Journal delete: `queryClient.setQueryData` removes entry immediately; `invalidateQueries` fallback on error
-- [ ] Group message send (`GroupChatScreen`): append message with `pending: true` flag instantly
-- [ ] Notification read-all: mark all as read in UI immediately; roll back on error
-- [ ] Credit deduction (peer session start): decrement balance display immediately
+- [x] Group message send (`GroupChatScreen`): append message with `pending: true` flag instantly; remove on error; re-fetch on success
+- [x] Notification read-all: "Mark all read" button in Notifications card; optimistic cache update via `qc.setQueryData`; roll back via `invalidateQueries` on error
+- [x] Credit deduction (peer session start): `qc.invalidateQueries(['credits','balance'])` on session match in `PeerWaitingScreen` so balance refreshes immediately on next screen
 - [x] AI session end: invalidates `['credits', 'balance']` so dashboard coin badge updates immediately on return
 
 ### 21.3 Skeleton placeholders — replace all blank/spinner states
 - [x] `ProtectedRoute`: replaced spinner with full-screen `AppSkeleton` matching dashboard layout (top bar, blob circle, greeting, divider, tile grid)
 - [x] `AIChatScreen` session-start state: inline skeleton (top bar placeholders + AIChatSkeleton bubble rows + input bar stub) shown during `starting` state
-- [ ] `GroupDetailScreen`: skeleton for group header banner + join button
-- [ ] `PeerWaitingScreen`: skeleton for waiting state header
+- [x] `GroupDetailScreen`: skeleton for group header banner + join button (was already present)
+- [x] `PeerWaitingScreen`: skeleton (circle + two text rows) shown for 120ms before timer UI fades in
 
 ### 21.4 Tooltips
 - [x] Install `@radix-ui/react-tooltip`
 - [x] Wrap app root with `TooltipProvider` in `main.jsx` (delayDuration: 400)
 - [x] Dashboard top bar: bell icon → "Notifications"; coin badge → "Your credit balance"
-- [ ] Admin sidebar collapsed icons + action buttons
+- [x] Admin sidebar — N/A: admin panel uses a horizontal tab bar, not a collapsible sidebar
 
 ### 21.5 Component library — extract shared components
 - [x] `src/frontend/src/components/Toast.jsx` — Radix Toast; success/error/warning variants; `useToast()` hook; wired in main.jsx

@@ -52,6 +52,7 @@ import BreathingScreen from './screens/BreathingScreen';
 import AnalyticsScreen from './screens/AnalyticsScreen';
 import SessionHistoryScreen from './screens/SessionHistoryScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import EditPersonaScreen from './screens/EditPersonaScreen';
 
 // Peer
 import PeerRequestScreen from './screens/peer/PeerRequestScreen';
@@ -65,6 +66,7 @@ const HIDE_NAV_ON = [
   '/emergency', '/emergency-public',
   '/privacy-policy', '/terms-of-service', '/data-compliance',
   '/therapists',
+  '/persona/edit',
 ];
 
 // Paths where the unverified banner should not appear
@@ -191,6 +193,7 @@ function Layout() {
         <Route path="/analytics"   element={<ProtectedRoute><AnalyticsScreen /></ProtectedRoute>} />
         <Route path="/sessions"    element={<ProtectedRoute><SessionHistoryScreen /></ProtectedRoute>} />
         <Route path="/profile"     element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
+        <Route path="/persona/edit" element={<ProtectedRoute><EditPersonaScreen /></ProtectedRoute>} />
 
         {/* Peer support */}
         <Route path="/peer"              element={<ProtectedRoute><PeerRequestScreen /></ProtectedRoute>} />

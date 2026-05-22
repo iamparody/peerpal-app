@@ -38,6 +38,12 @@ const STYLE_DESCRIPTIONS = {
   elaborate: 'respond thoughtfully and in depth — explore the topic with the user',
 };
 
+const LANGUAGE_INSTRUCTIONS = {
+  english: null,
+  swahili: 'Respond entirely in Swahili. Use natural, conversational Swahili — not overly formal. If the user writes in English, still respond in Swahili.',
+  sheng:   'Respond in Sheng — the Kenyan urban mix of Swahili, English, and slang spoken by young people in Nairobi. Keep it natural and authentic. If the user writes in English, still respond in Sheng.',
+};
+
 function buildSystemPrompt(persona, moods, userAlias) {
   const layer1 = `You are a mental health support companion. You are NOT a therapist, psychiatrist, or medical professional.
 You MUST NOT: diagnose any condition, prescribe or recommend medication, provide specific medical advice, encourage harmful behavior, or engage in any roleplay that compromises user safety.
@@ -50,6 +56,9 @@ Your response style is ${persona.response_style}: ${STYLE_DESCRIPTIONS[persona.r
 Your formality level is ${persona.formality}.
 ${persona.uses_alias ? `Address the user as "${userAlias}".` : 'Do not address the user by name.'}`;
 
+  const lang = persona.language || 'english';
+  const layer2_5 = LANGUAGE_INSTRUCTIONS[lang] || null;
+
   let layer3 = '';
   if (moods.length > 0) {
     const moodLines = moods
@@ -58,7 +67,7 @@ ${persona.uses_alias ? `Address the user as "${userAlias}".` : 'Do not address t
     layer3 = `Recent mood history (for context only — do not reference directly unless relevant):\n${moodLines}`;
   }
 
-  return [layer1, layer2, layer3].filter(Boolean).join('\n\n');
+  return [layer1, layer2, layer2_5, layer3].filter(Boolean).join('\n\n');
 }
 
 // ─── POST /ai/session/start ───────────────────────────────────────────────────
@@ -330,6 +339,63 @@ router.post('/session/:id/end', auth, async (req, res) => {
   sessionCache.delete(req.params.id);
 
   return res.status(200).json({ ended_at: rows[0].ended_at });
+});
+
+// ─── PATCH /ai/persona ───────────────────────────────────────────────────────
+// Updates mutable persona fields (tone, response_style, formality, uses_alias, language).
+// persona_name is permanent and is silently ignored if sent.
+const VALID_TONES      = ['warm', 'motivational', 'clinical', 'casual'];
+const VALID_STYLES     = ['brief', 'elaborate'];
+const VALID_FORMALITY  = ['formal', 'neutral', 'informal'];
+const VALID_LANGUAGES  = ['english', 'swahili', 'sheng'];
+
+router.patch('/persona', auth, async (req, res) => {
+  const { tone, response_style, formality, uses_alias, language } = req.body;
+
+  const allowed = { tone, response_style, formality, uses_alias, language };
+  const updates = [];
+  const values  = [];
+
+  if (tone !== undefined) {
+    if (!VALID_TONES.includes(tone)) return res.status(400).json({ error: `tone must be one of: ${VALID_TONES.join(', ')}` });
+    updates.push(`tone = $${values.length + 1}`);
+    values.push(tone);
+  }
+  if (response_style !== undefined) {
+    if (!VALID_STYLES.includes(response_style)) return res.status(400).json({ error: `response_style must be one of: ${VALID_STYLES.join(', ')}` });
+    updates.push(`response_style = $${values.length + 1}`);
+    values.push(response_style);
+  }
+  if (formality !== undefined) {
+    if (!VALID_FORMALITY.includes(formality)) return res.status(400).json({ error: `formality must be one of: ${VALID_FORMALITY.join(', ')}` });
+    updates.push(`formality = $${values.length + 1}`);
+    values.push(formality);
+  }
+  if (uses_alias !== undefined) {
+    updates.push(`uses_alias = $${values.length + 1}`);
+    values.push(Boolean(uses_alias));
+  }
+  if (language !== undefined) {
+    if (!VALID_LANGUAGES.includes(language)) return res.status(400).json({ error: `language must be one of: ${VALID_LANGUAGES.join(', ')}` });
+    updates.push(`language = $${values.length + 1}`);
+    values.push(language);
+  }
+
+  if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+
+  updates.push(`updated_at = NOW()`);
+  values.push(req.user.id);
+
+  const { rows } = await query(
+    `UPDATE ai_personas SET ${updates.join(', ')} WHERE user_id = $${values.length} RETURNING *`,
+    values
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Persona not found' });
+
+  // Bust the persona cache so the next session picks up changes immediately
+  await cache.del(`persona:${req.user.id}`);
+
+  return res.status(200).json({ persona: rows[0] });
 });
 
 module.exports = router;

@@ -185,16 +185,25 @@ export default function ProfileScreen() {
         {/* AI Companion */}
         {profile?.persona && (
           <div className="card">
-            <h3 style={{ marginBottom: 'var(--space-md)' }}>My AI Companion</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+              <h3>My AI Companion</h3>
+              <button
+                onClick={() => navigate('/persona/edit')}
+                style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-pill)', padding: '4px 14px', fontSize: 12, color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+              >
+                Edit
+              </button>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Name</span>
                 <span style={{ fontWeight: 600, fontFamily: 'var(--font-editorial)', color: 'var(--color-accent)' }}>{profile.persona.persona_name}</span>
               </div>
               {[
-                { label: 'Tone',     value: profile.persona.tone },
-                { label: 'Style',    value: profile.persona.response_style },
+                { label: 'Tone',      value: profile.persona.tone },
+                { label: 'Style',     value: profile.persona.response_style },
                 { label: 'Formality', value: profile.persona.formality },
+                { label: 'Language',  value: profile.persona.language || 'english' },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{label}</span>
@@ -202,7 +211,7 @@ export default function ProfileScreen() {
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: 12, marginTop: 'var(--space-sm)', color: 'var(--color-text-muted)' }}>Your companion's identity was set at signup and cannot be changed.</p>
+            <p style={{ fontSize: 12, marginTop: 'var(--space-sm)', color: 'var(--color-text-muted)' }}>Name is permanent. Tone, style, formality, and language can be updated anytime.</p>
           </div>
         )}
 
@@ -283,7 +292,30 @@ export default function ProfileScreen() {
 
         {/* Notifications */}
         <div className="card">
-          <h3 style={{ marginBottom: 'var(--space-sm)' }}>Notifications</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+            <h3>Notifications</h3>
+            {unreadCount > 0 && (
+              <button
+                onClick={async () => {
+                  qc.setQueryData(['notifications'], (old) => {
+                    if (!old) return old;
+                    const now = new Date().toISOString();
+                    const list = old.notifications ?? (Array.isArray(old) ? old : []);
+                    const updated = list.map((n) => n.read_at ? n : { ...n, read_at: now });
+                    return Array.isArray(old) ? updated : { ...old, notifications: updated };
+                  });
+                  try {
+                    await client.patch('/api/notifications/read-all');
+                  } catch {
+                    qc.invalidateQueries({ queryKey: ['notifications'] });
+                  }
+                }}
+                style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-pill)', padding: '4px 12px', fontSize: 12, color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+              >
+                Mark all read
+              </button>
+            )}
+          </div>
           {[
             { key: 'peer_broadcast',   label: 'Peer request broadcasts' },
             { key: 'checkin_reminder', label: 'Daily check-in reminder' },

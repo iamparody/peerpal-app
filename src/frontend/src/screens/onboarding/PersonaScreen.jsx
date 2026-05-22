@@ -9,6 +9,12 @@ const TONES = [
   { value: 'casual',       label: 'Casual',        desc: 'Relaxed and conversational' },
 ];
 
+const LANGUAGES = [
+  { value: 'english', label: 'English', desc: 'Standard English responses' },
+  { value: 'swahili', label: 'Swahili',  desc: 'Responses in Kiswahili' },
+  { value: 'sheng',   label: 'Sheng',   desc: 'Nairobi street mix — casual & authentic' },
+];
+
 const STYLES = [
   { value: 'brief',     label: 'Brief',     desc: 'Short, focused replies' },
   { value: 'elaborate', label: 'Elaborate', desc: 'Detailed, thorough responses' },
@@ -86,6 +92,7 @@ export default function PersonaScreen() {
   const [style, setStyle] = useState('brief');
   const [formality, setFormality] = useState('neutral');
   const [usesAlias, setUsesAlias] = useState(true);
+  const [language, setLanguage] = useState('english');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -108,6 +115,7 @@ export default function PersonaScreen() {
         response_style: style,
         formality,
         uses_alias: usesAlias,
+        language,
       });
       setShowConfirmation(true);
       setTimeout(() => navigate('/onboarding/condition', { replace: true }), 2500);
@@ -144,7 +152,7 @@ export default function PersonaScreen() {
 
       <div style={{ marginBottom: 'var(--space-lg)', textAlign: 'center' }}>
         <h1 style={{ fontSize: 'var(--text-h2)', marginBottom: 'var(--space-xs)' }}>Create Your Companion</h1>
-        <p style={{ fontSize: 14 }}>This is permanent — choose thoughtfully</p>
+        <p style={{ fontSize: 14 }}>The name is permanent — everything else can be changed later</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
@@ -244,6 +252,27 @@ export default function PersonaScreen() {
           <span style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>Address me by my alias ({alias || 'your alias'})</span>
         </label>
 
+        {/* Language */}
+        <div>
+          <label className="label">Conversation language</label>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 'var(--space-sm)' }}>
+            You can change this anytime from your profile.
+          </p>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.value}
+                type="button"
+                onClick={() => setLanguage(l.value)}
+                className={`pill${language === l.value ? ' pill--active' : ''}`}
+                style={{ cursor: 'pointer', border: '1px solid var(--color-border)', flex: 1, padding: '10px 6px', minHeight: 'var(--touch-target-min)', justifyContent: 'center', fontSize: 13 }}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Live preview card */}
         <div
           style={{
@@ -272,7 +301,7 @@ export default function PersonaScreen() {
 
         <div className="info-banner info-banner--warning">
           <strong style={{ color: 'var(--color-warning)', display: 'block', marginBottom: 4 }}>This cannot be changed</strong>
-          Once set, your AI companion's identity is permanent. Take your time.
+          Once set, your companion's name cannot be changed. Tone, style, and language can be updated anytime from your profile.
         </div>
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-md)', cursor: 'pointer' }}>
@@ -282,7 +311,7 @@ export default function PersonaScreen() {
             onChange={(e) => setConfirmed(e.target.checked)}
             style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2, accentColor: 'var(--color-accent)' }}
           />
-          <span style={{ fontSize: 14, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>I understand this persona is permanent and cannot be changed later</span>
+          <span style={{ fontSize: 14, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>I understand my companion's name is permanent and cannot be changed later</span>
         </label>
 
         {error && <div className="error-msg">{error}</div>}

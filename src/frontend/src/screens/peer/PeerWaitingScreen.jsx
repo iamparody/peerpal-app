@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import client from '../../api/client';
 
 const ESCALATE_SECONDS = 90;
@@ -13,9 +14,11 @@ const HOTLINES = [
 export default function PeerWaitingScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [countdown, setCountdown] = useState(ESCALATE_SECONDS);
   const [phase, setPhase] = useState('searching'); // 'searching' | 'escalated' | 'hotlines'
   const [error, setError] = useState('');
+  const [visible, setVisible] = useState(false);
   const elapsedRef = useRef(0);
   const timerRef = useRef(null);
   const pollRef = useRef(null);
@@ -38,10 +41,14 @@ export default function PeerWaitingScreen() {
         if (data?.status === 'active' && data?.session_id) {
           clearInterval(pollRef.current);
           clearInterval(timerRef.current);
+          // Invalidate credits so balance reflects the deduction on the next screen
+          qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
           navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
         }
       } catch { /* non-fatal */ }
     }, 3000);
+
+    setTimeout(() => setVisible(true), 120);
 
     return () => {
       clearInterval(timerRef.current);
@@ -132,8 +139,18 @@ export default function PeerWaitingScreen() {
   const dash = (pct / 100) * circumference;
   const timerColor = pct > 60 ? 'var(--color-calm)' : pct > 30 ? 'var(--color-warning)' : 'var(--color-danger)';
 
+  if (!visible) {
+    return (
+      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: 16 }}>
+        <div className="skeleton" style={{ width: 100, height: 100, borderRadius: '50%' }} />
+        <div className="skeleton" style={{ width: 160, height: 22, borderRadius: 8 }} />
+        <div className="skeleton" style={{ width: 240, height: 16, borderRadius: 8 }} />
+      </div>
+    );
+  }
+
   return (
-    <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '32px 24px', textAlign: 'center' }}>
+    <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '32px 24px', textAlign: 'center', opacity: visible ? 1 : 0, transition: 'opacity 300ms ease' }}>
       <div style={{ marginBottom: 32 }}>
         <svg width={100} height={100} viewBox="0 0 100 100">
           <circle cx={50} cy={50} r={r} fill="none" stroke="var(--color-border)" strokeWidth={6} />

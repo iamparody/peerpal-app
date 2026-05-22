@@ -3,7 +3,28 @@
 ---
 
 ## Current Phase
-**Phase 22 — Mood History & Pattern Reflection — COMPLETE**
+**Phase 20 + 21 — Mutable Persona, Language Switcher, UI Polish — COMPLETE**
+
+---
+
+### Session 17 — 2026-05-22
+
+**Phase 20.1 + 20.2 — Mutable Persona & Language Switcher — COMPLETE**
+
+- Migration 042: `language VARCHAR(20)` + `updated_at TIMESTAMPTZ` added to `ai_personas` (migrations 037/038 already used by therapist features — renumbered to 042)
+- `routes/ai.js`: `PATCH /api/ai/persona` — tone, response_style, formality, uses_alias, language; persona_name rejected; busts `persona:${userId}` Redis cache
+- `routes/ai.js`: `buildSystemPrompt` gains Layer 2.5 — language instruction injected between persona layer and mood history; english=no-op, swahili=full Swahili, sheng=Kenyan Sheng
+- `routes/onboarding.js`: `POST /onboarding/persona` now stores `language` field (default english)
+- `EditPersonaScreen.jsx` (new) at `/persona/edit` — seeds from profile cache; all mutable fields + language selector; success toast then back to profile
+- `ProfileScreen.jsx`: AI Companion card gains "Edit" button + language row; "permanent" copy updated to name-only
+- `PersonaScreen.jsx`: language pill selector added to onboarding; "permanent" copy corrected to name-only
+- `App.jsx`: `EditPersonaScreen` imported, `/persona/edit` route added, `/persona/edit` added to `HIDE_NAV_ON`
+
+**Phase 21 deferred polish — COMPLETE**
+
+- `GroupChatScreen`: optimistic send — pending message appended immediately, removed on error, replaced by server data on success; pending messages shown at 0.55 opacity
+- `ProfileScreen`: "Mark all read" button in Notifications card — optimistic `qc.setQueryData` marks all notifications read in cache; PATCH /api/notifications/read-all fired in background; invalidates on error
+- `PeerWaitingScreen`: credits invalidated on peer match (triggers balance refresh on next screen); 120ms skeleton (circle + text rows) before timer UI fades in
 
 ---
 

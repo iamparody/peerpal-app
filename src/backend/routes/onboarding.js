@@ -42,7 +42,7 @@ router.post('/persona', auth, async (req, res) => {
     return res.status(403).json({ error: 'Persona already created — it cannot be changed', code: 'PERSONA_IMMUTABLE' });
   }
 
-  const { persona_name, tone, response_style, formality, uses_alias = true } = req.body;
+  const { persona_name, tone, response_style, formality, uses_alias = true, language = 'english' } = req.body;
 
   if (!persona_name || typeof persona_name !== 'string' || persona_name.trim().length === 0) {
     return res.status(400).json({ error: 'persona_name is required', code: 'MISSING_FIELD' });
@@ -60,11 +60,14 @@ router.post('/persona', auth, async (req, res) => {
     return res.status(400).json({ error: `formality must be one of: ${VALID_FORMALITY.join(', ')}`, code: 'INVALID_FORMALITY' });
   }
 
+  const validLanguages = ['english', 'swahili', 'sheng'];
+  const safeLanguage = validLanguages.includes(language) ? language : 'english';
+
   const { rows: personaRows } = await query(
-    `INSERT INTO ai_personas (user_id, persona_name, tone, response_style, formality, uses_alias)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO ai_personas (user_id, persona_name, tone, response_style, formality, uses_alias, language)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id`,
-    [req.user.id, persona_name.trim(), tone, response_style, formality, Boolean(uses_alias)]
+    [req.user.id, persona_name.trim(), tone, response_style, formality, Boolean(uses_alias), safeLanguage]
   );
 
   await query(

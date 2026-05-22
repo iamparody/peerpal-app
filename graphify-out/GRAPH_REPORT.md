@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-21 (session 15) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-22 (session 17) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -154,7 +154,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 15) | Agent: Claude Co
 | Screen | Route | Purpose |
 |---|---|---|
 | `ConsentScreen.jsx` | `/onboarding/consent` | 2 required checkboxes (ToS/Privacy + age 18+); BottomSheet ToS/Privacy; POST /api/onboarding/consent |
-| `PersonaScreen.jsx` | `/onboarding/persona` | 5-field AI persona config with live preview; POST /api/onboarding/persona; 403 guard if already created |
+| `PersonaScreen.jsx` | `/onboarding/persona` | 6-field AI persona config with live preview (+ language selector: English/Swahili/Sheng); POST /api/onboarding/persona; 403 guard if already created; "permanent" copy restricted to name only |
 | `FirstMoodScreen.jsx` | `/onboarding/first-mood` | Mood + tags + note; BonusToast on signup bonus; safety prompt overlay on very_low; POST /api/moods |
 
 ### Main App Screens (`src/frontend/src/screens/`)
@@ -169,14 +169,15 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 15) | Agent: Claude Co
 | `GroupsScreen.jsx` | `/groups` | useQuery(['groups']); group cards with name, category, member count; PageHeader |
 | `GroupDetailScreen.jsx` | `/groups/:id` | Join button (→ AgreementScreen) or Enter Chat (→ GroupChatScreen); banned users see removal message |
 | `GroupAgreementScreen.jsx` | `/groups/:id/agree` | 5-rule community agreement; POST /groups/:id/join on confirm |
-| `GroupChatScreen.jsx` | `/groups/:id/chat` | Pinned messages + scrollable chat; polls every 5s; long-press → ReportModal; Leave Group button |
+| `GroupChatScreen.jsx` | `/groups/:id/chat` | Pinned messages + scrollable chat; polls every 5s; long-press → ReportModal; Leave Group button; optimistic message send (pending:true at 0.55 opacity) |
 | `EmergencyScreen.jsx` | `/emergency` | Befrienders Kenya 0800 723 253 tap-to-call; POST /emergency/trigger; BreathingWidget inline; polls notifications every 10s; no back navigation |
 | `SafetyPlanScreen.jsx` | `/safety-plan` | 6-field form (all optional); useQuery(['safety-plan']); planData synced to editable form state via useEffect; PUT /safety-plan; contacts up to 3 (name + encrypted phone) |
 | `ResourcesScreen.jsx` | `/resources` | useQuery(['resources', contentType, category.value, search]); Articles/Stories toggle; 11-category filter; article card list; PageHeader |
 | `ArticleScreen.jsx` | `/resources/:id` | Full article with read-time; bookmark to localStorage |
 | `BreathingScreen.jsx` | `/breathing` | 4 exercise cards: Box, 4-7-8, Grounding 5-4-3-2-1, PMR |
 | `CalmingSoundsScreen.jsx` | `/sounds` | 8 procedurally synthesized ambient sounds via Web Audio API (ambientAudio.js singleton); rain, forest, ocean, white-noise, tibetan-bowls, fireplace, stream, wind; volume slider; stop button in header; no audio files required |
-| `ProfileScreen.jsx` | `/profile` | 4 parallel useQuery hooks (profile, credits/balance, credits/transactions, notifications); Account (alias, email), AI persona, Credits, Privacy (Delete Data, Clear Journal), Notifications (4 toggles), Feedback |
+| `ProfileScreen.jsx` | `/profile` | 4 parallel useQuery hooks (profile, credits/balance, credits/transactions, notifications); Account (alias, email), AI persona (+ Edit button → /persona/edit, shows language), Credits, Privacy, Notifications (4 toggles + "Mark all read" optimistic button), Feedback |
+| `EditPersonaScreen.jsx` | `/persona/edit` | Mutable persona settings: tone, response_style, formality, uses_alias, language; seeds from profile cache; PATCH /api/ai/persona on save; invalidates profile cache; no-nav screen |
 | `ReferralScreen.jsx` | `/referral` | Therapist referral form (struggles, preferred_time, contact_method/detail); POST /referrals; confirmation screen |
 | `PublicEmergencyScreen.jsx` | `/emergency-public` | No auth; Befrienders Kenya tap-to-call; breathing animation |
 | `AdminDashboard.jsx` | `/admin` | **Removed from user app (Phase 18)** — route + import deleted from App.jsx |
@@ -185,7 +186,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-21 (session 15) | Agent: Claude Co
 | Screen | Route | Purpose |
 |---|---|---|
 | `PeerRequestScreen.jsx` | `/peer` | Balance check; channel selector (Text/Voice); POST /peer/request |
-| `PeerWaitingScreen.jsx` | `/peer/waiting` | 90s countdown; polls GET /peer/request/:id/status every 3s; on active → session screen |
+| `PeerWaitingScreen.jsx` | `/peer/waiting` | 90s countdown; polls GET /peer/request/:id/status every 3s; on active → invalidates credits cache + navigates session screen; 120ms skeleton before timer fades in |
 | `PeerTextChatScreen.jsx` | `/peer/text/:id` | Text chat; credit countdown per 15min; End Session → FeedbackModal |
 | `PeerVoiceCallScreen.jsx` | `/peer/voice/:id` | WebRTC audio via ws/signaling; mute toggle; credit countdown per 5min; 2min grace on last credit |
 
@@ -255,7 +256,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | Table | Key Fields (3) | Notes |
 |---|---|---|
 | **users** | id UUID PK, alias UNIQUE, email UNIQUE | + password_hash, role, risk_level, streak_count, email_verified, jwt_issued_before, fcm_token, 4 notif booleans, condition_category (group_category enum nullable), peer_quiz_done boolean, last_data_deletion_at TIMESTAMPTZ NULL (analytics anchor — migration 040, pending apply) |
-| **ai_personas** | user_id UNIQUE FK, persona_name, tone enum | + response_style, formality, uses_alias; one per user |
+| **ai_personas** | user_id UNIQUE FK, persona_name, tone enum | + response_style, formality, uses_alias, language VARCHAR(20) DEFAULT 'english' CHECK IN (english/swahili/sheng), updated_at TIMESTAMPTZ; one per user; name is immutable, all other fields mutable via PATCH /api/ai/persona |
 | **moods** | user_id FK, mood_level enum, created_at | + tags TEXT[], note (200 max) |
 | **credits** | user_id UNIQUE FK, balance INTEGER | CHECK balance >= 0; signup bonus = 2 credits |
 | **sessions** | user_id FK, type enum, status enum | + channel, ended_at, peer_request_id FK |
@@ -298,7 +299,7 @@ POST   /reset-password        — {token, new_password} → sets jwt_issued_befo
 ### Onboarding (`/api/onboarding`)
 ```
 POST   /consent               — {consent_version: '1.0'}
-POST   /persona               — {persona_name, tone, response_style, formality, uses_alias}
+POST   /persona               — {persona_name, tone, response_style, formality, uses_alias, language?}
 GET    /status                — {consent, persona, first_mood, signup_bonus, welcome_seen}
 PATCH  /welcome-seen          — Sets welcome_seen=true
 ```
@@ -328,6 +329,8 @@ DELETE /                      — Bulk delete all; {deleted_count}
 POST   /session/start         — {persona_name} → {session_id}
 POST   /session/:id/message   — {input_text max 2000} → {response_text, flagged, action, session_flag_count}
 POST   /session/:id/end       — {ended_at}
+PATCH  /persona               — {tone?, response_style?, formality?, uses_alias?, language?} → {persona}; busts persona cache; name field rejected (immutable)
+GET    /sessions              — Paginated AI session history
 ```
 
 ### Credits (`/api/credits`)
@@ -524,8 +527,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 17 | ✅ | Feature triage: peer incentives, onboarding condition step, peer quiz gate, group profile UI, Sentry/analytics (migrations 031–034) |
 | Phase 18 | ✅ | Standalone admin panel at `src/admin/` — 8-tab redesign, collapsible sidebar, animated stat cards, mobile responsive |
 | Phase 19 | ✅ | Therapist Marketplace — intake flow, browse/select, confirm + status screens; therapists.js route; migrations 036–039 (pending apply) |
-| Phase 20 | 🔲 | Persona & Language Enhancements — on hold pending app name decision |
-| Phase 21 | ✅ | UI Performance & Design System — TanStack Query (all 7 screens), optimistic updates, AppSkeleton, Radix tooltips, PageHeader/Toast/EmptyState/Badge/MoodDotGrid components, Web Audio calming sounds engine |
+| Phase 20 | ✅ | Mutable Persona (PATCH /api/ai/persona) + Language Switcher (English/Swahili/Sheng) — EditPersonaScreen, language layer 2.5 in system prompt, migration 042 |
+| Phase 21 | ✅ | UI Performance & Design System — TanStack Query (all 7 screens), optimistic updates (group send, notification read-all, credits invalidation), skeletons, Radix tooltips, component library, Web Audio calming sounds engine |
 | Phase 22 | ✅ | Mood History & Pattern Reflection — tappable dot calendar, DayDetailSheet (moods + journals per day), timeframe selector (7d/30d/90d/all), period-scoped analytics, safety framing on low-mood days |
 
 ### Credentials & External Services Status
@@ -567,7 +570,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 | Category | Count |
 |---|---|
-| Database migrations | 41 SQL files (001–041 all applied to Supabase) |
+| Database migrations | 42 SQL files (001–042; 042 pending apply to Supabase) |
 | Database tables | 25 live + 2 pending (therapist_profiles, therapist_interests); all RLS-enabled once 039 applied |
 | Backend route files | 17 |
 | Backend middleware | 3 |
@@ -575,14 +578,14 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Backend services | 2 |
 | Background workers | 2 |
 | Cron jobs | 3 |
-| Frontend screens (user app) | 40 |
+| Frontend screens (user app) | 41 (+ EditPersonaScreen) |
 | Frontend shared components | 9 (incl. MoodDotGrid, PageHeader, Toast, EmptyState, Badge — Phase 21; DayDetailSheet — Phase 22) |
 | Frontend utilities | 1 (ambientAudio.js — Phase 21 Web Audio engine) |
 | Admin panel tabs | 9 (standalone `src/admin/` app) |
 | API endpoints (total) | ~73 (added /moods/arc) |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 21/22 (Phase 20 deferred pending name decision; Phase 22 complete) |
+| Build phases complete | 22/22 (Phase 20 + 21 + 22 all complete; Phase 22.x contrast fix; Phase 20.3 custom model pending external collaboration) |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects

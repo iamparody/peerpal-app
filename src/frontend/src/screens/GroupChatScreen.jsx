@@ -54,13 +54,22 @@ export default function GroupChatScreen() {
   async function handleSend() {
     if (!input.trim() || sending) return;
     const text = input.trim();
+    const optimisticId = `pending-${Date.now()}`;
     setInput('');
     setSending(true);
+    setMessages((prev) => [...prev, {
+      id: optimisticId,
+      content: text,
+      sender_alias: user?.alias || 'You',
+      created_at: new Date().toISOString(),
+      pending: true,
+    }]);
     try {
       await client.post(`/api/groups/${groupId}/messages`, { content: text });
       const { data: msgData } = await client.get(`/api/groups/${groupId}/messages`);
       setMessages(msgData.messages ?? []);
     } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       setError(err.response?.data?.error || 'Failed to send.');
       setInput(text);
     } finally {
@@ -160,6 +169,8 @@ export default function GroupChatScreen() {
               fontStyle: msg.is_deleted ? 'italic' : 'normal',
               color: msg.is_deleted ? 'rgba(245,237,228,0.45)' : '#F5EDE4',
               maxWidth: '80%',
+              opacity: msg.pending ? 0.55 : 1,
+              transition: 'opacity 200ms ease',
             }}>
               {msg.content}
             </div>
