@@ -1367,7 +1367,7 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] Shows "Check your phone for M-Pesa prompt" on successful STK Push
 - [x] Invalidates balance cache after purchase (balance refreshes when callback confirms)
 - [x] Package display updated: Standard / Plus / Premium (Starter removed)
-- [ ] Phone input field — show prompt if user.phone not set (deferred: requires profile screen integration)
+- [x] Phone modal (bottom sheet) on package tap — enter number, send STK Push; number used once, never stored
 
 ### 29.7 — Documentation
-- [ ] Update GRAPH_REPORT.md: Daraja utils, new endpoints, updated package definitions, migration 045
+- [x] Update GRAPH_REPORT.md: Daraja utils, new endpoints, updated package definitions, migration 045

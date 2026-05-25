@@ -71,29 +71,22 @@ router.post('/purchase', auth, async (req, res) => {
     });
   }
 
-  // Resolve phone: prefer request body, fall back to stored phone on user record
-  const { rows: userRows } = await query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
-  const rawPhone = req.body.phone || userRows[0]?.phone;
-  if (!rawPhone) {
+  // Phone required in request body — used only for this STK Push, never stored
+  if (!req.body.phone) {
     return res.status(400).json({
-      error: 'Phone number required for M-Pesa payment. Please update your profile.',
+      error: 'Phone number required for M-Pesa payment.',
       code: 'PHONE_REQUIRED',
     });
   }
 
   let phone;
   try {
-    phone = normalisePhone(rawPhone);
+    phone = normalisePhone(req.body.phone);
   } catch {
     return res.status(400).json({
       error: 'Please enter a valid Safaricom Kenya number (e.g. 0712 345 678).',
       code: 'INVALID_PHONE',
     });
-  }
-
-  // Save phone to profile if it came from body and isn't stored yet
-  if (req.body.phone && !userRows[0]?.phone) {
-    await query('UPDATE users SET phone = $1, updated_at = NOW() WHERE id = $2', [phone, req.user.id]);
   }
 
   // Insert pending transaction — confirmed only after Safaricom callback

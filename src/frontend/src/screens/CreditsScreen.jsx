@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coin, CheckCircle } from '@phosphor-icons/react';
+import { Coin, CheckCircle, X } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const PACKAGES = [
@@ -36,11 +36,108 @@ function txDetail(tx) {
   return null;
 }
 
+function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
+  const [phone, setPhone] = useState('');
+  const [phoneErr, setPhoneErr] = useState('');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 9 || digits.length > 12) {
+      setPhoneErr('Enter a valid Safaricom number e.g. 0712 345 678');
+      return;
+    }
+    setPhoneErr('');
+    onConfirm(phone);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        width: '100%', background: 'var(--color-surface-card)',
+        borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+        padding: '24px 20px 32px',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '1rem' }}>M-Pesa Payment</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
+              {pkg.credits} credits · KSh {pkg.price}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Safaricom phone number
+            </label>
+            <input
+              type="tel"
+              className="input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="07XX XXX XXX"
+              inputMode="numeric"
+              autoFocus
+              style={{ width: '100%' }}
+            />
+            {phoneErr && (
+              <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{phoneErr}</p>
+            )}
+            {error && (
+              <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{error}</p>
+            )}
+          </div>
+
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+            You'll receive an M-Pesa prompt on this number. Enter your PIN to complete the payment.
+            Your number is used only for this transaction and is not stored.
+          </p>
+
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={submitting || !phone.trim()}
+          >
+            {submitting ? 'Sending prompt…' : 'Send M-Pesa Prompt'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function CreditsScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [purchasing, setPurchasing] = useState(null);
-  const [error, setError] = useState('');
+  const [pendingPkg, setPendingPkg] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState('');
   const [purchaseMessage, setPurchaseMessage] = useState('');
 
   const { data: balanceData } = useQuery({
@@ -56,28 +153,41 @@ export default function CreditsScreen() {
   const balanceLow = balance !== null && balance <= 2;
   const transactions = txData?.transactions ?? (Array.isArray(txData) ? txData : []);
 
-  async function handlePurchase(pkg) {
-    setError('');
-    setPurchasing(pkg.id);
+  async function handleConfirmPurchase(phone) {
+    setModalError('');
+    setSubmitting(true);
     try {
-      const { data } = await client.post('/api/credits/purchase', { package: pkg.id });
+      const { data } = await client.post('/api/credits/purchase', {
+        package: pendingPkg.id,
+        phone,
+      });
       if (data.pending) {
-        // STK Push sent — show success message; balance updates via in-app notification
-        setError('');
+        setPendingPkg(null);
         setPurchaseMessage(data.message || 'Check your phone for the M-Pesa prompt.');
         qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
       } else {
-        setError(data.message || 'Payments coming soon. Please check back or contact support.');
+        setModalError(data.message || 'Payments coming soon. Please check back or contact support.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Could not initiate payment. Please try again.');
+      setModalError(err.response?.data?.error || 'Could not initiate payment. Please try again.');
     } finally {
-      setPurchasing(null);
+      setSubmitting(false);
     }
   }
 
   return (
     <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+      {/* Phone modal */}
+      {pendingPkg && (
+        <PhoneModal
+          pkg={pendingPkg}
+          onConfirm={handleConfirmPurchase}
+          onClose={() => { if (!submitting) { setPendingPkg(null); setModalError(''); } }}
+          submitting={submitting}
+          error={modalError}
+        />
+      )}
+
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
@@ -89,8 +199,7 @@ export default function CreditsScreen() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-        {error && <div className="error-msg">{error}</div>}
-        {purchaseMessage && !error && (
+        {purchaseMessage && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'rgba(143,175,154,0.15)', border: '1px solid var(--color-calm)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--color-calm)' }}>
             <CheckCircle size={18} weight="fill" aria-hidden="true" />
             {purchaseMessage}
@@ -124,32 +233,27 @@ export default function CreditsScreen() {
             Top up
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
-            {PACKAGES.map((pkg) => {
-              const active = purchasing === pkg.id;
-              return (
-                <button
-                  key={pkg.id}
-                  onClick={() => handlePurchase(pkg)}
-                  disabled={!!purchasing}
-                  style={{
-                    padding: '14px 10px',
-                    borderRadius: 'var(--radius-md)',
-                    border: `1.5px solid ${active ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                    background: active ? 'rgba(143,175,154,0.1)' : 'var(--color-surface-card)',
-                    cursor: purchasing ? 'not-allowed' : 'pointer',
-                    textAlign: 'center',
-                    opacity: purchasing && !active ? 0.5 : 1,
-                    transition: 'opacity var(--duration-fast), border-color var(--duration-fast)',
-                  }}
-                >
-                  <div style={{ fontWeight: 700, color: active ? 'var(--color-calm)' : 'var(--color-accent)', fontSize: 20, marginBottom: 2 }}>
-                    {active ? '…' : `${pkg.credits} cr`}
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600, marginBottom: 2 }}>KSh {pkg.price}</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{pkg.desc}</div>
-                </button>
-              );
-            })}
+            {PACKAGES.map((pkg) => (
+              <button
+                key={pkg.id}
+                onClick={() => { setPurchaseMessage(''); setModalError(''); setPendingPkg(pkg); }}
+                style={{
+                  padding: '14px 10px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--color-border)',
+                  background: 'var(--color-surface-card)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'border-color var(--duration-fast)',
+                }}
+              >
+                <div style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: 20, marginBottom: 2 }}>
+                  {pkg.credits} cr
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600, marginBottom: 2 }}>KSh {pkg.price}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{pkg.desc}</div>
+              </button>
+            ))}
           </div>
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--color-surface-secondary)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
             <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 4 }}>How credits work</div>
