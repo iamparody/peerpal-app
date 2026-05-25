@@ -37,18 +37,24 @@ function txDetail(tx) {
 }
 
 function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
-  const [phone, setPhone] = useState('');
+  const [digits, setDigits] = useState('');
   const [phoneErr, setPhoneErr] = useState('');
+
+  function handleChange(e) {
+    // Only allow digits, max 9 (the part after +254)
+    const val = e.target.value.replace(/\D/g, '').slice(0, 9);
+    setDigits(val);
+    setPhoneErr('');
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length < 9 || digits.length > 12) {
-      setPhoneErr('Enter a valid Safaricom number e.g. 0712 345 678');
+    if (digits.length !== 9) {
+      setPhoneErr('Enter 9 digits after +254 (e.g. 712 345 678 or 110 123 456)');
       return;
     }
     setPhoneErr('');
-    onConfirm(phone);
+    onConfirm(`254${digits}`);
   }
 
   return (
@@ -88,16 +94,28 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
               Safaricom phone number
             </label>
-            <input
-              type="tel"
-              className="input"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="07XX XXX XXX"
-              inputMode="numeric"
-              autoFocus
-              style={{ width: '100%' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-surface-card)' }}>
+              <span style={{
+                padding: '10px 12px', fontSize: 15, fontWeight: 600,
+                color: 'var(--color-text-primary)', background: 'var(--color-surface-secondary)',
+                borderRight: '1px solid var(--color-border)', flexShrink: 0, letterSpacing: 0.5,
+              }}>
+                +254
+              </span>
+              <input
+                type="tel"
+                value={digits}
+                onChange={handleChange}
+                placeholder="7XX XXX XXX"
+                inputMode="numeric"
+                autoFocus
+                style={{
+                  flex: 1, border: 'none', outline: 'none', padding: '10px 12px',
+                  fontSize: 15, background: 'transparent', color: 'var(--color-text-primary)',
+                  letterSpacing: 0.5,
+                }}
+              />
+            </div>
             {phoneErr && (
               <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{phoneErr}</p>
             )}
@@ -114,7 +132,7 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
           <button
             type="submit"
             className="btn btn--primary"
-            disabled={submitting || !phone.trim()}
+            disabled={submitting || digits.length !== 9}
           >
             {submitting ? 'Sending prompt…' : 'Send M-Pesa Prompt'}
           </button>

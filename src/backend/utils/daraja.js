@@ -114,13 +114,13 @@ function parseCallback(body) {
 }
 
 // Normalise a phone string to 254XXXXXXXXX format
-// Accepts: +254..., 07..., 07..., 254...
+// Accepts: +254..., 254..., 07X..., 01X... (Safaricom Kenya — 07X and 01X prefixes)
 function normalisePhone(raw) {
   const digits = String(raw).replace(/\D/g, '');
   if (digits.startsWith('254') && digits.length === 12) return digits;
   if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
   if (digits.length === 9) return `254${digits}`;
-  throw new Error('Unrecognised phone format — expected Kenyan Safaricom number');
+  throw new Error('Unrecognised phone format — expected Kenyan number (07X or 01X)');
 }
 
 module.exports = { PACKAGES, stkPush, parseCallback, normalisePhone, getAccessToken };
