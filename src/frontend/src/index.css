@@ -17,7 +17,9 @@
 .bubble--peer,
 .typing-indicator,
 .sheet,
-.bottom-nav {
+.bottom-nav,
+[style*="--color-surface-card"],
+[style*="--color-bg-deep"] {
   --color-text-primary:   #F5EDE4;
   --color-text-secondary: #C2A48A;
   --color-text-muted:     rgba(245,237,228,0.55);
