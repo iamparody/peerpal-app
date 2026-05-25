@@ -94,10 +94,10 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
             <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
               Safaricom phone number
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-surface-card)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
               <span style={{
                 padding: '10px 12px', fontSize: 15, fontWeight: 600,
-                color: 'var(--color-text-primary)', background: 'var(--color-surface-secondary)',
+                color: '#F5EDE4', background: 'rgba(255,255,255,0.08)',
                 borderRight: '1px solid var(--color-border)', flexShrink: 0, letterSpacing: 0.5,
               }}>
                 +254
@@ -111,7 +111,7 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
                 autoFocus
                 style={{
                   flex: 1, border: 'none', outline: 'none', padding: '10px 12px',
-                  fontSize: 15, background: 'transparent', color: 'var(--color-text-primary)',
+                  fontSize: 15, background: 'transparent', color: '#F5EDE4',
                   letterSpacing: 0.5,
                 }}
               />
