@@ -4,8 +4,8 @@ import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
 const COST_INFO = {
-  text:  { cost: 1, label: 'Text Chat',  desc: '1 credit flat' },
-  voice: { cost: 2, label: 'Voice Call', desc: '2 credits flat' },
+  text:  { cost: 1, label: 'Text Chat',  desc: '1 credit · 30 min' },
+  voice: { cost: 2, label: 'Voice Call', desc: '2 credits · 30 min' },
 };
 
 const QUIZ_STEPS = [

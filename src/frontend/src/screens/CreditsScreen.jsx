@@ -146,9 +146,10 @@ export default function CreditsScreen() {
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--color-surface-secondary)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
             <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 4 }}>How credits work</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span>💬 Peer text chat — <strong>1 credit</strong> flat per session</span>
-              <span>🎙️ Peer voice call — <strong>2 credits</strong> flat per session</span>
-              <span>🩺 Therapist referral — <strong>1 credit</strong> (refunded if not arranged)</span>
+              <span>💬 Peer text chat — <strong>1 credit = 30 min</strong></span>
+              <span>🎙️ Peer voice call — <strong>2 credits = 30 min</strong></span>
+              <span>⏱️ Extend any session for the same cost per 30 min</span>
+              <span>🩺 Therapist referral — <strong>free</strong></span>
             </div>
             <div style={{ marginTop: 6, borderTop: '1px solid var(--color-divider)', paddingTop: 6, color: 'var(--color-text-muted)' }}>
               Always free: AI chat · Journal · Mood check-in · Breathing · Resources · Emergency

@@ -168,6 +168,7 @@ export default function PeerWaitingScreen() {
 
       <h2 style={{ marginBottom: 8 }}>Looking for someone…</h2>
       <p style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>Hold tight. A peer is being matched to you right now.</p>
+      <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 4 }}>Sessions are 30 minutes · you can extend if needed</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', marginTop: 32 }}>
         <button className="btn btn--ghost" onClick={() => navigate('/ai-chat')}>Chat with AI instead</button>

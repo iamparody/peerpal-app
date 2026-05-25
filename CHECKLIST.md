@@ -1272,3 +1272,103 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
   - Share button: copies a link `[app-url]/support-friend/:slug` — opens without login (public route)
 - [ ] Add `/support-friend` and `/support-friend/:slug` as public routes in `App.jsx`
 - [ ] Add "Support a Friend" entry to `ResourcesScreen` or as a Dashboard tile
+
+---
+
+## Phase 28 — 30-Min Session Timer + Extension Flow
+
+> Finalised 2026-05-22. Sessions are 30 min flat (1cr text / 2cr voice).
+> At 25 min: extension prompt fires. Countdown turns red. No response = auto-close at 30 min.
+> Extension deducts another 1cr (text) or 2cr (voice), resets timer.
+> Peer earning is proportional to total credits spent (existing logic covers this automatically).
+
+### 28.1 — Backend: Session Timers in PATCH /accept
+- [x] On peer accept, start two timers keyed by session_id (stored in `sessionTimers` Map):
+  - 25-min timer: sends `session_ending_soon` push notification to both requester and peer
+  - 30-min timer: auto-closes session (runs same logic as PATCH /close including duration_minutes, peer earning)
+- [x] Store both timer refs so they can be cleared on manual close or extension
+
+### 28.2 — Backend: POST /request/:id/extend
+- [x] New endpoint — requester only
+- [x] Verify session is active and belongs to requester
+- [x] Check requester has enough credits (1cr text / 2cr voice)
+- [x] Deduct credits via `deductCredit` (links to same session_id)
+- [x] Clear existing 25-min + 30-min timers, restart both
+- [x] Return `{ extended: true, new_end_time }`
+
+### 28.3 — Backend: Clear Timers on Manual Close
+- [x] PATCH /request/:id/close: clear both session timers from `sessionTimers` Map before running close logic
+
+### 28.4 — Backend: Session End Safety Notification
+- [x] On auto-close (timer fires): if requester balance = 0 after session, send `account_notice` notification with emergency resources copy: "Your session has ended. If you need immediate support: Befrienders Kenya 0800 723 253"
+
+### 28.5 — Frontend: PeerTextChatScreen countdown + extension prompt
+- [x] On mount: calculate `endTime = sessionStartedAt + 30min`; track remaining seconds via 1s interval
+- [x] At < 5 min remaining: countdown display turns red
+- [x] At 25 min (5 min remaining): show extension prompt overlay: "Session ending in 5 min. Extend for 1cr?" with Yes / No buttons
+- [x] Yes: call POST /request/:id/extend; reset countdown to 30 min; dismiss overlay
+- [x] No / no response: overlay stays visible; session closes at 30 min
+- [x] On session close with 0 balance: show emergency resources in close screen
+
+### 28.6 — Frontend: PeerVoiceCallScreen countdown + extension prompt
+- [x] Same logic as 28.5 — extension costs 2cr for voice
+- [x] Countdown shown in call UI; turns red at < 5 min
+
+### 28.7 — Frontend: PeerRequestScreen copy update
+- [x] Add "30 min session" to cost display for both text and voice options
+
+### 28.8 — Frontend: CreditsScreen "How credits work" update
+- [x] Text chat: 1 credit = 30 min session
+- [x] Voice call: 2 credits = 30 min session
+- [x] Extend: same cost per 30-min block
+- [x] Therapist referral: free
+- [x] Always free list unchanged
+
+### 28.9 — Frontend: PeerWaitingScreen copy update
+- [x] Update subtitle to set expectation: "30-minute session"
+
+---
+
+## Phase 29 — Daraja M-Pesa Integration
+
+> Replaces Paystack entirely. Code complete and ready; requires Safaricom Business
+> Till + approved Daraja API credentials to activate. Until live, purchase flow
+> shows "coming soon" message (already in place).
+
+### 29.1 — Backend: utils/daraja.js
+- [ ] `getAccessToken()`: Basic Auth with consumer key + secret → Bearer token (cached, expires 1hr)
+- [ ] `stkPush(phone, amount, accountRef, description)`: initiates STK Push to user's phone
+- [ ] `verifyCallback(body)`: validates Safaricom callback payload (ResultCode === 0)
+- [ ] Package constants: Basic KSh 100 / 5cr · Standard KSh 250 / 15cr · Plus KSh 500 / 35cr
+
+### 29.2 — Backend: POST /credits/purchase rewrite
+- [ ] Remove Paystack `initializeTransaction` call
+- [ ] Call `daraja.stkPush` with user phone (from profile) and package amount
+- [ ] Return `{ pending: true, message: 'Check your phone for an M-Pesa prompt' }`
+- [ ] Store pending transaction in credit_transactions (status='pending', payment_reference=MerchantRequestID)
+
+### 29.3 — Backend: POST /credits/mpesa-callback
+- [ ] New endpoint — no auth (Safaricom calls this)
+- [ ] Validate callback via IP whitelist or shared secret header
+- [ ] On success (ResultCode=0): find pending transaction by CheckoutRequestID, update status='completed', credit user balance, send payment_confirmed notification
+- [ ] On failure: update status='failed', send account_notice notification
+
+### 29.4 — Backend: Remove Paystack
+- [ ] Remove `utils/paystack.js` import from credits.js
+- [ ] Keep file in codebase but unused (do not delete — may need reference)
+- [ ] Remove `POST /credits/webhook` Paystack endpoint or repurpose
+
+### 29.5 — Backend: User phone number
+- [ ] Daraja STK Push requires phone number — verify users table has phone or add it
+- [ ] If not present: add `phone VARCHAR(15) NULL` to users via migration 045
+- [ ] POST /credits/purchase: require phone in request body if not on profile, validate format (+254XXXXXXXXX)
+
+### 29.6 — Frontend: CreditsScreen purchase flow
+- [ ] Replace "redirecting to payment" state with "Check your phone for M-Pesa prompt"
+- [ ] Poll GET /credits/transactions every 3s after purchase initiation (up to 90s) to detect status change
+- [ ] On confirmed: invalidate balance cache, show success state
+- [ ] On timeout (90s no confirmation): show "Payment not confirmed — try again or contact support"
+- [ ] Update package display: Basic / Standard / Plus (remove Starter)
+
+### 29.7 — Documentation
+- [ ] Update GRAPH_REPORT.md: Daraja utils, new endpoints, updated package definitions, migration 045

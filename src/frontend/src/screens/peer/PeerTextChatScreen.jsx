@@ -4,6 +4,13 @@ import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+const SESSION_SECONDS = 30 * 60; // 30 minutes
+
+function formatTime(seconds) {
+  const m = Math.floor(Math.max(0, seconds) / 60);
+  const s = Math.max(0, seconds) % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 export default function PeerTextChatScreen() {
   const { id: sessionId } = useParams();
@@ -13,26 +20,64 @@ export default function PeerTextChatScreen() {
   const [connected, setConnected] = useState(false);
   const [peerLeft, setPeerLeft] = useState(false);
   const [error, setError] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
+  const [showExtendPrompt, setShowExtendPrompt] = useState(false);
+  const [extending, setExtending] = useState(false);
+  const [extendError, setExtendError] = useState('');
+  const [sessionEnded, setSessionEnded] = useState(false);
+
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
-
   const requestIdRef = useRef(null);
+  const endTimeRef = useRef(null);
+  const timerRef = useRef(null);
+  const promptShownRef = useRef(false); // track per-block so it only fires once
 
-  const handleEndSession = useCallback(async () => {
+  const handleEndSession = useCallback(async (reason = 'manual') => {
+    clearInterval(timerRef.current);
     wsRef.current?.close();
     const reqId = requestIdRef.current;
-    if (reqId) {
+    if (reqId && reason === 'manual') {
       try { await client.patch(`/api/peer/request/${reqId}/close`); } catch { /* best-effort */ }
     }
-    trackEvent('peer_session_completed', { channel: 'text' });
-    navigate('/peer', { replace: true });
+    trackEvent('peer_session_completed', { channel: 'text', reason });
+    if (reason === 'time_limit') {
+      setSessionEnded(true);
+    } else {
+      navigate('/peer', { replace: true });
+    }
   }, [navigate]);
+
+  // Start countdown interval using endTime as source of truth
+  function startTimer(endTime) {
+    endTimeRef.current = endTime;
+    promptShownRef.current = false;
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      const secs = Math.round((endTimeRef.current - Date.now()) / 1000);
+      setSecondsLeft(secs);
+      if (secs <= 300 && !promptShownRef.current) {
+        promptShownRef.current = true;
+        setShowExtendPrompt(true);
+      }
+      if (secs <= 0) {
+        clearInterval(timerRef.current);
+        handleEndSession('time_limit');
+      }
+    }, 1000);
+  }
 
   useEffect(() => {
     async function init() {
       try {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         requestIdRef.current = data.session?.request_id ?? null;
+
+        // Calculate end time from session start (or now if start not available)
+        const startedAt = data.session?.started_at ? new Date(data.session.started_at) : new Date();
+        const endTime = startedAt.getTime() + SESSION_SECONDS * 1000;
+        startTimer(endTime);
+
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
         wsRef.current = ws;
         ws.onopen = () => {
@@ -53,12 +98,27 @@ export default function PeerTextChatScreen() {
       }
     }
     init();
-    return () => { wsRef.current?.close(); };
+    return () => { clearInterval(timerRef.current); wsRef.current?.close(); };
   }, [sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  async function handleExtend() {
+    setExtendError('');
+    setExtending(true);
+    try {
+      const { data } = await client.post(`/api/peer/request/${requestIdRef.current}/extend`);
+      const newEndTime = new Date(data.new_end_time).getTime();
+      setShowExtendPrompt(false);
+      startTimer(newEndTime);
+    } catch (err) {
+      setExtendError(err.response?.data?.error || 'Could not extend session.');
+    } finally {
+      setExtending(false);
+    }
+  }
 
   function handleSend() {
     if (!input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -72,6 +132,31 @@ export default function PeerTextChatScreen() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
+  // Session ended by time limit — show safety resources
+  if (sessionEnded) {
+    return (
+      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
+        <div style={{ fontSize: 40 }}>🕐</div>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Session time ended</h2>
+        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
+          Your 30-minute session has ended. You can start a new session any time.
+        </p>
+        <div style={{ padding: '14px 16px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-calm)', width: '100%', maxWidth: 320 }}>
+          <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Need immediate support?</p>
+          <p style={{ fontSize: '0.85rem' }}>Befrienders Kenya</p>
+          <a href="tel:0800723253" style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-accent)', textDecoration: 'none' }}>0800 723 253</a>
+          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Free · 24/7</p>
+        </div>
+        <button className="btn btn--primary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/peer', { replace: true })}>
+          Back to Peer Support
+        </button>
+        <button className="btn btn--secondary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/emergency')}>
+          Emergency SOS
+        </button>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
@@ -80,6 +165,8 @@ export default function PeerTextChatScreen() {
       </div>
     );
   }
+
+  const isLow = secondsLeft <= 300;
 
   return (
     <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
@@ -91,10 +178,46 @@ export default function PeerTextChatScreen() {
             {peerLeft ? 'Peer has left' : connected ? 'Connected' : 'Connecting…'}
           </div>
         </div>
-        <button onClick={handleEndSession} style={{ background: 'var(--color-danger)', color: 'var(--color-text-primary)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
-          End
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize: '0.85rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+            color: isLow ? 'var(--color-danger)' : 'var(--color-text-muted)',
+            transition: 'color 300ms',
+          }}>
+            {formatTime(secondsLeft)}
+          </span>
+          <button onClick={() => handleEndSession('manual')} style={{ background: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+            End
+          </button>
+        </div>
       </div>
+
+      {/* Extension prompt */}
+      {showExtendPrompt && (
+        <div style={{ padding: '12px 16px', background: isLow ? 'var(--color-danger-bg)' : 'var(--color-warning-bg)', borderBottom: `1px solid ${isLow ? 'var(--color-danger)' : 'var(--color-warning)'}`, flexShrink: 0 }}>
+          <p style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 8, color: isLow ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+            Session ending in {Math.ceil(secondsLeft / 60)} min — extend for 1 credit?
+          </p>
+          {extendError && <p style={{ fontSize: '0.78rem', color: 'var(--color-danger)', marginBottom: 6 }}>{extendError}</p>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleExtend}
+              disabled={extending}
+              className="btn btn--success btn--sm"
+              style={{ flex: 1 }}
+            >
+              {extending ? '…' : 'Extend (+30 min)'}
+            </button>
+            <button
+              onClick={() => setShowExtendPrompt(false)}
+              className="btn btn--secondary btn--sm"
+              style={{ flex: 1 }}
+            >
+              No thanks
+            </button>
+          </div>
+        </div>
+      )}
 
       {peerLeft && (
         <div className="info-banner info-banner--warning" style={{ borderRadius: 0, borderLeft: 'none', borderRight: 'none', textAlign: 'center', fontSize: '0.85rem' }}>

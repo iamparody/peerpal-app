@@ -3,11 +3,15 @@
 ---
 
 ## Current Phase
-**Phase 27 — Peer Incentive System (Fractional Earnings) — COMPLETE**
+**Phase 29 — Daraja M-Pesa Integration — NEXT (code-ready, credentials-pending)**
 
 ---
 
 ## Planned Work
+
+### Phase 29 — Daraja M-Pesa Integration (code-ready, credentials-pending)
+Full implementation planned. Awaiting Safaricom Business Till + Daraja API credentials.
+All code will be written and testable locally. Goes live when credentials are configured.
 
 ### Phase 24 — Help a Friend Module (content-pending)
 Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.

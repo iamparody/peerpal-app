@@ -6,15 +6,118 @@ const { ICE_SERVERS } = require('../ws/signaling');
 const cache = require('../services/cache');
 const { deductCredit } = require('../utils/creditDeductor');
 
-const PEER_EARNING_RATE = 0.25;   // peer earns 25% of what requester spent
-const CONVERSION_THRESHOLD = 2.0; // pending credits unlock as spendable in batches of 2
+const PEER_EARNING_RATE   = 0.25;        // peer earns 25% of what requester spent
+const CONVERSION_THRESHOLD = 2.0;        // pending credits unlock as spendable in batches of 2
+const SESSION_DURATION_MS  = 30 * 60 * 1000; // 30-min session
+const SESSION_WARNING_MS   = 25 * 60 * 1000; // warn at 25 min (5 min remaining)
 
 const router = express.Router();
 
 // In-process escalation timers: { [request_id]: Timeout }
 const escalationTimers = new Map();
+// In-process session timers: { [session_id]: { warning: Timeout, close: Timeout } }
+const sessionTimers = new Map();
 
 const VALID_CHANNELS = ['text', 'voice'];
+
+// ─── autoCloseSession ─────────────────────────────────────────────────────────
+// Called by the 30-min timer. Mirrors PATCH /close logic without HTTP context.
+async function autoCloseSession(requestId, sessionId, requesterId, responderId, channelPreference) {
+  const { rows: sessionRows, rowCount } = await query(
+    `UPDATE sessions SET status = 'completed', ended_at = NOW()
+     WHERE id = $1 AND status = 'active' RETURNING started_at, ended_at`,
+    [sessionId]
+  );
+  if (!rowCount) return; // already manually closed — nothing to do
+
+  await query(`UPDATE peer_requests SET status = 'closed', updated_at = NOW() WHERE id = $1`, [requestId]);
+
+  if (sessionRows[0]?.started_at) {
+    const durationMinutes = Math.round(
+      (new Date(sessionRows[0].ended_at) - new Date(sessionRows[0].started_at)) / 60000
+    );
+    await query(
+      `UPDATE credit_transactions SET duration_minutes = $1 WHERE session_id = $2 AND type = 'debit'`,
+      [durationMinutes, sessionId]
+    );
+  }
+
+  // Total requester spend — includes original deduction + any extensions
+  const { rows: spentRows } = await query(
+    `SELECT COALESCE(SUM(amount_credits), 0) AS total_spent
+     FROM credit_transactions WHERE session_id = $1 AND user_id = $2 AND type = 'debit'`,
+    [sessionId, requesterId]
+  );
+  const requesterSpent = parseFloat(spentRows[0].total_spent);
+
+  if (responderId && requesterSpent > 0) {
+    const earned = +(requesterSpent * PEER_EARNING_RATE).toFixed(2);
+    const dbClient = await getClient();
+    try {
+      await dbClient.query('BEGIN');
+      const { rows: statsRows } = await dbClient.query(
+        `INSERT INTO peer_stats (user_id, sessions_completed, pending_credits, earned_credits_lifetime)
+         VALUES ($1, 1, $2, $2)
+         ON CONFLICT (user_id) DO UPDATE
+           SET sessions_completed      = peer_stats.sessions_completed + 1,
+               pending_credits         = peer_stats.pending_credits + $2,
+               earned_credits_lifetime = peer_stats.earned_credits_lifetime + $2,
+               updated_at              = NOW()
+         RETURNING pending_credits`,
+        [responderId, earned]
+      );
+      const newPending = parseFloat(statsRows[0].pending_credits);
+      if (newPending >= CONVERSION_THRESHOLD) {
+        const toConvert = Math.floor(newPending);
+        const remaining = parseFloat((newPending - toConvert).toFixed(2));
+        await dbClient.query(
+          `UPDATE peer_stats SET pending_credits = $1, redeemed_credits_lifetime = redeemed_credits_lifetime + $2, updated_at = NOW() WHERE user_id = $3`,
+          [remaining, toConvert, responderId]
+        );
+        await dbClient.query(
+          'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
+          [toConvert, responderId]
+        );
+        await dbClient.query(
+          `INSERT INTO credit_transactions (user_id, type, amount_credits, payment_method, session_id, channel, status)
+           VALUES ($1, 'peer_earning', $2, 'bonus', $3, 'peer_earning', 'confirmed')`,
+          [responderId, toConvert, sessionId]
+        );
+        await cache.del(`credits:${responderId}`);
+        await dbClient.query(
+          `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'milestone', $2, 'in_app')`,
+          [responderId, JSON.stringify({ message: `You've earned ${toConvert} credit${toConvert > 1 ? 's' : ''} from supporting others. It's been added to your balance.` })]
+        );
+      }
+      await dbClient.query('COMMIT');
+    } catch (err) {
+      await dbClient.query('ROLLBACK');
+      console.error('Peer earning error (auto-close):', err.message);
+    } finally {
+      dbClient.release();
+    }
+  }
+
+  // Notify both parties: session ended by time limit
+  const endPayload = JSON.stringify({ session_id: sessionId, reason: 'time_limit' });
+  await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'in_app')`, [requesterId, endPayload]);
+  if (responderId) {
+    await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'in_app')`, [responderId, endPayload]);
+  }
+
+  // Safety notice if requester balance is now 0
+  const { rows: balRows } = await query('SELECT balance FROM credits WHERE user_id = $1', [requesterId]);
+  if ((balRows[0]?.balance ?? 0) === 0) {
+    await query(
+      `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'in_app')`,
+      [requesterId, JSON.stringify({
+        session_ended: true,
+        emergency: true,
+        message: 'Your session has ended. If you need immediate support: Befrienders Kenya 0800 723 253 (free, 24/7).',
+      })]
+    );
+  }
+}
 
 // ─── POST /peer/request ───────────────────────────────────────────────────────
 router.post('/request', auth, async (req, res) => {
@@ -167,6 +270,24 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
     [requesterId, JSON.stringify({ session_id: sessionId, channel: channel_preference })]
   );
 
+  // Start 25-min warning + 30-min auto-close timers
+  const responderId = req.user.id;
+  const warnTimer = setTimeout(async () => {
+    try {
+      const warnPayload = JSON.stringify({ session_id: sessionId, minutes_remaining: 5, extendable: true });
+      await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'push')`, [requesterId, warnPayload]);
+      await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'push')`, [responderId, JSON.stringify({ session_id: sessionId, minutes_remaining: 5 })]);
+    } catch (e) { console.error('Session warning error:', e); }
+  }, SESSION_WARNING_MS);
+
+  const autoCloseTimer = setTimeout(async () => {
+    sessionTimers.delete(sessionId);
+    try { await autoCloseSession(requestId, sessionId, requesterId, responderId, channel_preference); }
+    catch (e) { console.error('Auto-close error:', e); }
+  }, SESSION_DURATION_MS);
+
+  sessionTimers.set(sessionId, { warning: warnTimer, close: autoCloseTimer });
+
   return res.status(200).json({ session_id: sessionId, channel: channel_preference, request_id: requestId });
 });
 
@@ -198,6 +319,10 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     return res.status(403).json({ error: 'Not a participant in this session', code: 'FORBIDDEN' });
   }
 
+  // Clear session timers — manual close beats auto-close
+  const timers = sessionTimers.get(session_id);
+  if (timers) { clearTimeout(timers.warning); clearTimeout(timers.close); sessionTimers.delete(session_id); }
+
   const { rows: sessionRows } = await query(
     `UPDATE sessions SET status = 'completed', ended_at = NOW()
      WHERE id = $1 RETURNING ended_at, started_at`,
@@ -221,8 +346,14 @@ router.patch('/request/:id/close', auth, async (req, res) => {
   }
 
   // Fractional peer earning — 25% of requester spend, accumulates to threshold of 2.0
+  // Query total spend so extensions are included automatically
   if (responderId) {
-    const requesterSpent = channel_preference === 'voice' ? 2 : 1;
+    const { rows: spentRows } = await query(
+      `SELECT COALESCE(SUM(amount_credits), 0) AS total_spent
+       FROM credit_transactions WHERE session_id = $1 AND user_id = $2 AND type = 'debit'`,
+      [session_id, requesterId]
+    );
+    const requesterSpent = parseFloat(spentRows[0].total_spent);
     const earned = +(requesterSpent * PEER_EARNING_RATE).toFixed(2);
 
     const dbClient = await getClient();
@@ -373,6 +504,57 @@ router.get('/stats', auth, async (req, res) => {
     credits_earned: parseFloat(earning.redeemed_credits_lifetime), // backward compat for PeerRequestScreen
     rank: parseInt(rankRows[0].rank),
   });
+});
+
+// ─── POST /peer/request/:id/extend ───────────────────────────────────────────
+router.post('/request/:id/extend', auth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT pr.session_id, pr.user_id, pr.accepted_by, pr.channel_preference
+     FROM peer_requests pr WHERE pr.id = $1 AND pr.status = 'active'`,
+    [req.params.id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Active session not found', code: 'NOT_FOUND' });
+
+  const { session_id, user_id: requesterId, accepted_by: responderId, channel_preference } = rows[0];
+
+  if (req.user.id !== requesterId) {
+    return res.status(403).json({ error: 'Only the requester can extend a session', code: 'FORBIDDEN' });
+  }
+
+  const extensionCost = channel_preference === 'voice' ? 2 : 1;
+  const { blocked } = await deductCredit(req.user.id, extensionCost, session_id, channel_preference);
+  if (blocked) {
+    return res.status(402).json({ error: 'Insufficient credits to extend session', code: 'INSUFFICIENT_CREDITS' });
+  }
+
+  // Reset timers for another 30 min
+  const existing = sessionTimers.get(session_id);
+  if (existing) { clearTimeout(existing.warning); clearTimeout(existing.close); }
+
+  const warnTimer = setTimeout(async () => {
+    try {
+      const warnPayload = JSON.stringify({ session_id, minutes_remaining: 5, extendable: true });
+      await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'push')`, [requesterId, warnPayload]);
+    } catch (e) { console.error('Session warning error:', e); }
+  }, SESSION_WARNING_MS);
+
+  const autoCloseTimer = setTimeout(async () => {
+    sessionTimers.delete(session_id);
+    try { await autoCloseSession(req.params.id, session_id, requesterId, responderId, channel_preference); }
+    catch (e) { console.error('Auto-close error:', e); }
+  }, SESSION_DURATION_MS);
+
+  sessionTimers.set(session_id, { warning: warnTimer, close: autoCloseTimer });
+
+  // Notify peer that session was extended
+  if (responderId) {
+    await query(
+      `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'in_app')`,
+      [responderId, JSON.stringify({ session_id, extended: true, message: 'Session extended for 30 more minutes.' })]
+    );
+  }
+
+  return res.status(200).json({ extended: true, new_end_time: new Date(Date.now() + SESSION_DURATION_MS) });
 });
 
 // ─── GET /peer/leaderboard ────────────────────────────────────────────────────
