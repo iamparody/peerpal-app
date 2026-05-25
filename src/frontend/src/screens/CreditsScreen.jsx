@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coin } from '@phosphor-icons/react';
+import { Coin, CheckCircle } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const PACKAGES = [
-  { id: 'starter',  label: 'Starter',  price: 50,  credits: 3,  desc: 'Try it out' },
   { id: 'standard', label: 'Standard', price: 100, credits: 7,  desc: 'Most popular' },
-  { id: 'plus',     label: 'Plus',     price: 200, credits: 15, desc: 'Best value' },
-  { id: 'support',  label: 'Support',  price: 500, credits: 40, desc: 'Power user' },
+  { id: 'plus',     label: 'Plus',     price: 250, credits: 15, desc: 'Best value' },
+  { id: 'premium',  label: 'Premium',  price: 500, credits: 40, desc: 'Power user' },
 ];
 
 function txLabel(tx) {
@@ -42,6 +41,7 @@ export default function CreditsScreen() {
   const qc = useQueryClient();
   const [purchasing, setPurchasing] = useState(null);
   const [error, setError] = useState('');
+  const [purchaseMessage, setPurchaseMessage] = useState('');
 
   const { data: balanceData } = useQuery({
     queryKey: ['credits', 'balance'],
@@ -61,14 +61,16 @@ export default function CreditsScreen() {
     setPurchasing(pkg.id);
     try {
       const { data } = await client.post('/api/credits/purchase', { package: pkg.id });
-      if (data.payment_url) {
-        window.location.href = data.payment_url;
+      if (data.pending) {
+        // STK Push sent — show success message; balance updates via in-app notification
+        setError('');
+        setPurchaseMessage(data.message || 'Check your phone for the M-Pesa prompt.');
+        qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
       } else {
-        // Paystack not yet live — show placeholder message
-        setError('Payments coming soon. Please check back or contact support.');
+        setError(data.message || 'Payments coming soon. Please check back or contact support.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Your payment didn\'t go through. Please try a different method.');
+      setError(err.response?.data?.error || 'Could not initiate payment. Please try again.');
     } finally {
       setPurchasing(null);
     }
@@ -88,6 +90,12 @@ export default function CreditsScreen() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
         {error && <div className="error-msg">{error}</div>}
+        {purchaseMessage && !error && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'rgba(143,175,154,0.15)', border: '1px solid var(--color-calm)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--color-calm)' }}>
+            <CheckCircle size={18} weight="fill" aria-hidden="true" />
+            {purchaseMessage}
+          </div>
+        )}
 
         {/* Balance */}
         <div className="card" style={{ textAlign: 'center', padding: '28px 24px' }}>

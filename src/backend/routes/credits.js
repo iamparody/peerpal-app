@@ -1,8 +1,16 @@
 const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
-const { PACKAGES, initializeTransaction, verifyWebhookSignature } = require('../utils/paystack');
+const { PACKAGES, stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
 const cache = require('../services/cache');
+
+const DARAJA_LIVE = !!(
+  process.env.DARAJA_CONSUMER_KEY &&
+  process.env.DARAJA_CONSUMER_SECRET &&
+  process.env.DARAJA_BUSINESS_SHORT_CODE &&
+  process.env.DARAJA_PASSKEY &&
+  process.env.DARAJA_CALLBACK_URL
+);
 
 const router = express.Router();
 
@@ -41,21 +49,54 @@ router.get('/transactions', auth, async (req, res) => {
 });
 
 // ─── POST /credits/purchase ───────────────────────────────────────────────────
+// Initiates an M-Pesa STK Push. Requires user.phone to be set (or phone in body).
+// Returns { pending: true, checkout_request_id } when Daraja is live.
+// Returns { payment_url: null } placeholder when credentials not yet configured.
 router.post('/purchase', auth, async (req, res) => {
-  const { package_id } = req.body;
-  if (!package_id || !PACKAGES[package_id]) {
+  const packageId = req.body.package || req.body.package_id;
+  if (!packageId || !PACKAGES[packageId]) {
     return res.status(400).json({
-      error: `package_id must be one of: ${Object.keys(PACKAGES).join(', ')}`,
+      error: `package must be one of: ${Object.keys(PACKAGES).join(', ')}`,
       code: 'INVALID_PACKAGE',
     });
   }
 
-  const pkg = PACKAGES[package_id];
+  const pkg = PACKAGES[packageId];
 
-  const { rows: userRows } = await query('SELECT email FROM users WHERE id = $1', [req.user.id]);
-  const email = userRows[0]?.email;
+  if (!DARAJA_LIVE) {
+    return res.status(200).json({
+      payment_url: null,
+      pending: false,
+      message: 'Payments coming soon via M-Pesa. Please check back or contact support.',
+    });
+  }
 
-  // Insert pending transaction
+  // Resolve phone: prefer request body, fall back to stored phone on user record
+  const { rows: userRows } = await query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
+  const rawPhone = req.body.phone || userRows[0]?.phone;
+  if (!rawPhone) {
+    return res.status(400).json({
+      error: 'Phone number required for M-Pesa payment. Please update your profile.',
+      code: 'PHONE_REQUIRED',
+    });
+  }
+
+  let phone;
+  try {
+    phone = normalisePhone(rawPhone);
+  } catch {
+    return res.status(400).json({
+      error: 'Please enter a valid Safaricom Kenya number (e.g. 0712 345 678).',
+      code: 'INVALID_PHONE',
+    });
+  }
+
+  // Save phone to profile if it came from body and isn't stored yet
+  if (req.body.phone && !userRows[0]?.phone) {
+    await query('UPDATE users SET phone = $1, updated_at = NOW() WHERE id = $2', [phone, req.user.id]);
+  }
+
+  // Insert pending transaction — confirmed only after Safaricom callback
   const { rows: txRows } = await query(
     `INSERT INTO credit_transactions
        (user_id, type, amount_credits, amount_currency, payment_method, channel, status)
@@ -65,105 +106,104 @@ router.post('/purchase', auth, async (req, res) => {
   );
   const transactionId = txRows[0].id;
 
-  let paystackData;
+  let checkoutRequestId;
   try {
-    paystackData = await initializeTransaction(email, pkg.amount_kobo, {
-      user_id: req.user.id,
-      package_id,
-      transaction_id: transactionId,
-    });
+    const result = await stkPush(
+      phone,
+      pkg.price_ksh,
+      `MindBridge-${transactionId}`,
+      `${pkg.credits} credits`
+    );
+    checkoutRequestId = result.checkoutRequestId;
   } catch (err) {
     await query(`UPDATE credit_transactions SET status = 'failed' WHERE id = $1`, [transactionId]);
-    console.error('Paystack init failed:', err.message);
-    return res.status(502).json({ error: 'Payment service error', code: 'PAYMENT_ERROR' });
+    console.error('STK Push failed:', err.message);
+    return res.status(502).json({ error: 'Could not send M-Pesa prompt. Please try again.', code: 'PAYMENT_ERROR' });
   }
 
+  // Store checkout_request_id for callback correlation
   await query(
     `UPDATE credit_transactions SET payment_reference = $1 WHERE id = $2`,
-    [paystackData.reference, transactionId]
+    [checkoutRequestId, transactionId]
   );
 
   return res.status(200).json({
-    payment_url: paystackData.authorization_url,
-    reference: paystackData.reference,
+    pending: true,
+    checkout_request_id: checkoutRequestId,
+    message: 'Check your phone — enter your M-Pesa PIN to complete payment.',
   });
 });
 
-// Credit deduction is now handled server-side at request submission (peer.js, referrals.js).
-// The /credits/deduct endpoint has been removed as of credit system v2.
+// ─── POST /credits/mpesa-callback ────────────────────────────────────────────
+// No auth — called by Safaricom. Must respond 200 quickly.
+router.post('/mpesa-callback', async (req, res) => {
+  // Acknowledge immediately — Safaricom times out after ~5 s
+  res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
-// ─── POST /credits/webhook ────────────────────────────────────────────────────
-// No auth — public endpoint verified by Paystack HMAC signature only.
-// req.body is a raw Buffer (set by express.raw in app.js for this path).
-router.post('/webhook', async (req, res) => {
-  const signature = req.headers['x-paystack-signature'];
-  if (!verifyWebhookSignature(req.body, signature)) {
-    return res.status(401).json({ error: 'Invalid signature', code: 'INVALID_SIGNATURE' });
-  }
-
-  let event;
+  let parsed;
   try {
-    event = JSON.parse(req.body.toString());
-  } catch {
-    return res.status(400).json({ error: 'Malformed JSON', code: 'BAD_REQUEST' });
+    parsed = parseCallback(req.body);
+  } catch (err) {
+    console.error('Daraja callback parse error:', err.message);
+    return;
   }
 
-  // Ignore all events except charge.success
-  if (event.event !== 'charge.success') {
-    return res.status(200).json({ received: true });
+  const { success, checkoutRequestId, phone, amount, mpesaReceiptNumber } = parsed;
+
+  if (!success) {
+    // Payment cancelled or failed — mark transaction failed
+    await query(
+      `UPDATE credit_transactions SET status = 'failed' WHERE payment_reference = $1 AND status = 'pending'`,
+      [checkoutRequestId]
+    ).catch((e) => console.error('Daraja fail-update error:', e.message));
+    return;
   }
 
-  const reference = event.data?.reference;
-  const { user_id, package_id, transaction_id } = event.data?.metadata || {};
+  // Find the pending transaction by checkout_request_id
+  const { rows: txRows } = await query(
+    `SELECT id, user_id, amount_credits FROM credit_transactions
+     WHERE payment_reference = $1 AND status = 'pending' LIMIT 1`,
+    [checkoutRequestId]
+  ).catch(() => ({ rows: [] }));
 
-  if (!reference || !user_id || !package_id) {
-    return res.status(200).json({ received: true });
+  if (!txRows.length) {
+    console.warn('Daraja callback: no pending transaction for checkout_request_id', checkoutRequestId);
+    return;
   }
 
-  const pkg = PACKAGES[package_id];
-  if (!pkg) return res.status(200).json({ received: true });
+  const { id: transactionId, user_id, amount_credits } = txRows[0];
 
-  // Idempotency: skip if this reference is already confirmed
+  // Idempotency: skip if already confirmed
   const { rows: existing } = await query(
     `SELECT id FROM credit_transactions WHERE payment_reference = $1 AND status = 'confirmed'`,
-    [reference]
-  );
-  if (existing.length) return res.status(200).json({ received: true });
+    [checkoutRequestId]
+  ).catch(() => ({ rows: [] }));
+  if (existing.length) return;
 
   // Credit the balance
   await query(
     'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
-    [pkg.credits, user_id]
-  );
+    [amount_credits, user_id]
+  ).catch((e) => console.error('Daraja credit error:', e.message));
+
   await cache.del(`credits:${user_id}`);
 
-  // Confirm the transaction record
-  if (transaction_id) {
-    await query(
-      `UPDATE credit_transactions
-         SET status = 'confirmed', payment_reference = $1
-       WHERE id = $2 AND user_id = $3`,
-      [reference, transaction_id, user_id]
-    );
-  } else {
-    await query(
-      `INSERT INTO credit_transactions
-         (user_id, type, amount_credits, amount_currency, payment_method, payment_reference, channel, status)
-       VALUES ($1, 'purchase', $2, $3, 'mpesa', $4, 'purchase', 'confirmed')`,
-      [user_id, pkg.credits, pkg.price_ksh, reference]
-    );
-  }
+  // Confirm transaction, store receipt number
+  await query(
+    `UPDATE credit_transactions
+       SET status = 'confirmed', payment_reference = $1
+     WHERE id = $2 AND user_id = $3`,
+    [mpesaReceiptNumber || checkoutRequestId, transactionId, user_id]
+  ).catch((e) => console.error('Daraja confirm error:', e.message));
 
-  // Notify user — push + in-app (two rows, one per channel)
-  const notifPayload = JSON.stringify({ credits_added: pkg.credits, package_id, reference });
+  // Notify user
+  const notifPayload = JSON.stringify({ credits_added: amount_credits, receipt: mpesaReceiptNumber });
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, 'credit_purchase_confirmed', $2, 'push'),
             ($1, 'credit_purchase_confirmed', $2, 'in_app')`,
     [user_id, notifPayload]
-  );
-
-  return res.status(200).json({ received: true });
+  ).catch((e) => console.error('Daraja notify error:', e.message));
 });
 
 module.exports = router;

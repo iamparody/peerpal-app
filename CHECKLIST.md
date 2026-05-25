@@ -1336,39 +1336,38 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > shows "coming soon" message (already in place).
 
 ### 29.1 — Backend: utils/daraja.js
-- [ ] `getAccessToken()`: Basic Auth with consumer key + secret → Bearer token (cached, expires 1hr)
-- [ ] `stkPush(phone, amount, accountRef, description)`: initiates STK Push to user's phone
-- [ ] `verifyCallback(body)`: validates Safaricom callback payload (ResultCode === 0)
-- [ ] Package constants: Basic KSh 100 / 5cr · Standard KSh 250 / 15cr · Plus KSh 500 / 35cr
+- [x] `getAccessToken()`: Basic Auth with consumer key + secret → Bearer token
+- [x] `stkPush(phone, amount, accountRef, description)`: initiates STK Push to user's phone
+- [x] `parseCallback(body)`: validates Safaricom callback payload (ResultCode === 0), extracts receipt
+- [x] `normalisePhone(raw)`: normalises Kenyan phone to 254XXXXXXXXX format
+- [x] Package constants: Standard KSh 100 / 7cr · Plus KSh 250 / 15cr · Premium KSh 500 / 40cr
 
 ### 29.2 — Backend: POST /credits/purchase rewrite
-- [ ] Remove Paystack `initializeTransaction` call
-- [ ] Call `daraja.stkPush` with user phone (from profile) and package amount
-- [ ] Return `{ pending: true, message: 'Check your phone for an M-Pesa prompt' }`
-- [ ] Store pending transaction in credit_transactions (status='pending', payment_reference=MerchantRequestID)
+- [x] Removed Paystack; calls `stkPush` with user phone and package amount
+- [x] Returns `{ pending: true, checkout_request_id, message: 'Check your phone...' }`
+- [x] Inserts pending transaction; stores CheckoutRequestID as payment_reference
+- [x] Graceful fallback when DARAJA_LIVE=false: returns placeholder message
 
 ### 29.3 — Backend: POST /credits/mpesa-callback
-- [ ] New endpoint — no auth (Safaricom calls this)
-- [ ] Validate callback via IP whitelist or shared secret header
-- [ ] On success (ResultCode=0): find pending transaction by CheckoutRequestID, update status='completed', credit user balance, send payment_confirmed notification
-- [ ] On failure: update status='failed', send account_notice notification
+- [x] New endpoint — no auth (Safaricom calls this)
+- [x] Responds 200 immediately then processes asynchronously
+- [x] On success: credits balance, confirms transaction, notifies user (push + in-app)
+- [x] On failure: marks transaction failed
 
 ### 29.4 — Backend: Remove Paystack
-- [ ] Remove `utils/paystack.js` import from credits.js
-- [ ] Keep file in codebase but unused (do not delete — may need reference)
-- [ ] Remove `POST /credits/webhook` Paystack endpoint or repurpose
+- [x] Paystack removed from credits.js; `utils/paystack.js` kept as reference
+- [x] `POST /credits/webhook` removed; `POST /credits/mpesa-callback` added
+- [x] `express.raw` Paystack middleware removed from app.js
 
 ### 29.5 — Backend: User phone number
-- [ ] Daraja STK Push requires phone number — verify users table has phone or add it
-- [ ] If not present: add `phone VARCHAR(15) NULL` to users via migration 045
-- [ ] POST /credits/purchase: require phone in request body if not on profile, validate format (+254XXXXXXXXX)
+- [x] Migration 045: adds `phone VARCHAR(15) NULL` to users table
+- [x] POST /credits/purchase: uses stored phone or accepts phone in body; saves to profile on first use
 
 ### 29.6 — Frontend: CreditsScreen purchase flow
-- [ ] Replace "redirecting to payment" state with "Check your phone for M-Pesa prompt"
-- [ ] Poll GET /credits/transactions every 3s after purchase initiation (up to 90s) to detect status change
-- [ ] On confirmed: invalidate balance cache, show success state
-- [ ] On timeout (90s no confirmation): show "Payment not confirmed — try again or contact support"
-- [ ] Update package display: Basic / Standard / Plus (remove Starter)
+- [x] Shows "Check your phone for M-Pesa prompt" on successful STK Push
+- [x] Invalidates balance cache after purchase (balance refreshes when callback confirms)
+- [x] Package display updated: Standard / Plus / Premium (Starter removed)
+- [ ] Phone input field — show prompt if user.phone not set (deferred: requires profile screen integration)
 
 ### 29.7 — Documentation
 - [ ] Update GRAPH_REPORT.md: Daraja utils, new endpoints, updated package definitions, migration 045

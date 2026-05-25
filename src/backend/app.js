@@ -24,8 +24,7 @@ app.use(cors({
   credentials: true,
 }));
 
-// Raw body needed for Paystack webhook signature verification
-app.use('/api/credits/webhook', express.raw({ type: 'application/json' }));
+// Daraja M-Pesa callback — parsed JSON, no raw body needed (Paystack removed)
 app.use(express.json());
 
 // ─── General rate limit ───────────────────────────────────────────────────────

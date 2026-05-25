@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-22 (session 21) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-25 (session 22) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -12,7 +12,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 21) | Agent: Claude Co
 | `src/backend/app.js` | Express app setup: helmet (security headers), CORS (explicit allowlist, no wildcard), rate-limiting middleware, all route mounts |
 | `src/backend/server.js` | HTTP server entry point; starts WebSocket signaling server, email/notification workers, 3 cron jobs; listens on port 3001 |
 | `src/backend/package.json` | 17 prod deps: Express, bcrypt, JWT, Groq SDK, Firebase Admin, ioredis, BullMQ, nodemailer, ws, pg, uuid, etc. |
-| `src/backend/.env.example` | All env vars: DATABASE_URL/POOLER/DIRECT, JWT secrets, encryption key, Groq API keys, Paystack keys, FCM JSON, TURN creds, SMTP, Redis URL, CORS URL |
+| `src/backend/.env.example` | All env vars: DATABASE_URL/POOLER/DIRECT, JWT secrets, encryption key, Groq API keys, Daraja (DARAJA_CONSUMER_KEY/SECRET/BUSINESS_SHORT_CODE/PASSKEY/CALLBACK_URL/ENV), FCM JSON, TURN creds, SMTP, Redis URL, CORS URL |
 
 ### Database Layer
 | File | Purpose |
@@ -76,7 +76,7 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 21) | Agent: Claude Co
 | `routes/moods.js` | POST /, GET /today, GET /history, GET /analytics |
 | `routes/journals.js` | POST /, GET /, GET /:id, PATCH /:id, DELETE /:id, DELETE / |
 | `routes/ai.js` | POST /session/start, POST /session/:id/message, POST /session/:id/end |
-| `routes/credits.js` | GET /balance, GET /transactions, POST /purchase, POST /webhook |
+| `routes/credits.js` | GET /balance, GET /transactions, POST /purchase (M-Pesa STK Push), POST /mpesa-callback (Safaricom callback) |
 | `routes/peer.js` | POST /request, GET /requests/open, PATCH /request/:id/accept, PATCH /request/:id/close, GET /session/:id, GET /request/:id/status |
 | `routes/groups.js` | GET /, GET /:id, POST /:id/join, POST /:id/leave, GET /:id/messages, POST /:id/messages, POST /:id/messages/:msgId/report |
 | `routes/emergency.js` | POST /trigger |
@@ -107,7 +107,8 @@ Generated: 2026-05-04 | Last updated: 2026-05-22 (session 21) | Agent: Claude Co
 | `utils/fcm.js` | sendPushNotification(token, title, body, data) via firebase-admin; enqueuePushNotification() uses BullMQ or falls back to direct; initFCM() tries FCM_SERVICE_ACCOUNT_JSON (inline JSON env var) first, falls back to FCM_SERVICE_ACCOUNT_PATH via fs.readFileSync |
 | `utils/notificationWriter.js` | writeNotification(user_id, type, payload, channel): INSERTs notification, calls enqueuePushNotification if channel includes 'push' |
 | `utils/creditDeductor.js` | `deductCredit(user_id, amount, session_id, channel)`: atomic decrement by `amount` (1 or 2); session_id nullable (backfilled later); INSERTs credit_transaction type='debit'; sends credit_low notification if balance < 2. `refundCredit(user_id, amount, session_id, channel, reason)`: adds credits back, INSERTs type='refund', sends account_notice notification |
-| `utils/paystack.js` | initializeTransaction(), verifyWebhookSignature() (HMAC-SHA512); PACKAGES const: starter 50KSh/3cr, standard 100KSh/7cr, plus 200KSh/15cr, support 500KSh/40cr |
+| `utils/daraja.js` | `stkPush(phone, amount, accountRef, description)`, `parseCallback(body)`, `normalisePhone(raw)`, `getAccessToken()`; PACKAGES: standard 100KSh/7cr, plus 250KSh/15cr, premium 500KSh/40cr; credentials guarded by DARAJA_LIVE flag |
+| `utils/paystack.js` | Retained for reference; no longer imported by routes/credits.js |
 
 ### Services (2 files)
 | File | Purpose |
@@ -286,7 +287,7 @@ Separate Vite React app. Deployed independently (Railway or Netlify). Set `VITE_
 | **psychoeducation_articles** | title, category enum (11), status enum, content_type | + content, estimated_read_minutes, tags[], created_by FK, published_at; content_type ∈ {article, story}; author_name/bio/source_url for stories; 55 seeded articles |
 | **ai_usage** | user_id FK, date, token_count | UNIQUE(user_id, date); supports 50k daily limit |
 | **events** | user_id FK nullable, event_name VARCHAR(64), properties JSONB | Basic funnel analytics; user_id SET NULL on delete; 3 indexes (name, user_id, created_at DESC) |
-| **peer_stats** | user_id UNIQUE FK, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2) | + redeemed_credits_lifetime DECIMAL(10,2), sessions_completed INT; fractional peer earnings accumulate here; converts to credits.balance when pending >= 2.0 (Math.floor); RLS deny-anon — **pending migration 044** |
+| **peer_stats** | user_id UNIQUE FK, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2) | + redeemed_credits_lifetime DECIMAL(10,2), sessions_completed INT; fractional peer earnings accumulate here; converts to credits.balance when pending >= 2.0 (Math.floor); RLS deny-anon — migration 044 written, pending apply |
 
 ---
 
@@ -344,8 +345,8 @@ GET    /sessions              — Paginated AI session history
 ```
 GET    /balance               — {balance} (cached 30s)
 GET    /transactions          — {transactions, total, page} (paginated; includes duration_minutes, channel for rich display)
-POST   /purchase              — {package_id} → {payment_url, reference} (Paystack)
-POST   /webhook               — Paystack webhook; HMAC-SHA512 signature verification; updates balance on charge.success
+POST   /purchase              — {package, phone?} → {pending, checkout_request_id, message} (Daraja STK Push); graceful "coming soon" when DARAJA_LIVE=false
+POST   /mpesa-callback        — Safaricom async callback; responds 200 immediately; credits balance + notifies on ResultCode=0
 ```
 Note: `POST /deduct` endpoint removed in Phase 26. Credit deduction is now server-side at request submission.
 
@@ -510,7 +511,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | `utils/creditDeductor.js` | db/index.js, notificationWriter | routes/peer, routes/credits |
 | `utils/notificationWriter.js` | db/index.js, utils/fcm.js | All routes that send notifications |
 | `utils/fcm.js` | firebase-admin, queues/index.js | utils/notificationWriter |
-| `utils/paystack.js` | PAYSTACK_SECRET_KEY env | routes/credits |
+| `utils/daraja.js` | DARAJA_* env vars (6 vars); graceful no-op when not set | routes/credits |
+| `utils/paystack.js` | Retained reference; not imported | — |
 | `utils/aliasGenerator.js` | db/index.js | routes/auth (registration) |
 | `ws/signaling.js` | ws package | server.js (WebRTC peer calls) |
 | `middleware/auth.js` | utils/jwt.js, db/index.js | All protected routes |
@@ -520,7 +522,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 ## 8. CURRENT PHASE STATUS & REMAINING TASKS
 
-### Completed Phases (27/27; Phase 20.3 deferred; Phase 24 blocked on clinical content)
+### Completed Phases (29/29; Phase 20.3 deferred; Phase 24 blocked on clinical content)
 | Phase | Status | Description |
 |---|---|---|
 | Phase 1 | ✅ | Database migrations (35 SQL files applied, 4 pending; 25+ tables) |
@@ -550,6 +552,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 25 | ✅ | Admin stats/patterns SQL bug fixes (generate_series integer offset; member_user_id; matched|closed); CreditsScreen at /credits (balance, packages, history); balance badge clickable; credit_low notification → /credits |
 | Phase 26 | ✅ | Credit System v2 — flat per-session billing (1cr text / 2cr voice); `deductCredit(user_id, amount, session_id, channel)` + `refundCredit`; session_id backfill on peer accept; duration_minutes written on close; AI 5 sessions/day cap; POST /deduct removed; migration 043 |
 | Phase 27 | ✅ | Peer Incentive System — fractional earnings (0.25cr text / 0.50cr voice → pending_credits); conversion threshold 2.0 (Math.floor converts to spendable balance); peer_stats table; Profile Impact card with progress bar + collapsible explainer; migration 044 |
+| Phase 28 | ✅ | 30-Min Session Timer + Extension Flow — sessionTimers Map; autoCloseSession(); 25-min warning + 30-min auto-close timers on PATCH /accept; POST /request/:id/extend (deducts same cost, resets timers); peer earning via DB SUM (includes extensions); safety notification if balance=0 on close; PeerTextChatScreen + PeerVoiceCallScreen: countdown, red at <5 min, extension prompt, ended screen with Befrienders Kenya |
+| Phase 29 | ✅ | Daraja M-Pesa Integration — utils/daraja.js (stkPush, parseCallback, normalisePhone); POST /purchase rewired to STK Push; POST /mpesa-callback async confirm; Paystack removed; migration 045 (phone column); CreditsScreen: packages updated Standard/Plus/Premium, M-Pesa pending UX |
 
 ### Credentials & External Services Status
 | Service | Status | Notes |
@@ -560,14 +564,14 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | **Firebase FCM** | ✅ Configured | Service account JSON at `src/backend/config/` (gitignored); FCM_SERVICE_ACCOUNT_PATH set in .env; `utils/fcm.js` tries FCM_SERVICE_ACCOUNT_JSON env first, falls back to FCM_SERVICE_ACCOUNT_PATH via fs.readFileSync |
 | **Upstash Redis (REST)** | ✅ Connected | UPSTASH_REDIS_REST_URL + TOKEN set; @upstash/redis REST client active for cache + rate limiting; PING verified; cache set/get/del round-trip verified |
 | **Upstash Redis (TCP)** | ⚠️ Blocked locally | UPSTASH_REDIS_URL set but port 6380 blocked on local network; ioredis gives up after 3 retries (family:4 fix prevents AggregateError flood); BullMQ falls back to sync delivery locally; will connect on Railway |
-| **Paystack** | ❌ Not configured | PAYSTACK_SECRET_KEY still placeholder; needs live account |
+| **Daraja M-Pesa** | ❌ Credentials pending | 6 env vars (DARAJA_CONSUMER_KEY/SECRET/BUSINESS_SHORT_CODE/PASSKEY/CALLBACK_URL/ENV); code complete; awaiting Safaricom Business Till + Daraja API approval |
 | **TURN Server** | ⚠️ OpenRelay | Using free openrelay.metered.ca — adequate for testing, may drop under load; upgrade for production |
 
 ### Remaining Actions
 | Task | Blocker |
 |---|---|
 | Apply migrations 036–041 | ✅ All applied — therapist tables, RLS, last_data_deletion_at, user_role therapist value all live |
-| Test payment flow | Paystack live account + public webhook URL (Railway deploy needed) |
+| Activate M-Pesa payments | Daraja API credentials (Safaricom Business Till approval) + Railway deploy (DARAJA_CALLBACK_URL must be public HTTPS) |
 | Configure TURN for production | Metered.ca paid plan or self-hosted coturn on Railway |
 | Deploy to Railway | Set all production env vars; run seed scripts; TCP Redis will connect from Railway |
 | App name decision | Propagate to manifest.json, index.html, DashboardScreen topbar, legal page [Your Name] placeholders |
@@ -590,8 +594,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 | Category | Count |
 |---|---|
-| Database migrations | 44 SQL files (001–042 applied; 043–044 written, pending apply) |
-| Database tables | 25 live + 3 pending (therapist_profiles, therapist_interests, peer_stats); all RLS-enabled once applied |
+| Database migrations | 45 SQL files (001–042 applied; 043–045 written, pending apply) |
+| Database tables | 25 live + 4 pending (therapist_profiles, therapist_interests, peer_stats, users.phone column); all RLS-enabled once applied |
 | Backend route files | 17 |
 | Backend middleware | 3 |
 | Backend utilities | 9 |
@@ -605,7 +609,7 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | API endpoints (total) | ~77 (+ GET /emergency/status, GET /admin/stats/daily, GET /admin/users/patterns, PATCH /notifications/:id/read) |
 | Cache keys | 7 |
 | BullMQ queues | 2 |
-| Build phases complete | 27/27 (Phases 23–27 complete; Phase 20.3 custom model pending external collaboration; Phase 24 blocked on clinical content) |
+| Build phases complete | 29/29 (Phases 28–29 complete; Phase 20.3 custom model pending external collaboration; Phase 24 blocked on clinical content) |
 | Safety tests passed | 10/10 |
 
 ### Additional Projects

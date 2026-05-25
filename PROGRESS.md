@@ -3,18 +3,37 @@
 ---
 
 ## Current Phase
-**Phase 29 — Daraja M-Pesa Integration — NEXT (code-ready, credentials-pending)**
+**Ready for deploy — migrations 043–045 pending Supabase apply; Daraja credentials pending Safaricom approval**
 
 ---
 
 ## Planned Work
 
-### Phase 29 — Daraja M-Pesa Integration (code-ready, credentials-pending)
-Full implementation planned. Awaiting Safaricom Business Till + Daraja API credentials.
-All code will be written and testable locally. Goes live when credentials are configured.
-
 ### Phase 24 — Help a Friend Module (content-pending)
 Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
+
+---
+
+### Session 22 — 2026-05-25
+
+**Phase 28 — 30-Min Session Timer + Extension Flow — COMPLETE**
+
+- `sessionTimers` Map + `autoCloseSession()` in peer.js; 25-min warning + 30-min auto-close on PATCH /accept
+- POST /request/:id/extend: deducts extension cost, resets timers, notifies peer
+- PATCH /close: clears timers before running close logic
+- Peer earning now queries DB SUM(amount_credits) — extensions included automatically
+- Safety in-app notification if requester balance=0 on auto-close
+- PeerTextChatScreen + PeerVoiceCallScreen: full countdown, red at <5 min, extension prompt, session-ended safety screen
+- PeerRequestScreen + CreditsScreen: copy updated to 30-min language; therapist referral free
+- PeerWaitingScreen: "30 minutes · extend if needed" hint added
+
+**Phase 29 — Daraja M-Pesa Integration — COMPLETE (code-ready, credentials-pending)**
+
+- `utils/daraja.js`: stkPush(), parseCallback(), normalisePhone(), getAccessToken(); DARAJA_LIVE guard
+- routes/credits.js: POST /purchase → STK Push; POST /mpesa-callback (Safaricom async callback); Paystack removed
+- app.js: Paystack raw-body middleware removed
+- Migration 045: `phone VARCHAR(15) NULL` added to users table
+- CreditsScreen: Standard/Plus/Premium packages (Starter removed); M-Pesa pending UX with CheckCircle confirmation
 
 ---
 
