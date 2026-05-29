@@ -14,6 +14,16 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 
 ---
 
+### Session 23 — 2026-05-29
+
+**Security: RLS on events table — COMPLETE**
+- Migration 046 adds deny-anon read+write policies to events table (created in 034 without RLS)
+- Applied live to Supabase — all 46 migrations now applied, all 28 tables RLS-enabled
+
+**Migrations 043–046 — all applied to Supabase live**
+
+---
+
 ### Session 22 — 2026-05-25
 
 **Phase 28 — 30-Min Session Timer + Extension Flow — COMPLETE**

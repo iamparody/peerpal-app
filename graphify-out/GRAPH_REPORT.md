@@ -1,5 +1,5 @@
 # MindBridge Knowledge Graph Report
-Generated: 2026-05-04 | Last updated: 2026-05-25 (session 22) | Agent: Claude Code
+Generated: 2026-05-04 | Last updated: 2026-05-29 (session 23) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 
 ---
@@ -553,7 +553,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 | Phase 26 | ✅ | Credit System v2 — flat per-session billing (1cr text / 2cr voice); `deductCredit(user_id, amount, session_id, channel)` + `refundCredit`; session_id backfill on peer accept; duration_minutes written on close; AI 5 sessions/day cap; POST /deduct removed; migration 043 |
 | Phase 27 | ✅ | Peer Incentive System — fractional earnings (0.25cr text / 0.50cr voice → pending_credits); conversion threshold 2.0 (Math.floor converts to spendable balance); peer_stats table; Profile Impact card with progress bar + collapsible explainer; migration 044 |
 | Phase 28 | ✅ | 30-Min Session Timer + Extension Flow — sessionTimers Map; autoCloseSession(); 25-min warning + 30-min auto-close timers on PATCH /accept; POST /request/:id/extend (deducts same cost, resets timers); peer earning via DB SUM (includes extensions); safety notification if balance=0 on close; PeerTextChatScreen + PeerVoiceCallScreen: countdown, red at <5 min, extension prompt, ended screen with Befrienders Kenya |
-| Phase 29 | ✅ | Daraja M-Pesa Integration — utils/daraja.js (stkPush, parseCallback, normalisePhone); POST /purchase rewired to STK Push; POST /mpesa-callback async confirm; Paystack removed; migration 045 (phone column); CreditsScreen: packages updated Standard/Plus/Premium, M-Pesa pending UX |
+| Phase 29 | ✅ | Daraja M-Pesa Integration — utils/daraja.js (stkPush, parseCallback, normalisePhone); POST /purchase rewired to STK Push; POST /mpesa-callback async confirm; Paystack removed; migration 045 (phone column); CreditsScreen: packages updated Standard/Plus/Premium, bottom-sheet phone modal (number not stored), +254 prefix input |
+| Phase 29.x | ✅ | Security: RLS enabled on events table — migration 046 adds deny-anon read+write policies (table created in 034 without RLS); applied to Supabase live |
 
 ### Credentials & External Services Status
 | Service | Status | Notes |
@@ -594,8 +595,8 @@ PATCH  /therapist-interests/:id/status — Update interest status (pending/match
 
 | Category | Count |
 |---|---|
-| Database migrations | 45 SQL files (001–042 applied; 043–045 written, pending apply) |
-| Database tables | 25 live + 4 pending (therapist_profiles, therapist_interests, peer_stats, users.phone column); all RLS-enabled once applied |
+| Database migrations | 46 SQL files (001–046 all applied to Supabase) |
+| Database tables | 25 live + 3 pending schema additions (therapist_profiles, therapist_interests, peer_stats tables; users.phone column); all tables RLS-enabled |
 | Backend route files | 17 |
 | Backend middleware | 3 |
 | Backend utilities | 9 |
