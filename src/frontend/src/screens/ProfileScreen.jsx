@@ -397,10 +397,10 @@ export default function ProfileScreen() {
             <Link to="/data-compliance" style={{ fontSize: 12, color: 'var(--color-text-muted)', textDecoration: 'none' }}>Data Compliance</Link>
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            © 2025 MindBridge. All rights reserved.
+            © 2025 Melah. All rights reserved.
           </p>
           <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            MindBridge is not a medical service.
+            Melah is not a medical service.
           </p>
         </div>
       </div>

@@ -90,7 +90,7 @@ export default function ConsentScreen() {
 
           <h2 style={{ marginBottom: 12, fontSize: '1rem' }}>How it's used</h2>
           <ul style={{ paddingLeft: 20, color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <li>Solely to improve your own experience on MindBridge</li>
+            <li>Solely to improve your own experience on Melah</li>
             <li>No commercial use, no advertising, no third-party sharing</li>
           </ul>
 
@@ -105,7 +105,7 @@ export default function ConsentScreen() {
 
           <h2 style={{ marginBottom: 12, fontSize: '1rem' }}>Not a medical service</h2>
           <p style={{ color: 'var(--color-text-muted)' }}>
-            MindBridge is a peer support platform. It is not a substitute for professional mental health care. The AI companion is not a therapist or clinical tool.
+            Melah is a peer support platform. It is not a substitute for professional mental health care. The AI companion is not a therapist or clinical tool.
           </p>
         </div>
 

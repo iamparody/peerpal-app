@@ -121,7 +121,7 @@ export default function GroupDetailScreen() {
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           <span>📢</span>
-          <span>This group is a read-only community feed. Posts come from the MindBridge team.</span>
+          <span>This group is a read-only community feed. Posts come from the Melah team.</span>
         </div>
 
         {isBanned ? (

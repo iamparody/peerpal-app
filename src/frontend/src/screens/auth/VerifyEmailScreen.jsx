@@ -99,7 +99,7 @@ export default function VerifyEmailScreen() {
           </svg>
         </div>
         <h1 style={{ marginBottom: 'var(--space-sm)' }}>You're verified.</h1>
-        <p style={{ color: 'var(--color-text-muted)' }}>Welcome to MindBridge.</p>
+        <p style={{ color: 'var(--color-text-muted)' }}>Welcome to Melah.</p>
         <p style={{ marginTop: 'var(--space-sm)', fontSize: 13, color: 'var(--color-text-muted)' }}>
           Redirecting you now…
         </p>

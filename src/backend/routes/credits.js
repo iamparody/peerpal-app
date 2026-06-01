@@ -104,7 +104,7 @@ router.post('/purchase', auth, async (req, res) => {
     const result = await stkPush(
       phone,
       pkg.price_ksh,
-      `MindBridge-${transactionId}`,
+      `Melah-${transactionId}`,
       `${pkg.credits} credits`
     );
     checkoutRequestId = result.checkoutRequestId;

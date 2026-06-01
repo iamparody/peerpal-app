@@ -101,7 +101,7 @@ export default function DashboardScreen() {
         flexShrink: 0,
       }}>
         <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-editorial)' }}>
-          MindBridge
+          Melah
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
           <Tooltip.Root>

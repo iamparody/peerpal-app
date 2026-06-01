@@ -79,7 +79,7 @@ function AdminShell() {
           <div className="sidebar__brand-icon">🧠</div>
           {!collapsed && (
             <div className="sidebar__brand-text">
-              <div className="sidebar__brand-title">MindBridge</div>
+              <div className="sidebar__brand-title">Melah</div>
               <div className="sidebar__brand-sub">Admin Panel</div>
             </div>
           )}
@@ -143,7 +143,7 @@ function AdminShell() {
               <List size={22} />
             </button>
             <div className="topbar__breadcrumb">
-              <span>MindBridge</span>
+              <span>Melah</span>
               <span style={{ color: 'var(--color-card-border)', margin: '0 2px' }}>›</span>
               <span className="topbar__breadcrumb-current">{active?.label}</span>
             </div>

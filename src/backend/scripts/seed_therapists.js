@@ -8,7 +8,7 @@ const { generateAlias } = require('../utils/aliasGenerator');
 
 const THERAPISTS = [
   {
-    email:        'amara.odhiambo@mindbridge.test',
+    email:        'amara.odhiambo@melah.test',
     password:     'Therapist@123',
     display_name: 'Amara',
     full_name:    'Amara Odhiambo',
@@ -26,7 +26,7 @@ const THERAPISTS = [
     photo_url: null,
   },
   {
-    email:        'david.mwangi@mindbridge.test',
+    email:        'david.mwangi@melah.test',
     password:     'Therapist@123',
     display_name: 'David',
     full_name:    'David Mwangi',

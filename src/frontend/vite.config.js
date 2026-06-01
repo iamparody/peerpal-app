@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],
       manifest: {
-        name: 'MindBridge',
-        short_name: 'MindBridge',
+        name: 'Melah',
+        short_name: 'Melah',
         description: 'Mental health support — always here for you.',
         start_url: '/',
         display: 'standalone',

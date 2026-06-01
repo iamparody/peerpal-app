@@ -1,7 +1,7 @@
 {
-  "name": "mindbridge-backend",
+  "name": "melah-backend",
   "version": "1.0.0",
-  "description": "MindBridge mental health support platform — backend API",
+  "description": "Melah mental health support platform — backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

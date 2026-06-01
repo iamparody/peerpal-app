@@ -36,7 +36,7 @@ cron.schedule('0 18 * * *', () => runDailySummaryJob().catch(console.error));
 cron.schedule('0 * * * *', () => runDeletionJob().catch(console.error));
 
 server.listen(PORT, () => {
-  console.log(`MindBridge backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  console.log(`Melah backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
 });
 
 process.on('unhandledRejection', (reason) => {

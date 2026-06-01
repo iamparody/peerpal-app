@@ -108,7 +108,7 @@ export default function ResetPasswordScreen() {
       padding: 'var(--space-xl) var(--space-lg)',
     }}>
       <div style={{ marginBottom: 'var(--space-xl)', textAlign: 'center' }}>
-        <div className="wordmark" style={{ fontSize: 28, marginBottom: 'var(--space-sm)' }}>MindBridge</div>
+        <div className="wordmark" style={{ fontSize: 28, marginBottom: 'var(--space-sm)' }}>Melah</div>
         <h1 style={{ fontSize: 'var(--text-h2)', marginBottom: 'var(--space-xs)' }}>Set new password</h1>
         <p style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>Choose something strong and memorable.</p>
       </div>

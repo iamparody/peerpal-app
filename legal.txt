@@ -44,7 +44,249 @@ All 16 phases are complete. The project is fully built and locally tested. The l
   - Paystack live key (purchase flow)
   - Firebase FCM service account JSON (push notifications)
   - Replace [Your Name] placeholder in legal pages before going public
+  ---
+  
 
-  Want to start the Railway deployment, or tackle one of the pending credentials first?
 
+
+
+
+
+
+
+in this order:
+  
+  1. graphify-out/GRAPH_REPORT.md — read this first, always. It's the full project knowledge graph: all    
+  files, routes, schema, endpoints, cache keys, and phase status. Fast context recovery without reading
+  source.
+  2. CHECKLIST.md — find the first unchecked item. That's where work resumes. For us that's the remaining  
+  Phase 21 deferred items, then Phase 20 (pending name decision), then deployment.
+  3. PROGRESS.md — read Session 14 to confirm what was completed this session and what's explicitly        
+  deferred.
+
+  Those three are sufficient to resume without touching any source files. The graph tells you what exists, 
+  the checklist tells you what's next, and the progress log tells you why things are in the state they're  
+  in.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Good — have everything I need. Here's the full assessment:
+
+  ---
+  1. Name: "Pocket Care"
+
+  Critique: It works but it's forgettable.
+  - "Pocket" is one of the most saturated prefixes in mobile apps (Pocket, PocketGuard, PocketSmith) — trademark risk is
+   real
+  - "Care" is equally saturated in health (CareBridge, CareNow, etc.)
+  - Nothing in the name signals Kenya, peer support, or community — it reads like a generic telehealth app
+  - The peer-to-peer angle — which is your actual differentiator — is invisible in the name
+
+  Better directions to consider: Something that evokes the communal / ubuntu dimension, or a Swahili concept. E.g.      
+  Rafiki (friend/companion), Amani (peace), Saidika (help each other). You don't have to go Swahili but the name should 
+  own the peer-support angle. "Pocket Care" could work for a pill reminder app — you want something that says people    
+  supporting people.
+
+  ---
+  2. Legal Requirements (Kenya)
+
+  Must do before launch:
+
+  ┌─────┬───────────────────┬──────────────────────┬────────────────────────────────────────────────────────────────┐   
+  │  #  │    Requirement    │         Body         │                             Notes                              │   
+  ├─────┼───────────────────┼──────────────────────┼────────────────────────────────────────────────────────────────┤   
+  │     │ Business          │ Business             │ Private Limited Company recommended — protects you personally; │   
+  │ 1   │ registration      │ Registration Service │  needed before any contracts or payments                       │   
+  │     │                   │  (BRS)               │                                                                │   
+  ├─────┼───────────────────┼──────────────────────┼────────────────────────────────────────────────────────────────┤   
+  │     │ Data Controller   │ Office of the Data   │ Mandatory under Kenya Data Protection Act 2019 — you process   │   
+  │ 2   │ registration      │ Protection           │ mental health data (sensitive personal data). Fine up to KSh   │   
+  │     │                   │ Commissioner (ODPC)  │ 5M or 1% revenue for non-compliance. Register at odpc.go.ke    │   
+  ├─────┼───────────────────┼──────────────────────┼────────────────────────────────────────────────────────────────┤   
+  │     │                   │                      │ Already drafted (legal.txt). Needs final name, company name,   │   
+  │ 3   │ Privacy Policy +  │ —                    │ and a real contact email. Must specifically cover: data        │   
+  │     │ Terms of Service  │                      │ minimisation (you already practice this — no phone stored),    │   
+  │     │                   │                      │ user consent, data deletion rights                             │   
+  ├─────┼───────────────────┼──────────────────────┼────────────────────────────────────────────────────────────────┤   
+  │ 4   │ Safaricom Daraja  │ Safaricom            │ Needs a registered business — do BRS first                     │   
+  │     │ Business Account  │                      │                                                                │   
+  └─────┴───────────────────┴──────────────────────┴────────────────────────────────────────────────────────────────┘   
+
+  Required but can follow shortly after launch:
+
+  ┌─────┬─────────────────────────┬─────────────────────────────────────────────────────────────────────────────────┐   
+  │  #  │       Requirement       │                                      Notes                                      │   
+  ├─────┼─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────┤   
+  │ 5   │ App Store health app    │ Google Play: apps in the mental health category need a content rating           │   
+  │     │ compliance              │ declaration. No medical claims in store listing or UI                           │   
+  ├─────┼─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────┤   
+  │     │ Therapist credential    │ If you enable the therapist marketplace — Kenya Medical Practitioners and       │   
+  │ 6   │ verification process    │ Dentists Council (KMPDC) numbers should be verified. Liability exposure if you  │   
+  │     │                         │ list unregistered practitioners                                                 │   
+  └─────┴─────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘   
+
+  Not required (but worth knowing):
+  - You are not a medical device — you don't diagnose or prescribe. Peer support + AI chat with safety guardrails keeps 
+  you out of regulated medical device territory under Kenya's Pharmacy and Poisons Board
+  - CBK payment licensing is not required — you're a merchant using Daraja, not a payment aggregator
+
+  ---
+  3. Daraja Sandbox → Production
+
+  Pre-condition: BRS company registration must exist first — Safaricom requires a business.
+
+  Step 1 — Get a Safaricom Business number
+  Go to safaricom.co.ke/business → apply for a Paybill (recommended for apps — cleaner UX, account number can be        
+  dynamic) or Till. Bring: KRA PIN, Certificate of Incorporation, ID.
+
+  Step 2 — Apply to go live on Daraja portal
+  - Log in at developer.safaricom.co.ke
+  - Open your sandbox app → Go Live button
+  - Fill in: business name, Paybill/Till number, callback URL (must be HTTPS — needs Railway deploy first), use case    
+  description
+  - Safaricom reviews manually — typically 3–10 business days
+  - You'll receive production Consumer Key, Consumer Secret, and Passkey by email
+
+  Step 3 — Set production env vars (replace sandbox values)
+  DARAJA_CONSUMER_KEY=<from approval email>
+  DARAJA_CONSUMER_SECRET=<from approval email>
+  DARAJA_BUSINESS_SHORT_CODE=<your Paybill number>
+  DARAJA_PASSKEY=<from approval email>
+  DARAJA_CALLBACK_URL=https://your-railway-app.railway.app/api/credits/mpesa-callback
+  DARAJA_ENV=production
+
+  Step 4 — Test with KSh 1
+  Trigger one real purchase. Confirm: STK prompt arrives → PIN entered → callback fires → balance credited → transaction
+   record confirmed. Check Railway logs for the callback.
+
+  Security already handled in your code:
+  - HTTPS-only callback URL
+  - Responds 200 immediately before processing (Safaricom times out at 5s)
+  - Idempotency check on CheckoutRequestID — double-fire safe
+  - Phone number not stored
+
+  ---
+  4. RLS Fix — events table
+
+  One table missing RLS. Fixing it now:
+
+● Write(src\backend\migrations\046_events_rls.sql)
+  ⎿  Wrote 15 lines to src\backend\migrations\046_events_rls.sql
+       1 -- 046_events_rls.sql
+       2 -- Enables RLS on the events table (missed in migration 034).
+       3 -- Deny-anon policy matches the pattern used across all other tables (migration 030).
+       4 
+       5 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+       6 
+       7 CREATE POLICY deny_anon_events_read
+       8   ON events FOR SELECT
+       9   TO anon
+      10   USING (false);
+     … +5 lines (ctrl+o to expand)
+
+● Bash(cd "C:\Users\HomePC\Documents\melah-app\src\backend" && node migrations/run.js 2>&1)
+  ⎿    SKIP  001_users.sql
+       SKIP  002_ai_personas.sql
+       SKIP  003_moods.sql
+     … +45 lines (ctrl+o to expand)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Bash command
+
+   cd "C:\Users\HomePC\Documents\melah-app" && git add src/backend/migrations/046_events_rls.sql && git commit
+   -m "$(cat <<'EOF'
+   Security: enable RLS on events table (migration 046)
+
+   events table created in 034 with no RLS — adds deny-anon read+write
+   policies matching the pattern from migration 030.
+
+   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+   
+   events table created in 034 with no RLS — adds deny-anon read+write
+   policies matching the pattern from migration 030.
+
+   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+
+● Bash(cd "C:\Users\HomePC\Documents\melah-app" && git add src/backend/migrations/046_events_rls.sql && git commit 
+      -m "$(cat <<'EOF'
+      Security: enable RLS on event…)
+  ⎿  warning: in the working copy of 'src/backend/migrations/046_events_rls.sql', LF will be replaced by CRLF the next 
+
+● Bash(cd "C:\Users\HomePC\Documents\melah-app" && git add src/backend/migrations/046_events_rls.sql && git commit 
+      -m "$(cat <<'EOF'
+      Security: enable RLS on event…)
+  ⎿  warning: in the working copy of 'src/backend/migrations/046_events_rls.sql', LF will be replaced by CRLF the n
+     ext time Git touches it
+     [main 8b789ab] Security: enable RLS on events table (migration 046)
+     … +4 lines (ctrl+o to expand)
+
+● RLS gap closed and live on Supabase. Here's the priority board:
+
+  ---
+  Priority Board
+
+  ┌──────────┬─────────────────────────────────┬─────────┬──────────────────────────────────────────────────────────┐
+  │ Priority │              Item               │ Status  │                         Blocker                          │
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🔴 1     │ Deploy to Railway               │ Pending │ Nothing — do this first; Daraja callback needs a public  │   
+  │          │                                 │         │ HTTPS URL                                                │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🔴 2     │ Business registration (BRS      │ Pending │ Required before Safaricom will approve Daraja production │   
+  │          │ Kenya)                          │         │                                                          │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🔴 3     │ ODPC Data Controller            │ Pending │ Legal risk — you process sensitive mental health data    │   
+  │          │ registration                    │         │                                                          │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟡 4     │ Daraja go-live application      │ Pending │ Needs BRS + Railway deploy first                         │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟡 5     │ App name decision               │ Pending │ Needs to propagate to manifest, legal page, UI           │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟡 6     │ FCM push notifications          │ Pending │ Firebase service account JSON                            │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟢 7     │ Privacy Policy / Terms          │ Pending │ Just needs final company name + contact email in         │   
+  │          │ finalisation                    │         │ legal.txt                                                │   
+  ---
+  Priority Board
+
+  ┌──────────┬─────────────────────────────────┬─────────┬──────────────────────────────────────────────────────────┐   
+  │ Priority │              Item               │ Status  │                         Blocker                          │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🔴 1     │ Deploy to Railway               │ Pending │ Nothing — do this first; Daraja callback needs a public  │   
+  │          │                                 │         │ HTTPS URL                                                │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🔴 2     │ Business registration (BRS      │ Pending │ Required before Safaricom will approve Daraja production │   
+  │          │ Kenya)                          │         │                                                          │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🔴 3     │ ODPC Data Controller            │ Pending │ Legal risk — you process sensitive mental health data    │   
+  │          │ registration                    │         │                                                          │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟡 4     │ Daraja go-live application      │ Pending │ Needs BRS + Railway deploy first                         │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟡 5     │ App name decision               │ Pending │ Needs to propagate to manifest, legal page, UI           │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟡 6     │ FCM push notifications          │ Pending │ Firebase service account JSON                            │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟢 7     │ Privacy Policy / Terms          │ Pending │ Just needs final company name + contact email in         │   
+  │          │ finalisation                    │         │ legal.txt                                                │   
+  ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
+  │ 🟢 8     │ Phase 24 — Help a Friend        │ Blocked │ Clinical content sign-off                                │   
+  └──────────┴─────────────────────────────────┴─────────┴──────────────────────────────────────────────────────────┘   
+
+  All code is done. The remaining items are operational, not engineering.
 

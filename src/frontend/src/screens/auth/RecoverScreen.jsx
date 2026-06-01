@@ -29,7 +29,7 @@ export default function RecoverScreen() {
       padding: 'var(--space-xl) var(--space-lg)',
     }}>
       <div style={{ marginBottom: 'var(--space-xl)', textAlign: 'center' }}>
-        <div className="wordmark" style={{ fontSize: 28, marginBottom: 'var(--space-sm)' }}>MindBridge</div>
+        <div className="wordmark" style={{ fontSize: 28, marginBottom: 'var(--space-sm)' }}>Melah</div>
         <h1 style={{ fontSize: 'var(--text-h2)', marginBottom: 'var(--space-xs)' }}>
           {submitted ? 'Check your inbox' : 'Forgot your password?'}
         </h1>
