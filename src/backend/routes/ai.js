@@ -11,7 +11,11 @@ const AI_DAILY_TOKEN_LIMIT = 50000;
 
 const router = express.Router();
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let _groq = null;
+function getGroq() {
+  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return _groq;
+}
 const PRIMARY_MODEL = process.env.GROQ_PRIMARY_MODEL || 'llama-3.3-70b-versatile';
 const FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-8b-instant';
 
@@ -223,7 +227,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
   let rawOutput = '';
   let tokensUsed = 0;
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: PRIMARY_MODEL,
       messages,
       max_tokens: 600,
@@ -233,7 +237,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
   } catch (primaryErr) {
     console.warn('Groq primary model failed, trying fallback:', primaryErr.message);
     try {
-      const completion = await groq.chat.completions.create({
+      const completion = await getGroq().chat.completions.create({
         model: FALLBACK_MODEL,
         messages,
         max_tokens: 600,
