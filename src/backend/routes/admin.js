@@ -11,21 +11,36 @@ router.use(adminAuth);
 
 // ─── GET /admin/reports ───────────────────────────────────────────────────────
 router.get('/reports', async (req, res) => {
-  const { rows } = await query(
-    `SELECT gr.id, gr.reason, gr.details, gr.status, gr.created_at,
-            g.name AS group_name,
-            ru.alias AS reported_alias,
-            rb.alias AS reporter_alias,
-            gm.content AS message_preview
-     FROM group_reports gr
-     JOIN groups g ON g.id = gr.group_id
-     JOIN users ru ON ru.id = gr.reported_user_id
-     JOIN users rb ON rb.id = gr.reported_by
-     LEFT JOIN group_messages gm ON gm.id = gr.message_id
-     WHERE gr.status = 'pending'
-     ORDER BY gr.created_at ASC`
-  );
-  return res.status(200).json({ reports: rows });
+  const [groupResult, peerResult] = await Promise.all([
+    query(
+      `SELECT gr.id, 'group' AS report_type, gr.reason AS reason, gr.details, gr.status, gr.created_at,
+              g.name AS group_name, NULL AS channel, NULL AS description,
+              ru.alias AS reported_alias,
+              rb.alias AS reporter_alias,
+              gm.content AS message_preview
+       FROM group_reports gr
+       JOIN groups g ON g.id = gr.group_id
+       JOIN users ru ON ru.id = gr.reported_user_id
+       JOIN users rb ON rb.id = gr.reported_by
+       LEFT JOIN group_messages gm ON gm.id = gr.message_id
+       WHERE gr.status = 'pending'
+       ORDER BY gr.created_at ASC`
+    ),
+    query(
+      `SELECT pr.id, 'peer' AS report_type, NULL AS reason, NULL AS details, pr.status, pr.created_at,
+              NULL AS group_name, pr.channel, pr.description,
+              pr.peer_alias AS reported_alias,
+              u.alias AS reporter_alias,
+              NULL AS message_preview
+       FROM peer_reports pr
+       JOIN users u ON u.id = pr.reporter_id
+       WHERE pr.status = 'open'
+       ORDER BY pr.created_at ASC`
+    ),
+  ]);
+  const reports = [...groupResult.rows, ...peerResult.rows]
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  return res.status(200).json({ reports });
 });
 
 // ─── PATCH /admin/emergency/:id/acknowledge ───────────────────────────────────

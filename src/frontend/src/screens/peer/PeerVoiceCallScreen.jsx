@@ -3,6 +3,65 @@ import { useNavigate, useParams } from 'react-router-dom';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
+function ReportModal({ sessionId, onClose }) {
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (description.trim().length < 10) { setError('Please describe what happened (at least 10 characters).'); return; }
+    setSubmitting(true);
+    setError('');
+    try {
+      await client.post('/api/peer/report', { session_id: sessionId, channel: 'voice', description: description.trim() });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not submit report. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
+        {submitted ? (
+          <div style={{ textAlign: 'center', padding: 'var(--space-lg) 0' }}>
+            <div style={{ fontSize: 36, marginBottom: 'var(--space-sm)' }}>✅</div>
+            <h3 style={{ marginBottom: 'var(--space-xs)' }}>Report submitted</h3>
+            <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 'var(--space-lg)' }}>Our team will review it. Thank you for keeping this space safe.</p>
+            <button className="btn btn--primary" onClick={onClose}>Done</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <h3 style={{ marginBottom: 'var(--space-xs)' }}>Report this call</h3>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
+              Describe what happened during the call. Include as much detail as you remember.
+            </p>
+            <textarea
+              className="textarea"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe what the peer said or did that violated the community guidelines…"
+              style={{ marginBottom: 'var(--space-sm)' }}
+            />
+            {error && <p style={{ fontSize: 13, color: 'var(--color-danger)', marginBottom: 'var(--space-sm)' }}>{error}</p>}
+            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+              <button type="submit" className="btn btn--danger" style={{ flex: 1, animation: 'none' }} disabled={submitting}>
+                {submitting ? 'Submitting…' : 'Submit Report'}
+              </button>
+              <button type="button" className="btn btn--muted" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 const SESSION_SECONDS = 30 * 60;
 
@@ -23,6 +82,7 @@ export default function PeerVoiceCallScreen() {
   const [extending, setExtending] = useState(false);
   const [extendError, setExtendError] = useState('');
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const wsRef = useRef(null);
   const pcRef = useRef(null);
@@ -184,7 +244,15 @@ export default function PeerVoiceCallScreen() {
         <button className="btn btn--secondary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/emergency')}>
           Emergency SOS
         </button>
+        <button
+          className="btn btn--muted"
+          style={{ maxWidth: 320, width: '100%', fontSize: 13 }}
+          onClick={() => setShowReport(true)}
+        >
+          Report this session
+        </button>
       </div>
+      {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
     );
   }
 

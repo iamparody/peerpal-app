@@ -571,4 +571,30 @@ router.get('/leaderboard', auth, async (req, res) => {
   return res.status(200).json({ leaderboard: rows });
 });
 
+// ─── POST /peer/report ────────────────────────────────────────────────────────
+router.post('/report', auth, async (req, res) => {
+  const { session_id, peer_alias, channel, description } = req.body;
+  if (!description?.trim()) {
+    return res.status(400).json({ error: 'Description is required.', code: 'MISSING_DESCRIPTION' });
+  }
+  if (description.trim().length < 10) {
+    return res.status(400).json({ error: 'Please describe what happened (at least 10 characters).', code: 'DESCRIPTION_TOO_SHORT' });
+  }
+
+  const { rows } = await query(
+    `INSERT INTO peer_reports (reporter_id, session_id, peer_alias, channel, description)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [req.user.id, session_id || null, peer_alias || null, channel || null, description.trim()]
+  );
+
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     SELECT id, 'emergency_alert', $1, 'in_app'
+     FROM users WHERE role = 'admin' AND is_active = true`,
+    [JSON.stringify({ source: 'peer_report', report_id: rows[0].id, channel: channel || null })]
+  ).catch((e) => console.error('Peer report admin notify error:', e.message));
+
+  return res.status(201).json({ report_id: rows[0].id });
+});
+
 module.exports = router;

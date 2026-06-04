@@ -93,6 +93,15 @@ export default function ProfileScreen() {
     }
   }
 
+  async function handleClearAIMemory() {
+    if (!window.confirm('Clear your AI companion\'s memory? It will no longer recall past conversations. This cannot be undone.')) return;
+    try {
+      await client.delete('/api/ai/memories');
+    } catch {
+      setError('Something went wrong. Please try again.');
+    }
+  }
+
   async function handleFeedbackSubmit() {
     setSendingFeedback(true);
     try {
@@ -297,6 +306,7 @@ export default function ProfileScreen() {
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             <button className="btn btn--muted btn--sm" onClick={handleClearJournal}>Clear My Journal</button>
+            <button className="btn btn--muted btn--sm" onClick={handleClearAIMemory}>Clear AI Memory</button>
             {deleteConfirm ? (
               <div>
                 <p style={{ fontSize: 13, marginBottom: 'var(--space-sm)', color: 'var(--color-danger)' }}>

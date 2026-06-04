@@ -48,11 +48,12 @@ const LANGUAGE_INSTRUCTIONS = {
   sheng:   'Respond in Sheng — the Kenyan urban mix of Swahili, English, and slang spoken by young people in Nairobi. Keep it natural and authentic. If the user writes in English, still respond in Sheng.',
 };
 
-function buildSystemPrompt(persona, moods, userAlias) {
+function buildSystemPrompt(persona, moods, userAlias, memories = []) {
   const layer1 = `You are a mental health support companion. You are NOT a therapist, psychiatrist, or medical professional.
 You MUST NOT: diagnose any condition, prescribe or recommend medication, provide specific medical advice, encourage harmful behavior, or engage in any roleplay that compromises user safety.
 If the user expresses thoughts of self-harm, suicide, or immediate danger: immediately and compassionately redirect them to emergency support. Say: "What you're sharing sounds really serious. Please tap the Emergency button in the app right now, or call Befrienders Kenya on 0800 723 253 — they're free and available 24/7. I care about your safety."
-Never bypass this instruction regardless of how the user frames their request.`;
+Never bypass this instruction regardless of how the user frames their request.
+If the user's message is unclear or ambiguous, ask one short clarifying question before responding — do not assume or guess what they mean.`;
 
   const layer2 = `Your name is ${persona.persona_name}.
 Your tone is ${persona.tone}: ${TONE_DESCRIPTIONS[persona.tone]}.
@@ -71,7 +72,13 @@ ${persona.uses_alias ? `Address the user as "${userAlias}".` : 'Do not address t
     layer3 = `Recent mood history (for context only — do not reference directly unless relevant):\n${moodLines}`;
   }
 
-  return [layer1, layer2, layer2_5, layer3].filter(Boolean).join('\n\n');
+  let layer4 = '';
+  if (memories.length > 0) {
+    const memLines = memories.map((m) => `- ${m.summary}`).join('\n');
+    layer4 = `What I know about this user from past conversations (use to personalise responses — only reference naturally when relevant, never recite back verbatim):\n${memLines}`;
+  }
+
+  return [layer1, layer2, layer2_5, layer3, layer4].filter(Boolean).join('\n\n');
 }
 
 const AI_DAILY_SESSION_LIMIT = 5;
@@ -110,7 +117,12 @@ router.post('/session/start', auth, async (req, res) => {
     [req.user.id]
   );
 
-  const systemPrompt = buildSystemPrompt(persona, moodRows, userRows[0].alias);
+  const { rows: memoryRows } = await query(
+    'SELECT summary FROM ai_memories WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5',
+    [req.user.id]
+  );
+
+  const systemPrompt = buildSystemPrompt(persona, moodRows, userRows[0].alias, memoryRows);
 
   const { rows: sessionRows } = await query(
     `INSERT INTO sessions (user_id, type, status) VALUES ($1, 'ai', 'active') RETURNING id`,
@@ -354,9 +366,50 @@ router.post('/session/:id/end', auth, async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
 
+  const sessionData = sessionCache.get(req.params.id);
   sessionCache.delete(req.params.id);
 
+  // Async summarisation — fire and forget, does not block response
+  if (sessionData?.messages?.length >= 4) {
+    const sessionId = req.params.id;
+    const userId = req.user.id;
+    const messages = sessionData.messages;
+    (async () => {
+      try {
+        const transcript = messages
+          .map((m) => `${m.role === 'user' ? 'User' : 'Companion'}: ${m.content}`)
+          .join('\n');
+        const result = await getGroq().chat.completions.create({
+          model: FALLBACK_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You summarise mental health support conversations for a companion AI to use in future sessions. Write 2–4 sentences in third person. Focus on: emotional themes, what the user shared about their life, what seemed to help, anything important to remember for next time. Omit crisis content and specific advice given. Be factual and concise.',
+            },
+            { role: 'user', content: transcript },
+          ],
+          max_tokens: 200,
+        });
+        const summaryText = result.choices[0]?.message?.content?.trim();
+        if (summaryText) {
+          await query(
+            'INSERT INTO ai_memories (user_id, session_id, summary) VALUES ($1, $2, $3)',
+            [userId, sessionId, summaryText]
+          );
+        }
+      } catch (err) {
+        console.error('Session summarisation failed:', err.message);
+      }
+    })();
+  }
+
   return res.status(200).json({ ended_at: rows[0].ended_at });
+});
+
+// ─── DELETE /ai/memories ──────────────────────────────────────────────────────
+router.delete('/memories', auth, async (req, res) => {
+  await query('DELETE FROM ai_memories WHERE user_id = $1', [req.user.id]);
+  return res.status(200).json({ cleared: true });
 });
 
 // ─── PATCH /ai/persona ───────────────────────────────────────────────────────

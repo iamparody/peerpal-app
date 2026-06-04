@@ -126,7 +126,7 @@ export default function AIChatScreen() {
         <div style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
           <div style={{ fontSize: 40, marginBottom: 'var(--space-sm)' }}>💙</div>
           <h2 style={{ marginBottom: 'var(--space-xs)' }}>How did that feel?</h2>
-          <p style={{ fontSize: 14 }}>Your feedback helps improve your experience</p>
+          <p style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>Your companion will remember this conversation to offer better support next time.</p>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
           {[1, 2, 3, 4, 5].map((s) => (
