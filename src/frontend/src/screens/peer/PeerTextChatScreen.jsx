@@ -195,33 +195,35 @@ export default function PeerTextChatScreen() {
   // Session ended by time limit — show safety resources
   if (sessionEnded) {
     return (
-      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
-        <div style={{ fontSize: 40 }}>🕐</div>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Session time ended</h2>
-        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
-          Your 30-minute session has ended. You can start a new session any time.
-        </p>
-        <div style={{ padding: '14px 16px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-calm)', width: '100%', maxWidth: 320 }}>
-          <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Need immediate support?</p>
-          <p style={{ fontSize: '0.85rem' }}>Befrienders Kenya</p>
-          <a href="tel:0800723253" style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-accent)', textDecoration: 'none' }}>0800 723 253</a>
-          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Free · 24/7</p>
+      <>
+        <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
+          <div style={{ fontSize: 40 }}>🕐</div>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Session time ended</h2>
+          <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
+            Your 30-minute session has ended. You can start a new session any time.
+          </p>
+          <div style={{ padding: '14px 16px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-calm)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Need immediate support?</p>
+            <p style={{ fontSize: '0.85rem' }}>Befrienders Kenya</p>
+            <a href="tel:0800723253" style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-accent)', textDecoration: 'none' }}>0800 723 253</a>
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Free · 24/7</p>
+          </div>
+          <button className="btn btn--primary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/peer', { replace: true })}>
+            Back to Peer Support
+          </button>
+          <button className="btn btn--secondary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/emergency')}>
+            Emergency SOS
+          </button>
+          <button
+            className="btn btn--muted"
+            style={{ maxWidth: 320, width: '100%', fontSize: 13 }}
+            onClick={() => setShowReport(true)}
+          >
+            Report this session
+          </button>
         </div>
-        <button className="btn btn--primary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/peer', { replace: true })}>
-          Back to Peer Support
-        </button>
-        <button className="btn btn--secondary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/emergency')}>
-          Emergency SOS
-        </button>
-        <button
-          className="btn btn--muted"
-          style={{ maxWidth: 320, width: '100%', fontSize: 13 }}
-          onClick={() => setShowReport(true)}
-        >
-          Report this session
-        </button>
-      </div>
-      {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
+        {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
+      </>
     );
   }
 
