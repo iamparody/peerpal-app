@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
 const { PACKAGES, stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
@@ -104,7 +104,7 @@ router.post('/purchase', auth, async (req, res) => {
     const result = await stkPush(
       phone,
       pkg.price_ksh,
-      `Melah-${transactionId}`,
+      `PeerPal-${transactionId}`,
       `${pkg.credits} credits`
     );
     checkoutRequestId = result.checkoutRequestId;

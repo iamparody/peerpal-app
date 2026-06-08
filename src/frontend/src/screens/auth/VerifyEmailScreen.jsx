@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
@@ -99,7 +99,7 @@ export default function VerifyEmailScreen() {
           </svg>
         </div>
         <h1 style={{ marginBottom: 'var(--space-sm)' }}>You're verified.</h1>
-        <p style={{ color: 'var(--color-text-muted)' }}>Welcome to Melah.</p>
+        <p style={{ color: 'var(--color-text-muted)' }}>Welcome to PeerPal.</p>
         <p style={{ marginTop: 'var(--space-sm)', fontSize: 13, color: 'var(--color-text-muted)' }}>
           Redirecting you now…
         </p>

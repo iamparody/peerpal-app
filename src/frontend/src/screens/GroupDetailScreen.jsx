@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import client from '../api/client';
 import { groupMeta } from '../utils/groupMeta';
@@ -121,7 +121,7 @@ export default function GroupDetailScreen() {
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           <span>📢</span>
-          <span>This group is a read-only community feed. Posts come from the Melah team.</span>
+          <span>This group is a read-only community feed. Posts come from the PeerPal team.</span>
         </div>
 
         {isBanned ? (

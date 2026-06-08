@@ -1,4 +1,4 @@
-// Usage: node src/backend/scripts/seed_therapists.js
+﻿// Usage: node src/backend/scripts/seed_therapists.js
 // Creates two smoke-test therapist profiles. Safe to re-run — skips existing emails.
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
@@ -8,7 +8,7 @@ const { generateAlias } = require('../utils/aliasGenerator');
 
 const THERAPISTS = [
   {
-    email:        'amara.odhiambo@melah.test',
+    email:        'amara.odhiambo@PeerPal.test',
     password:     'Therapist@123',
     display_name: 'Amara',
     full_name:    'Amara Odhiambo',
@@ -26,7 +26,7 @@ const THERAPISTS = [
     photo_url: null,
   },
   {
-    email:        'david.mwangi@melah.test',
+    email:        'david.mwangi@PeerPal.test',
     password:     'Therapist@123',
     display_name: 'David',
     full_name:    'David Mwangi',

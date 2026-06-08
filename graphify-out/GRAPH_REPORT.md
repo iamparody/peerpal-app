@@ -1,4 +1,4 @@
-# Melah Knowledge Graph Report
+﻿# PeerPal Knowledge Graph Report
 Generated: 2026-05-04 | Last updated: 2026-05-29 (session 23) | Agent: Claude Code
 <!-- Update this file whenever credentials, migrations, or architecture change -->
 

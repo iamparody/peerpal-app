@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen() {
@@ -27,7 +27,7 @@ export default function LoginScreen() {
         <div className="login-brand">
           <div className="login-brand-icon">🧠</div>
           <div>
-            <div className="login-title">Melah Admin</div>
+            <div className="login-title">PeerPal Admin</div>
             <div className="login-sub">Control panel — authorised access only</div>
           </div>
         </div>
@@ -80,7 +80,7 @@ export default function LoginScreen() {
         </form>
 
         <p style={{ marginTop: 20, fontSize: 12, color: 'var(--color-text-muted)', textAlign: 'center' }}>
-          This panel is for authorised Melah administrators only.
+          This panel is for authorised PeerPal administrators only.
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
@@ -136,7 +136,7 @@ export default function RegisterScreen() {
   return (
     <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 'var(--space-xl) var(--space-lg)' }}>
       <div style={{ marginBottom: 'var(--space-xl)', textAlign: 'center' }}>
-        <div className="wordmark" style={{ fontSize: 28, marginBottom: 'var(--space-sm)' }}>Melah</div>
+        <div className="wordmark" style={{ fontSize: 28, marginBottom: 'var(--space-sm)' }}>PeerPal</div>
         <h1 style={{ fontSize: 'var(--text-h2)', marginBottom: 'var(--space-xs)' }}>Create account</h1>
         <p style={{ fontSize: 14 }}>Anonymous. Private. Yours.</p>
       </div>

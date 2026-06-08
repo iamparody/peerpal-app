@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+﻿import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/*.png'],
       manifest: {
-        name: 'Melah',
-        short_name: 'Melah',
+        name: 'PeerPal',
+        short_name: 'PeerPal',
         description: 'Mental health support — always here for you.',
         start_url: '/',
         display: 'standalone',

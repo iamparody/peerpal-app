@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Tooltip from '@radix-ui/react-tooltip';
@@ -101,7 +101,7 @@ export default function DashboardScreen() {
         flexShrink: 0,
       }}>
         <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-editorial)' }}>
-          Melah
+          PeerPal
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
           <Tooltip.Root>

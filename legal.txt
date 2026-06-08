@@ -200,7 +200,7 @@ Good — have everything I need. Here's the full assessment:
       10   USING (false);
      … +5 lines (ctrl+o to expand)
 
-● Bash(cd "C:\Users\HomePC\Documents\melah-app\src\backend" && node migrations/run.js 2>&1)
+● Bash(cd "C:\Users\HomePC\Documents\mindbridge-app\src\backend" && node migrations/run.js 2>&1)
   ⎿    SKIP  001_users.sql
        SKIP  002_ai_personas.sql
        SKIP  003_moods.sql
@@ -209,7 +209,7 @@ Good — have everything I need. Here's the full assessment:
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Bash command
 
-   cd "C:\Users\HomePC\Documents\melah-app" && git add src/backend/migrations/046_events_rls.sql && git commit
+   cd "C:\Users\HomePC\Documents\mindbridge-app" && git add src/backend/migrations/046_events_rls.sql && git commit
    -m "$(cat <<'EOF'
    Security: enable RLS on events table (migration 046)
 
@@ -223,12 +223,12 @@ Good — have everything I need. Here's the full assessment:
 
    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 
-● Bash(cd "C:\Users\HomePC\Documents\melah-app" && git add src/backend/migrations/046_events_rls.sql && git commit 
+● Bash(cd "C:\Users\HomePC\Documents\mindbridge-app" && git add src/backend/migrations/046_events_rls.sql && git commit 
       -m "$(cat <<'EOF'
       Security: enable RLS on event…)
   ⎿  warning: in the working copy of 'src/backend/migrations/046_events_rls.sql', LF will be replaced by CRLF the next 
 
-● Bash(cd "C:\Users\HomePC\Documents\melah-app" && git add src/backend/migrations/046_events_rls.sql && git commit 
+● Bash(cd "C:\Users\HomePC\Documents\mindbridge-app" && git add src/backend/migrations/046_events_rls.sql && git commit 
       -m "$(cat <<'EOF'
       Security: enable RLS on event…)
   ⎿  warning: in the working copy of 'src/backend/migrations/046_events_rls.sql', LF will be replaced by CRLF the n
@@ -273,8 +273,7 @@ Good — have everything I need. Here's the full assessment:
   │ 🔴 2     │ Business registration (BRS      │ Pending │ Required before Safaricom will approve Daraja production │   
   │          │ Kenya)                          │         │                                                          │   
   ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
-  │ 🔴 3     │ ODPC Data Controller            │ Pending │ Legal risk — you process sensitive mental health data    │   
-  │          │ registration                    │         │                                                          │   
+  │ 🔴 3     │                    │         │                                                          │   
   ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
   │ 🟡 4     │ Daraja go-live application      │ Pending │ Needs BRS + Railway deploy first                         │   
   ├──────────┼─────────────────────────────────┼─────────┼──────────────────────────────────────────────────────────┤   
@@ -289,4 +288,8 @@ Good — have everything I need. Here's the full assessment:
   └──────────┴─────────────────────────────────┴─────────┴──────────────────────────────────────────────────────────┘   
 
   All code is done. The remaining items are operational, not engineering.
+
+Resume this session with:
+claude --resume d05ca471-2c42-42c0-b44e-4dd3355b9b7c
+
 

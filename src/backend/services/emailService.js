@@ -1,4 +1,4 @@
-const { Resend } = require('resend');
+﻿const { Resend } = require('resend');
 
 let _resend = null;
 function getResend() {
@@ -13,10 +13,10 @@ function verificationTemplate(alias, link) {
 <body style="margin:0;padding:0;background:#F5F5F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
     <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
-      <p style="font-size:22px;font-weight:600;margin:0 0 8px">Melah</p>
+      <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
       <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${alias},</p>
       <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
-        Welcome to Melah. We're glad you're here.<br>
+        Welcome to PeerPal. We're glad you're here.<br>
         Please confirm your email address to get started.
       </p>
       <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px">
@@ -29,7 +29,7 @@ function verificationTemplate(alias, link) {
         If you didn't create an account, you can safely ignore this email.
       </p>
       <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
-      <p style="font-size:12px;color:#aaa;margin:0">— The Melah Team</p>
+      <p style="font-size:12px;color:#aaa;margin:0">— The PeerPal Team</p>
     </td></tr>
   </table>
 </body>
@@ -43,7 +43,7 @@ function resetTemplate(alias, link) {
 <body style="margin:0;padding:0;background:#F5F5F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
     <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
-      <p style="font-size:22px;font-weight:600;margin:0 0 8px">Melah</p>
+      <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
       <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${alias},</p>
       <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
         We received a request to reset your password.
@@ -58,7 +58,7 @@ function resetTemplate(alias, link) {
         If you didn't request this, your account is safe — ignore this email.
       </p>
       <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
-      <p style="font-size:12px;color:#aaa;margin:0">— The Melah Team</p>
+      <p style="font-size:12px;color:#aaa;margin:0">— The PeerPal Team</p>
     </td></tr>
   </table>
 </body>
@@ -106,12 +106,12 @@ function enqueueEmail(to, subject, html) {
 
 async function sendVerificationEmail(email, alias, token) {
   const link = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
-  await enqueueEmail(email, 'Confirm your Melah account', verificationTemplate(alias, link));
+  await enqueueEmail(email, 'Confirm your PeerPal account', verificationTemplate(alias, link));
 }
 
 async function sendPasswordResetEmail(email, alias, token) {
   const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-  await enqueueEmail(email, 'Reset your Melah password', resetTemplate(alias, link));
+  await enqueueEmail(email, 'Reset your PeerPal password', resetTemplate(alias, link));
 }
 
 module.exports = { sendVerificationEmail, sendPasswordResetEmail, deliverEmail };

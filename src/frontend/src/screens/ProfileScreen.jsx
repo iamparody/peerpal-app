@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Coin, SignOut } from '@phosphor-icons/react';
@@ -407,10 +407,10 @@ export default function ProfileScreen() {
             <Link to="/data-compliance" style={{ fontSize: 12, color: 'var(--color-text-muted)', textDecoration: 'none' }}>Data Compliance</Link>
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            © 2025 Melah. All rights reserved.
+            © 2025 PeerPal. All rights reserved.
           </p>
           <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            Melah is not a medical service.
+            PeerPal is not a medical service.
           </p>
         </div>
       </div>

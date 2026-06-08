@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen    from './components/LoginScreen';
 import OverviewTab    from './tabs/OverviewTab';
@@ -79,7 +79,7 @@ function AdminShell() {
           <div className="sidebar__brand-icon">🧠</div>
           {!collapsed && (
             <div className="sidebar__brand-text">
-              <div className="sidebar__brand-title">Melah</div>
+              <div className="sidebar__brand-title">PeerPal</div>
               <div className="sidebar__brand-sub">Admin Panel</div>
             </div>
           )}
@@ -143,7 +143,7 @@ function AdminShell() {
               <List size={22} />
             </button>
             <div className="topbar__breadcrumb">
-              <span>Melah</span>
+              <span>PeerPal</span>
               <span style={{ color: 'var(--color-card-border)', margin: '0 2px' }}>›</span>
               <span className="topbar__breadcrumb-current">{active?.label}</span>
             </div>

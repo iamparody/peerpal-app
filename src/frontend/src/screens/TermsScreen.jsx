@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 
 const SECTION = ({ title, children }) => (
   <div style={{ marginBottom: 28 }}>
@@ -39,11 +39,11 @@ export default function TermsScreen({ embedded = false }) {
         </p>
 
         <SECTION title="1. Acceptance of Terms">
-          <P>By creating an account or using Melah, you agree to these Terms of Service. If you do not agree, do not use the platform.</P>
+          <P>By creating an account or using PeerPal, you agree to these Terms of Service. If you do not agree, do not use the platform.</P>
         </SECTION>
 
-        <SECTION title="2. What Melah Is — And Is Not">
-          <P style={{ fontWeight: 600, color: '#F5EDE4' }}>Melah is a peer support and digital wellness platform.</P>
+        <SECTION title="2. What PeerPal Is — And Is Not">
+          <P style={{ fontWeight: 600, color: '#F5EDE4' }}>PeerPal is a peer support and digital wellness platform.</P>
           <P><strong style={{ color: '#F5EDE4' }}>It is NOT a medical service.</strong> It is not a substitute for professional mental health care, psychiatric treatment, or emergency services.</P>
           <P>The AI companion available on this platform is a conversational support tool. <strong style={{ color: '#F5EDE4' }}>It is NOT a therapist, psychiatrist, counsellor, or clinical tool of any kind.</strong> It cannot diagnose conditions, prescribe treatment, or provide medical advice. Responses from the AI companion are not clinical assessments.</P>
           <P>If you are in immediate danger or experiencing a mental health emergency, call 999 (Kenya emergency services) or Befrienders Kenya: 0800 723 253 (free, 24/7).</P>
@@ -52,7 +52,7 @@ export default function TermsScreen({ embedded = false }) {
         <SECTION title="3. Eligibility">
           <UL items={[
             'You must be 18 years of age or older to use this platform.',
-            'If you are under 18, you may only use Melah with the explicit consent and supervision of a parent or legal guardian.',
+            'If you are under 18, you may only use PeerPal with the explicit consent and supervision of a parent or legal guardian.',
             'By creating an account, you confirm you meet the eligibility requirement.',
           ]} />
         </SECTION>
@@ -67,7 +67,7 @@ export default function TermsScreen({ embedded = false }) {
         </SECTION>
 
         <SECTION title="5. Acceptable Use">
-          <P>You agree not to use Melah to:</P>
+          <P>You agree not to use PeerPal to:</P>
           <UL items={[
             'Harass, abuse, threaten, or demean other users in groups or peer sessions.',
             'Share personally identifying information (full name, location, phone number, ID) about yourself or others in group chats or peer sessions.',
@@ -90,12 +90,12 @@ export default function TermsScreen({ embedded = false }) {
         </SECTION>
 
         <SECTION title="7. Content You Post">
-          <P>You retain ownership of content you write (journal entries, group messages). By posting in group spaces, you grant Melah a limited licence to display that content to group members.</P>
+          <P>You retain ownership of content you write (journal entries, group messages). By posting in group spaces, you grant PeerPal a limited licence to display that content to group members.</P>
           <P>We reserve the right to remove content that violates these terms without notice.</P>
         </SECTION>
 
         <SECTION title="8. Limitation of Liability">
-          <P>Melah is provided "as is" without warranties of any kind. To the maximum extent permitted by Kenyan law:</P>
+          <P>PeerPal is provided "as is" without warranties of any kind. To the maximum extent permitted by Kenyan law:</P>
           <UL items={[
             'We are not liable for outcomes or experiences arising from peer support interactions.',
             'We are not liable for the content of AI companion responses.',
@@ -122,8 +122,8 @@ export default function TermsScreen({ embedded = false }) {
         </SECTION>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(245,237,228,0.10)', textAlign: 'center', fontSize: 12, color: 'rgba(245,237,228,0.35)' }}>
-          <div>© 2025 Melah. All rights reserved.</div>
-          <div style={{ marginTop: 4 }}>Melah is not a medical service.</div>
+          <div>© 2025 PeerPal. All rights reserved.</div>
+          <div style={{ marginTop: 4 }}>PeerPal is not a medical service.</div>
         </div>
       </div>
     </div>

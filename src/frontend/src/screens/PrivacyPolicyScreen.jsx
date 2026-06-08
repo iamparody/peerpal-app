@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 
 const SECTION = ({ title, children }) => (
   <div style={{ marginBottom: 28 }}>
@@ -39,7 +39,7 @@ export default function PrivacyPolicyScreen({ embedded = false }) {
         </p>
 
         <SECTION title="1. Who We Are">
-          <P>Melah is a peer support and digital wellness platform operated by [Your Name / Company Name], Kenya.</P>
+          <P>PeerPal is a peer support and digital wellness platform operated by [Your Name / Company Name], Kenya.</P>
           <P>For data protection queries, contact us at: <span style={{ color: 'var(--color-accent)' }}>antonykkiriinya@gmail.com</span></P>
         </SECTION>
 
@@ -119,8 +119,8 @@ export default function PrivacyPolicyScreen({ embedded = false }) {
         </SECTION>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(245,237,228,0.10)', textAlign: 'center', fontSize: 12, color: 'rgba(245,237,228,0.35)' }}>
-          <div>© 2025 Melah. All rights reserved.</div>
-          <div style={{ marginTop: 4 }}>Melah is not a medical service.</div>
+          <div>© 2025 PeerPal. All rights reserved.</div>
+          <div style={{ marginTop: 4 }}>PeerPal is not a medical service.</div>
         </div>
       </div>
     </div>

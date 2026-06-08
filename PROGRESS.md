@@ -1,4 +1,4 @@
-# Progress Log
+﻿# Progress Log
 
 ---
 
@@ -435,11 +435,11 @@ Phase 21 substantially complete. All 7 screens converted to TanStack Query. Key 
 
 ### Landing Site Work — 2026-05-14
 
-Created a standalone `landing-site/` Vite React project for the Melah competition entry.
+Created a standalone `landing-site/` Vite React project for the PeerPal competition entry.
 
 Scope:
 - Isolated from the main app source tree
-- Uses Melah brand name
+- Uses PeerPal brand name
 - No CTA, founder details, signup form, or old mockup screenshots
 - Competition-facing single-page landing page
 - Custom animated product visuals, scroll reveals, count-up stats, FAQ motion, ambient hero animation

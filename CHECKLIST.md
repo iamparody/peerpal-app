@@ -1,4 +1,4 @@
-# Build Checklist
+﻿# Build Checklist
 > Every item is a single, completable, verifiable task. No umbrella items.
 
 ---
@@ -536,7 +536,7 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 ### 11.0 App Shell & Infrastructure
 - [ ] Initialize Vite React project in src/frontend/ — `npm create vite@latest frontend -- --template react`
 - [ ] Install dependencies: react-router-dom, axios, recharts, vite-plugin-pwa
-- [ ] Configure vite.config.js — vite-plugin-pwa with manifest (Melah, standalone, theme #4A90D9), workbox precache for breathing+safety plan, registerType: 'autoUpdate'
+- [ ] Configure vite.config.js — vite-plugin-pwa with manifest (PeerPal, standalone, theme #4A90D9), workbox precache for breathing+safety plan, registerType: 'autoUpdate'
 - [ ] Write public/manifest.json — name, short_name, start_url, display: standalone, icons (192/512), background_color, theme_color
 - [ ] Create src/api/client.js — axios instance, baseURL from VITE_API_URL, request interceptor reads Bearer token from localStorage, response interceptor clears token + redirects on 401
 - [ ] Create src/context/AuthContext.jsx — provides { user, token, login(token,user), logout(), loading } via localStorage hydration; wraps entire app
@@ -766,8 +766,8 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 ## Phase 18 — Standalone Admin Panel (src/admin/)
 
 **Architecture decision:** Admin panel is a completely separate React app from the user PWA.
-- User app:    app.melah.app  (src/frontend/)
-- Admin panel: admin.melah.app (src/admin/)  ← new
+- User app:    app.PeerPal.app  (src/frontend/)
+- Admin panel: admin.PeerPal.app (src/admin/)  ← new
 - Backend API: shared (same Railway deployment)
 - Database:    shared (same Supabase instance)
 - All /admin/* API endpoints already exist — this phase is frontend only.
@@ -778,7 +778,7 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] Admin-specific login screen: POST /api/auth/login → reject if role !== 'admin'
 - [x] Store admin JWT separately (adminToken in localStorage, key: mb_admin_token)
 - [x] Sidebar navigation: 7 tabs (Emergency, Escalations, Referrals, Reports, Risk, Resources, Stats)
-- [x] Top bar: "Melah Admin" + admin alias + logout button
+- [x] Top bar: "PeerPal Admin" + admin alias + logout button
 - [x] Auth guard: redirect unauthenticated to login; 401/403 interceptor clears token + reloads
 
 ### 18.2 Emergency Queue (Tab 1 — highest priority) ✅

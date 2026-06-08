@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const { initSentry } = require('./services/sentry');
 initSentry(); // must be before any other require that might throw
 const http = require('http');
@@ -36,7 +36,7 @@ cron.schedule('0 18 * * *', () => runDailySummaryJob().catch(console.error));
 cron.schedule('0 * * * *', () => runDeletionJob().catch(console.error));
 
 server.listen(PORT, () => {
-  console.log(`Melah backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  console.log(`PeerPal backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
 });
 
 process.on('unhandledRejection', (reason) => {

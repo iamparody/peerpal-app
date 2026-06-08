@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 
 const SECTION = ({ title, children }) => (
@@ -44,7 +44,7 @@ export default function DataComplianceScreen() {
         </p>
 
         <SECTION title="Kenya Data Protection Act 2019 — Compliance Statement">
-          <P>Melah operates in compliance with the Kenya Data Protection Act 2019 (DPA). We process personal data lawfully, fairly, and transparently, collecting only what is necessary for the service we provide.</P>
+          <P>PeerPal operates in compliance with the Kenya Data Protection Act 2019 (DPA). We process personal data lawfully, fairly, and transparently, collecting only what is necessary for the service we provide.</P>
           <P>
             ODPC Registration status:
             <Badge color="var(--color-warning)">Registration pending — filed [date]</Badge>
@@ -113,8 +113,8 @@ export default function DataComplianceScreen() {
         </div>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(245,237,228,0.10)', textAlign: 'center', fontSize: 12, color: 'rgba(245,237,228,0.35)' }}>
-          <div>© 2025 Melah. All rights reserved.</div>
-          <div style={{ marginTop: 4 }}>Melah is not a medical service.</div>
+          <div>© 2025 PeerPal. All rights reserved.</div>
+          <div style={{ marginTop: 4 }}>PeerPal is not a medical service.</div>
         </div>
       </div>
     </div>
