@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
+const { grantConsent, withdrawConsent, CONSENT_VERSION } = require('../services/trainingData');
 
 const router = express.Router();
 
@@ -53,6 +54,30 @@ router.post('/delete-data', auth, async (req, res) => {
     [req.user.id]
   );
   return res.status(200).json({ scheduled_at: new Date(Date.now() + 24 * 60 * 60 * 1000) });
+});
+
+// ─── POST /profile/training-consent ──────────────────────────────────────────
+// Opt in to contributing anonymised conversations for AI training.
+router.post('/training-consent', auth, async (req, res) => {
+  await grantConsent(req.user.id);
+  return res.status(200).json({ training_consent: true, consent_version: CONSENT_VERSION });
+});
+
+// ─── DELETE /profile/training-consent ────────────────────────────────────────
+// Withdraw training consent and untag all existing records for this user.
+router.delete('/training-consent', auth, async (req, res) => {
+  await withdrawConsent(req.user.id);
+  return res.status(200).json({ training_consent: false });
+});
+
+// ─── GET /profile/training-consent ───────────────────────────────────────────
+router.get('/training-consent', auth, async (req, res) => {
+  const { rows } = await query(
+    'SELECT training_consent, training_consented_at, training_consent_version FROM users WHERE id = $1',
+    [req.user.id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'User not found' });
+  return res.status(200).json(rows[0]);
 });
 
 // ─── PATCH /profile/deactivate ────────────────────────────────────────────────
