@@ -7,6 +7,9 @@ const { Sentry } = require('./services/sentry');
 
 const app = express();
 
+// Trust Render/Vercel reverse proxy so rate limiter can read real client IP
+app.set('trust proxy', 1);
+
 // ─── Security & parsing ───────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
