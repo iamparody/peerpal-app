@@ -425,7 +425,7 @@ router.get('/stats/daily', async (req, res) => {
        LEFT JOIN sessions       s_ai   ON s_ai.started_at::date   = ds.d AND s_ai.type  = 'ai'
        LEFT JOIN sessions       s_peer ON s_peer.started_at::date = ds.d AND s_peer.type = 'peer'
        LEFT JOIN emergency_logs el     ON el.triggered_at::date   = ds.d
-       LEFT JOIN users          u      ON u.created_at::date      = ds.d AND u.role      = 'user'
+       LEFT JOIN users          u      ON u.created_at::date      = ds.d AND u.role      = 'member'
        GROUP BY ds.d
        ORDER BY ds.d ASC`,
       [days]
@@ -444,12 +444,12 @@ router.get('/users/patterns', async (req, res) => {
     const { rows } = await query(
       `SELECT
          u.alias,
-         u.last_active_at,
+         u.last_checkin_at,
          (SELECT COUNT(*) FROM emergency_logs el    WHERE el.user_id = u.id)::int AS emergency_count,
          (SELECT COUNT(*) FROM therapist_interests ti WHERE ti.member_user_id = u.id AND ti.status NOT IN ('matched','closed'))::int AS open_referrals,
          (SELECT COUNT(*) FROM sessions s            WHERE s.user_id = u.id AND s.type = 'peer' AND s.started_at > NOW() - INTERVAL '7 days')::int AS peer_sessions_7d
        FROM users u
-       WHERE u.role = 'user' AND u.is_active = true
+       WHERE u.role = 'member' AND u.is_active = true
          AND (
            (SELECT COUNT(*) FROM emergency_logs el    WHERE el.user_id = u.id) >= 3
            OR

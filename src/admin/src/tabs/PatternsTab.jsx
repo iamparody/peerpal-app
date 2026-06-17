@@ -85,7 +85,7 @@ export default function PatternsTab() {
                   <tr key={row.alias}>
                     <td><span className="alias">{row.alias}</span></td>
                     <td><PatternChips row={row} /></td>
-                    <td><span className="elapsed">{lastSeen(row.last_active_at)}</span></td>
+                    <td><span className="elapsed">{lastSeen(row.last_checkin_at)}</span></td>
                     <td>
                       <button className="btn btn--ghost btn--sm" onClick={() => setMsgTarget(row.alias)}>
                         Message
