@@ -70,7 +70,13 @@ async function deliverEmail(to, subject, html) {
   if (!process.env.RESEND_API_KEY) {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[DEV] Would send email to ${to.slice(0, 3)}***: ${subject}`);
+    } else {
+      console.error('[email] RESEND_API_KEY not set — email dropped:', subject);
     }
+    return;
+  }
+  if (!process.env.EMAIL_FROM) {
+    console.error('[email] EMAIL_FROM not set — email dropped:', subject);
     return;
   }
   await getResend().emails.send({
