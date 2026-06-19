@@ -42,27 +42,53 @@ function BottomSheet({ open, onClose, children }) {
   );
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: CURRENT_YEAR - 1923 }, (_, i) => CURRENT_YEAR - i);
+
 export default function ConsentScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [underage, setUnderage] = useState(false);
   const [sheet, setSheet] = useState(null); // 'privacy' | 'terms' | null
 
+  const dobFilled = birthMonth !== '' && birthYear !== '';
+  const canSubmit = agreed && dobFilled && !underage;
+
   async function handleAgree() {
-    if (!agreed || !ageConfirmed) {
-      setError('Both checkboxes must be checked to continue.');
+    if (!agreed) {
+      setError('Please read and accept the Terms of Service and Privacy Policy.');
+      return;
+    }
+    if (!dobFilled) {
+      setError('Please enter your date of birth.');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      await client.post('/api/onboarding/consent', { consent_version: CONSENT_VERSION });
+      await client.post('/api/onboarding/consent', {
+        consent_version: CONSENT_VERSION,
+        birth_month: parseInt(birthMonth, 10),
+        birth_year: parseInt(birthYear, 10),
+      });
       navigate('/onboarding/persona', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.error || 'Something went wrong. Please try again.');
+      if (err.response?.data?.code === 'UNDERAGE') {
+        setUnderage(true);
+        setError('');
+      } else {
+        setError(err.response?.data?.error || 'Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -138,25 +164,72 @@ export default function ConsentScreen() {
           </span>
         </label>
 
-        {/* Checkbox 2 — Age confirmation */}
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 24, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={ageConfirmed}
-            onChange={(e) => { setAgeConfirmed(e.target.checked); setError(''); }}
-            style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2, accentColor: 'var(--color-accent)' }}
-          />
-          <span style={{ fontSize: '0.875rem', color: 'var(--color-text)', lineHeight: 1.6 }}>
-            I confirm I am 18 years of age or older.
-          </span>
-        </label>
+        {/* Date of birth — replaces the self-reported age checkbox */}
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--color-text)', marginBottom: 10, lineHeight: 1.5 }}>
+            Date of birth <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>(PeerPal is 18+ only)</span>
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <select
+              value={birthMonth}
+              onChange={(e) => { setBirthMonth(e.target.value); setUnderage(false); setError(''); }}
+              style={{
+                flex: 1, padding: '10px 12px', borderRadius: 8,
+                background: 'var(--color-surface-card)', color: 'var(--color-text)',
+                border: '1px solid rgba(245,237,228,0.15)', fontSize: '0.9rem',
+                appearance: 'none', WebkitAppearance: 'none',
+              }}
+              aria-label="Birth month"
+            >
+              <option value="">Month</option>
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>{m}</option>
+              ))}
+            </select>
+            <select
+              value={birthYear}
+              onChange={(e) => { setBirthYear(e.target.value); setUnderage(false); setError(''); }}
+              style={{
+                width: 100, padding: '10px 12px', borderRadius: 8,
+                background: 'var(--color-surface-card)', color: 'var(--color-text)',
+                border: '1px solid rgba(245,237,228,0.15)', fontSize: '0.9rem',
+                appearance: 'none', WebkitAppearance: 'none',
+              }}
+              aria-label="Birth year"
+            >
+              <option value="">Year</option>
+              {YEARS.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 6 }}>
+            We only store your birth year — not the full date.
+          </p>
+        </div>
+
+        {/* Underage message */}
+        {underage && (
+          <div style={{
+            background: 'rgba(231,76,60,0.12)', border: '1px solid rgba(231,76,60,0.3)',
+            borderRadius: 10, padding: '16px 18px', marginBottom: 20,
+          }}>
+            <p style={{ fontWeight: 600, color: '#E74C3C', marginBottom: 6, fontSize: '0.9rem' }}>
+              PeerPal is for adults aged 18 and over.
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: 1.6, margin: 0 }}>
+              If you need support right now, Befrienders Kenya offer free, confidential help for everyone:{' '}
+              <a href="tel:0800723253" style={{ color: 'var(--color-accent)', fontWeight: 600 }}>0800 723 253</a>
+            </p>
+          </div>
+        )}
 
         {error && <div className="error-msg" style={{ marginBottom: 16 }}>{error}</div>}
 
         <button
           className="btn btn--primary"
           onClick={handleAgree}
-          disabled={loading || !agreed || !ageConfirmed}
+          disabled={loading || !canSubmit}
         >
           {loading ? 'Saving…' : 'I Agree — Continue'}
         </button>

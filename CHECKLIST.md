@@ -1239,6 +1239,30 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ---
 
+## Phase 30 — Age Verification, Resend Domain, Sentry, Peer Screening
+
+### 30.1 Age Verification (18+ gate) ✅
+- [x] Migration 048: `birth_year SMALLINT NULL` on users table — **pending apply**
+- [x] Backend `POST /onboarding/consent`: accepts `birth_month` + `birth_year`; computes age; returns 403 `UNDERAGE` if < 18; stores `birth_year` on pass
+- [x] Frontend `ConsentScreen.jsx`: replaces "I am 18+" checkbox with month+year select dropdowns; handles `UNDERAGE` response with empathetic block + Befrienders Kenya number; "Continue" disabled until DOB filled + terms agreed
+
+### 30.2 Resend Domain Verification — config only, no code
+- [ ] Add and verify custom domain in Resend dashboard (SPF, DKIM, DMARC DNS records)
+- [ ] Update `EMAIL_FROM` env var in Render to `noreply@peerpal.app` (or chosen address)
+
+### 30.3 Sentry DSN — config only, no code
+- [ ] Create two Sentry projects at sentry.io: Node.js (backend) + React (frontend)
+- [ ] Set `SENTRY_DSN` in Render environment variables (backend Node.js DSN)
+- [ ] Set `VITE_SENTRY_DSN` in Vercel environment variables — user frontend (React DSN)
+- [ ] Set `VITE_SENTRY_DSN` in Vercel environment variables — admin panel (same React DSN or separate)
+
+### 30.4 Peer text conversation screening — not yet started
+- [ ] Intercept relayed messages in `ws/signaling.js`; run regex patterns (phone, email, physical address)
+- [ ] On match: emit a warning event to both parties via WebSocket; do not block the message
+- [ ] Optional: route flagged messages through a light Groq classifier for nuance
+
+---
+
 ## Phase 24 — Help a Friend Module
 
 > Concept confirmed 2026-05-22. **Build blocked on clinical content sign-off.**

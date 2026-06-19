@@ -13,18 +13,36 @@ const CURRENT_CONSENT_VERSION = '1.0';
 
 // ─── POST /onboarding/consent ─────────────────────────────────────────────────
 router.post('/consent', auth, async (req, res) => {
-  const { consent_version } = req.body;
+  const { consent_version, birth_month, birth_year } = req.body;
 
   if (consent_version !== CURRENT_CONSENT_VERSION) {
     return res.status(400).json({ error: `consent_version must be "${CURRENT_CONSENT_VERSION}"`, code: 'INVALID_CONSENT_VERSION' });
   }
 
+  // Age gate — birth_month (1-12) and birth_year are required
+  const month = parseInt(birth_month, 10);
+  const year  = parseInt(birth_year,  10);
+  const now   = new Date();
+
+  if (!birth_month || !birth_year || isNaN(month) || isNaN(year) ||
+      month < 1 || month > 12 || year < 1900 || year > now.getFullYear()) {
+    return res.status(400).json({ error: 'A valid date of birth is required.', code: 'MISSING_DOB' });
+  }
+
+  // Age = years elapsed since the 1st of their birth month
+  let age = now.getFullYear() - year;
+  if (now.getMonth() + 1 < month) age--; // birthday hasn't happened yet this year
+
+  if (age < 18) {
+    return res.status(403).json({ error: 'You must be 18 or older to use PeerPal.', code: 'UNDERAGE' });
+  }
+
   const { rows } = await query(
     `UPDATE users
-     SET consent_version = $1, consented_at = NOW(), updated_at = NOW()
-     WHERE id = $2
+     SET consent_version = $1, consented_at = NOW(), birth_year = $2, updated_at = NOW()
+     WHERE id = $3
      RETURNING consented_at`,
-    [CURRENT_CONSENT_VERSION, req.user.id]
+    [CURRENT_CONSENT_VERSION, year, req.user.id]
   );
 
   return res.status(200).json({ consented_at: rows[0].consented_at });

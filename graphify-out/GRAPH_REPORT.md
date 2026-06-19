@@ -65,8 +65,10 @@ Generated: 2026-05-04 | Last updated: 2026-05-29 (session 23) | Agent: Claude Co
 | `040_last_data_deletion_at.sql` | ALTER users | Adds `last_data_deletion_at TIMESTAMPTZ NULL` — analytics anchor for all-time view — **applied** |
 | `041_user_role_therapist.sql` | ALTER TYPE user_role | Adds `'therapist'` value to `user_role` enum — **applied** |
 | `042_ai_persona_language_and_updated_at.sql` | ALTER ai_personas | Adds `language VARCHAR(20) DEFAULT 'english'` + `updated_at TIMESTAMPTZ`; CHECK IN (english/swahili/sheng) — **applied** |
-| `043_credit_system_v2.sql` | ALTER credit_transactions + enums | Adds `duration_minutes INTEGER NULL`; adds `'refund'` to `credit_tx_type`; adds `'ai'` and `'referral'` to `credit_tx_channel` — **pending apply** |
-| `044_peer_stats.sql` | CREATE peer_stats + enums | New table: user_id UNIQUE FK, sessions_completed INT, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2), redeemed_credits_lifetime DECIMAL(10,2); adds `'peer_earning'` to `credit_tx_type` and `credit_tx_channel`; RLS deny-anon — **pending apply** |
+| `043_credit_system_v2.sql` | ALTER credit_transactions + enums | Adds `duration_minutes INTEGER NULL`; adds `'refund'` to `credit_tx_type`; adds `'ai'` and `'referral'` to `credit_tx_channel` |
+| `044_peer_stats.sql` | CREATE peer_stats + enums | New table: user_id UNIQUE FK, sessions_completed INT, pending_credits DECIMAL(10,2), earned_credits_lifetime DECIMAL(10,2), redeemed_credits_lifetime DECIMAL(10,2); adds `'peer_earning'` to `credit_tx_type` and `credit_tx_channel`; RLS deny-anon |
+| `047_ai_memories_peer_reports.sql` | CREATE ai_memories + peer_reports | ai_memories: user_id FK, session_id FK nullable, summary TEXT, created_at; peer_reports: reporter_id FK, session_id FK nullable, peer_alias, channel, description, status enum, admin_notes; both RLS deny-anon |
+| `048_birth_year.sql` | ALTER users | Adds `birth_year SMALLINT NULL` — stores birth year after age verification at onboarding consent; full DOB collected client-side for validation but only year stored — **pending apply** |
 
 ### Route Files (17 files)
 | File | Endpoints |
