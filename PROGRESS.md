@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Ready for deploy — migrations 043–045 pending Supabase apply; Daraja credentials pending Safaricom approval**
+**Live on Render (backend) + Vercel (frontend + admin). Phase 30 in progress — age verification shipped; Resend domain + Sentry pending config.**
 
 ---
 
@@ -11,6 +11,32 @@
 
 ### Phase 24 — Help a Friend Module (content-pending)
 Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
+
+### Phase 30 — Age Verification, Resend Domain, Sentry, Peer Screening (in progress)
+- 30.1 Age verification — COMPLETE (shipped 2026-06-19)
+- 30.2 Resend domain — BLOCKED: no custom domain purchased yet
+- 30.3 Sentry — pending DSN config in Render + Vercel env vars (code already in place)
+- 30.4 Peer text screening — not started
+
+---
+
+### Session 24 — 2026-06-19
+
+**Context recovered:** App is live. Backend on Render, frontend + admin on Vercel. Name is PeerPal (finalised). All 46 migrations applied. Deployment confirmed working.
+
+**Phase 30.1 — Age Verification (18+ gate) — COMPLETE**
+
+- Migration 048: `birth_year SMALLINT NULL` added to users table — applied directly via Supabase SQL editor (no local .env available on this machine); migrations_log updated manually
+- `routes/onboarding.js` `POST /onboarding/consent`: now requires `birth_month` (1–12) + `birth_year`; computes real age accounting for whether birthday has passed this year; returns 403 `UNDERAGE` if age < 18; stores `birth_year` on pass
+- `ConsentScreen.jsx`: replaced self-reported "I am 18+" checkbox with month + year select dropdowns; `canSubmit` requires both filled + terms agreed; 403 UNDERAGE response renders an empathetic red block with Befrienders Kenya number (0800 723 253); Continue button stays disabled after underage detection
+- Existing users unaffected — `birth_year` is NULL for them; consent step is one-time and they are already past it
+
+**Decisions made:**
+- Collect birth_month + birth_year for accurate age check; store only birth_year (minimal PII)
+- Do not block the account on underage — just prevent consent completion; account stays inert without consent
+- Underage message shows Befrienders Kenya number rather than a generic rejection
+
+**Committed and pushed:** 17d1cac + 5c4b7b0
 
 ---
 
