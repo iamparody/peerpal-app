@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import BottomNav from './components/BottomNav';
@@ -143,6 +143,87 @@ function VerificationBanner() {
   );
 }
 
+const PEER_BANNER_HIDE_ON = [
+  '/login', '/register', '/recover', '/email-sent', '/verify-email', '/reset-password',
+  '/onboarding', '/emergency', '/emergency-public',
+  '/privacy-policy', '/terms-of-service', '/data-compliance',
+  '/peer',
+];
+
+function PeerRequestBanner() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [openRequests, setOpenRequests] = useState([]);
+  const [bannerVisible, setBannerVisible] = useState(false);
+  const dismissedIds = useRef(new Set());
+
+  useEffect(() => {
+    if (!token) return;
+    async function fetchOpen() {
+      try {
+        const { data } = await client.get('/api/peer/requests/open');
+        setOpenRequests(data.requests ?? data ?? []);
+      } catch { /* non-fatal */ }
+    }
+    fetchOpen();
+    const interval = setInterval(fetchOpen, 10000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  useEffect(() => {
+    const hasNew = openRequests.some(r => !dismissedIds.current.has(r.id));
+    setBannerVisible(hasNew);
+  }, [openRequests]);
+
+  if (!token) return null;
+  if (PEER_BANNER_HIDE_ON.some(p => pathname.startsWith(p))) return null;
+  if (!bannerVisible) return null;
+
+  function dismiss(e) {
+    e.stopPropagation();
+    openRequests.forEach(r => dismissedIds.current.add(r.id));
+    setBannerVisible(false);
+  }
+
+  return (
+    <div
+      onClick={() => navigate('/peer')}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 990,
+        background: 'var(--color-calm)',
+        color: '#fff',
+        padding: '12px 44px 12px 16px',
+        display: 'flex', alignItems: 'center', gap: 10,
+        cursor: 'pointer',
+        animation: 'peerBannerSlideDown 300ms ease, peerBannerPulse 2s ease-in-out 300ms infinite',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
+      }}
+    >
+      <span style={{ fontSize: 20, flexShrink: 0 }}>💙</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: '0.88rem', lineHeight: 1.3 }}>
+          Someone needs support
+        </div>
+        <div style={{ fontSize: '0.75rem', opacity: 0.85, marginTop: 1 }}>
+          Tap to help — be a peer
+        </div>
+      </div>
+      <button
+        onClick={dismiss}
+        aria-label="Dismiss"
+        style={{
+          position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+          background: 'none', border: 'none', color: '#fff',
+          fontSize: 20, lineHeight: 1, cursor: 'pointer', padding: '4px 8px', opacity: 0.8,
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 function Layout() {
   const { pathname } = useLocation();
   const { token } = useAuth();
@@ -151,6 +232,7 @@ function Layout() {
   return (
     <>
       <VerificationBanner />
+      <PeerRequestBanner />
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginScreen />} />
