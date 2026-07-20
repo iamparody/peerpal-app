@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Live on Render (backend) + Vercel (frontend + admin). Phase 30 in progress — age verification shipped; peer broadcast + notifications fixed; PWA installable. Resend domain + Sentry pending config.**
+**Live on Render (backend) + Vercel (frontend + admin). Phase 30 in progress — age verification shipped; peer broadcast + notifications fixed; PWA installable with new brand logo. Resend domain + Sentry pending config.**
 
 ---
 
@@ -17,6 +17,25 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 30.2 Resend domain — BLOCKED: no custom domain purchased yet
 - 30.3 Sentry — pending DSN config in Render + Vercel env vars (code already in place)
 - 30.4 Peer text screening — not started
+
+---
+
+### Session 25 — 2026-07-20 (continued — same day)
+
+**Brand & PWA**
+
+**Logo — new brand mark (commits f2fe3f8, 64a3793)**
+- Concept: two rounded figures (sage green `#8FAF9A` + amber `#C8943A`) leaning toward each other with a heartbeat line between them; tagline "YOU ARE NOT ALONE"
+- Full logo saved: `images/peerpal-logo-dark.svg` (dark `#1A1410` background, with wordmark)
+- `public/favicon.svg` updated — transparent background so phone OS circular mask renders cleanly
+- All PWA icons regenerated: `pwa-64/192/512.png`, `maskable-icon-512x512.png`, `apple-touch-icon-180x180.png`, `favicon.ico`
+- PWA update behaviour documented: code/UI updates auto-apply within 1–2 opens; icon/manifest changes require reinstall from browser
+
+**Next session priorities:**
+- Phase 30.3 — Sentry (add DSN env vars to Render + Vercel)
+- Phase 30.2 — Resend custom domain (blocked until domain purchased)
+- Phase 30.4 — Peer text screening
+- Beta tester onboarding
 
 ---
 
