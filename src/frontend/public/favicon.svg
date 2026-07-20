@@ -1,8 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
 
-  <!-- Background -->
-  <rect width="200" height="180" fill="#1A1410"/>
-
   <!-- ─── LEFT FIGURE (sage green) ─── -->
   <circle cx="84" cy="54" r="17" fill="#8FAF9A"/>
   <rect x="57" y="82" width="42" height="65" rx="21" fill="#8FAF9A" transform="rotate(-12 78 114)"/>
