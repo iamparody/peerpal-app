@@ -169,7 +169,7 @@ export default function PeerRequestScreen() {
     setError('');
     setSubmitting(true);
     try {
-      const { data } = await client.post('/api/peer/request', { channel });
+      const { data } = await client.post('/api/peer/request', { channel_preference: channel });
       trackEvent('peer_request_created', { channel });
       navigate(`/peer/waiting/${data.request_id}`, { replace: true });
     } catch (err) {
