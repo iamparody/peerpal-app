@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Live on Render (backend) + Vercel (frontend + admin). Phase 30 in progress — age verification shipped; Resend domain + Sentry pending config.**
+**Live on Render (backend) + Vercel (frontend + admin). Phase 30 in progress — age verification shipped; peer broadcast + notifications fixed; PWA installable. Resend domain + Sentry pending config.**
 
 ---
 
@@ -17,6 +17,39 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 30.2 Resend domain — BLOCKED: no custom domain purchased yet
 - 30.3 Sentry — pending DSN config in Render + Vercel env vars (code already in place)
 - 30.4 Peer text screening — not started
+
+---
+
+### Session 25 — 2026-07-20
+
+**Bug fixes — Peer Module**
+
+**1. `channel_preference` key mismatch (commit e2e674f)**
+- `PeerRequestScreen` was posting `{ channel }` but backend validates `{ channel_preference }` → 400 error on every peer request
+- Fixed: `client.post('/api/peer/request', { channel_preference: channel })`
+
+**2. Open requests not broadcasting to other devices (commit 8f35a4b)**
+- `PeerRequestScreen` loaded open requests once on mount with no polling — Device B never saw new requests
+- Fixed: added `setInterval` polling `/api/peer/requests/open` every 10s with cleanup on unmount
+
+**3. Notifications invisible in Activity lane (commit c4183eb)**
+- Backend inserts type `peer_request_broadcast` and `session_confirmation`; Activity lane only listed `peer_broadcast` → badge count showed (2) but nothing appeared in any lane
+- Fixed: added both types to Activity lane and added `TYPE_META` entries with labels + routes
+
+**4. Global peer request banner (commit 36ca488)**
+- Added `PeerRequestBanner` component to `App.jsx` — appears on all screens (except peer/session/auth/emergency paths)
+- Polls open requests every 10s; slides in and pulses when a request is live
+- Tracks dismissed request IDs so banner only reappears for genuinely new requests
+- Added `@keyframes peerBannerPulse` + `peerBannerSlideDown` to `globals.css`
+
+**5. PWA — installable on Android + iOS (commit 898a3c3)**
+- `vite-plugin-pwa` was already wired; icons and favicon.ico were missing
+- Generated `pwa-64/192/512.png`, `maskable-icon-512x512.png`, `apple-touch-icon-180x180.png`, `favicon.ico` from `favicon.svg` via `@vite-pwa/assets-generator`
+- Fixed manifest: `background_color: #1A1410`, `theme_color: #8FAF9A`, correct icon paths
+- Updated `index.html` head links
+- Beta distribution: share Vercel URL → Android installs via Chrome "Add to home screen"; iOS via Safari Share → Add to Home Screen
+
+**Beta testing decision:** PWA via Vercel URL for now. APK (Capacitor) deferred until post-beta.
 
 ---
 
