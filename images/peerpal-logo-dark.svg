@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320">
+
+  <!-- Background -->
+  <rect width="500" height="320" fill="#1A1410"/>
+
+  <!-- ─── LEFT FIGURE (sage green) ─── -->
+  <!-- Head -->
+  <circle cx="208" cy="80" r="22" fill="#8FAF9A"/>
+  <!-- Body: pill shape leaning inward toward center -->
+  <rect x="170" y="118" width="54" height="84" rx="27" fill="#8FAF9A" transform="rotate(-12 197 160)"/>
+
+  <!-- ─── RIGHT FIGURE (amber) ─── -->
+  <!-- Head -->
+  <circle cx="292" cy="80" r="22" fill="#C8943A"/>
+  <!-- Body: pill shape leaning inward toward center -->
+  <rect x="276" y="118" width="54" height="84" rx="27" fill="#C8943A" transform="rotate(12 303 160)"/>
+
+  <!-- ─── HEARTBEAT LINE ─── -->
+  <polyline
+    points="178,152 196,152 205,132 215,172 225,152 250,152 259,140 266,164 275,152 295,152 304,143 310,161 318,152 335,152"
+    fill="none" stroke="#F5EDE4" stroke-width="2.2"
+    stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+
+  <!-- ─── WORDMARK ─── -->
+  <text x="250" y="243"
+    text-anchor="middle"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="46" font-weight="700" letter-spacing="-0.5">
+    <tspan fill="#F5EDE4">Peer</tspan><tspan fill="#C8943A">Pal</tspan>
+  </text>
+
+  <!-- ─── TAGLINE ─── -->
+  <text x="250" y="277"
+    text-anchor="middle"
+    font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="11" font-weight="500" fill="#8FAF9A" letter-spacing="3.5">
+    YOU ARE NOT ALONE
+  </text>
+
+</svg>
