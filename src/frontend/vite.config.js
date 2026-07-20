@@ -7,19 +7,20 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icons/*.png'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'PeerPal',
         short_name: 'PeerPal',
-        description: 'Mental health support — always here for you.',
+        description: 'Mental health peer support — always here for you.',
         start_url: '/',
         display: 'standalone',
-        background_color: '#FFFFFF',
-        theme_color: '#4A90D9',
+        background_color: '#1A1410',
+        theme_color: '#8FAF9A',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'pwa-64x64.png',            sizes: '64x64',   type: 'image/png' },
+          { src: 'pwa-192x192.png',          sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png',          sizes: '512x512', type: 'image/png' },
+          { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
