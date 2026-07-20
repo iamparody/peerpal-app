@@ -139,6 +139,16 @@ export default function PeerRequestScreen() {
       }
     }
     load();
+
+    // Poll for new/closed requests so broadcasts appear without a page reload
+    const poll = setInterval(async () => {
+      try {
+        const { data } = await client.get('/api/peer/requests/open');
+        setOpenRequests(data.requests ?? data ?? []);
+      } catch { /* non-fatal */ }
+    }, 10000);
+
+    return () => clearInterval(poll);
   }, []);
 
   async function loadLeaderboard() {
