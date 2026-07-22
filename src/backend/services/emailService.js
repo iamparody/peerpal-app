@@ -110,13 +110,17 @@ function enqueueEmail(to, subject, html) {
   // Caller returns immediately — no await needed
 }
 
+function getAppUrl() {
+  return (process.env.FRONTEND_URL || '').split(',')[0].trim();
+}
+
 async function sendVerificationEmail(email, alias, token) {
-  const link = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+  const link = `${getAppUrl()}/verify-email?token=${token}`;
   await enqueueEmail(email, 'Confirm your PeerPal account', verificationTemplate(alias, link));
 }
 
 async function sendPasswordResetEmail(email, alias, token) {
-  const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  const link = `${getAppUrl()}/reset-password?token=${token}`;
   await enqueueEmail(email, 'Reset your PeerPal password', resetTemplate(alias, link));
 }
 
