@@ -825,6 +825,80 @@ router.get('/leaderboard', auth, async (req, res) => {
   return res.status(200).json({ leaderboard: rows });
 });
 
+// ─── POST /peer/session/:id/reflection ───────────────────────────────────────
+router.post('/session/:id/reflection', auth, async (req, res) => {
+  const sessionId = req.params.id;
+  const {
+    topic_stayed_in_category,
+    unexpected_topic_arose,
+    felt_prepared,
+    additional_training_wanted,
+  } = req.body;
+
+  const { rows: sessionRows } = await query(
+    `SELECT pr.accepted_by FROM peer_requests pr WHERE pr.session_id = $1`,
+    [sessionId]
+  );
+  if (!sessionRows.length) {
+    return res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
+  }
+  if (sessionRows[0].accepted_by !== req.user.id) {
+    return res.status(403).json({ error: 'Only the peer for this session can submit a reflection', code: 'FORBIDDEN' });
+  }
+
+  const { rows } = await query(
+    `INSERT INTO session_reflections
+       (session_id, peer_user_id,
+        topic_stayed_in_category, unexpected_topic_arose,
+        felt_prepared, additional_training_wanted)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (session_id) DO NOTHING
+     RETURNING id`,
+    [sessionId, req.user.id,
+     topic_stayed_in_category ?? null, unexpected_topic_arose ?? null,
+     felt_prepared ?? null, additional_training_wanted ?? null]
+  );
+  if (!rows.length) {
+    return res.status(409).json({ error: 'Reflection already submitted for this session', code: 'ALREADY_SUBMITTED' });
+  }
+  return res.status(201).json({ reflection_id: rows[0].id });
+});
+
+// ─── POST /peer/session/:id/requester-feedback ───────────────────────────────
+router.post('/session/:id/requester-feedback', auth, async (req, res) => {
+  const sessionId = req.params.id;
+  const { rating, comment } = req.body;
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: 'rating must be an integer 1–5', code: 'INVALID_RATING' });
+  }
+
+  const { rows: reqRows } = await query(
+    `SELECT pr.user_id FROM peer_requests pr WHERE pr.session_id = $1`,
+    [sessionId]
+  );
+  if (!reqRows.length) {
+    return res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
+  }
+  if (reqRows[0].user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Only the session requester can submit feedback', code: 'FORBIDDEN' });
+  }
+
+  const { rows } = await query(
+    `INSERT INTO feedback (type, rating, comment, session_id)
+     SELECT 'peer_session', $1, $2, $3
+     WHERE NOT EXISTS (
+       SELECT 1 FROM feedback WHERE session_id = $3 AND type = 'peer_session'
+     )
+     RETURNING id`,
+    [rating, comment?.trim() || null, sessionId]
+  );
+  if (!rows.length) {
+    return res.status(409).json({ error: 'Feedback already submitted for this session', code: 'ALREADY_SUBMITTED' });
+  }
+  return res.status(201).json({ feedback_id: rows[0].id });
+});
+
 // ─── POST /peer/report ────────────────────────────────────────────────────────
 router.post('/report', auth, async (req, res) => {
   const { session_id, peer_alias, channel, description } = req.body;

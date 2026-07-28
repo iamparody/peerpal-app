@@ -609,4 +609,98 @@ router.patch('/therapist-interests/:id/status', async (req, res) => {
   return res.status(200).json({ updated: true });
 });
 
+// ─── GET /admin/permission-flags ─────────────────────────────────────────────
+router.get('/permission-flags', async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const resolved = req.query.resolved === 'true';
+
+  const [{ rows: flags }, { rows: countRows }] = await Promise.all([
+    query(
+      `SELECT pf.id, pf.flagged_at, pf.signal_type, pf.signal_data,
+              pf.resolved, pf.action_taken, pf.reviewed_at,
+              u.alias AS peer_alias, u.email AS peer_email,
+              p.slug AS permission_slug, p.name AS permission_name
+       FROM permission_flags pf
+       JOIN users u ON u.id = pf.user_id
+       JOIN permissions p ON p.id = pf.permission_id
+       WHERE pf.resolved = $1
+       ORDER BY pf.flagged_at DESC
+       LIMIT $2 OFFSET $3`,
+      [resolved, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM permission_flags WHERE resolved = $1`,
+      [resolved]
+    ),
+  ]);
+
+  return res.json({
+    flags,
+    total: Number(countRows[0].total),
+    page,
+    pages: Math.ceil(Number(countRows[0].total) / limit),
+  });
+});
+
+// ─── PATCH /admin/permission-flags/:id/resolve ───────────────────────────────
+router.patch('/permission-flags/:id/resolve', async (req, res) => {
+  const { action_taken } = req.body;
+  const VALID_ACTIONS = [
+    'no_action', 'refresher_recommended', 'refresher_required',
+    'temporary_suspension', 'revocation',
+  ];
+  if (!VALID_ACTIONS.includes(action_taken)) {
+    return res.status(400).json({
+      error: `action_taken must be one of: ${VALID_ACTIONS.join(', ')}`,
+      code: 'INVALID_ACTION',
+    });
+  }
+
+  const { rows: flagRows } = await query(
+    `SELECT user_id, permission_id, resolved FROM permission_flags WHERE id = $1`,
+    [req.params.id]
+  );
+  if (!flagRows.length) {
+    return res.status(404).json({ error: 'Flag not found', code: 'NOT_FOUND' });
+  }
+  if (flagRows[0].resolved) {
+    return res.status(409).json({ error: 'Flag already resolved', code: 'ALREADY_RESOLVED' });
+  }
+
+  const { user_id, permission_id } = flagRows[0];
+  const adminId = req.user.id;
+
+  await query(
+    `UPDATE permission_flags
+     SET resolved = true, action_taken = $1, reviewer_id = $2, reviewed_at = NOW()
+     WHERE id = $3`,
+    [action_taken, adminId, req.params.id]
+  );
+
+  if (action_taken === 'refresher_required') {
+    await query(
+      `UPDATE peer_permissions SET status = 'inactive'
+       WHERE user_id = $1 AND permission_id = $2 AND status = 'active'`,
+      [user_id, permission_id]
+    );
+  } else if (action_taken === 'temporary_suspension') {
+    await query(
+      `UPDATE peer_permissions SET status = 'suspended'
+       WHERE user_id = $1 AND permission_id = $2 AND status IN ('active', 'inactive')`,
+      [user_id, permission_id]
+    );
+  } else if (action_taken === 'revocation') {
+    await query(
+      `UPDATE peer_permissions
+       SET status = 'revoked', revoked_by = $3, revoked_at = NOW()
+       WHERE user_id = $1 AND permission_id = $2`,
+      [user_id, permission_id, adminId]
+    );
+  }
+
+  return res.json({ resolved: true, action_taken });
+});
+
 module.exports = router;

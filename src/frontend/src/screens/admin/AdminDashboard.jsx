@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 
-const TABS = ['Emergency', 'Escalations', 'Referrals', 'Reports', 'Risk', 'Resources', 'Stats'];
+const TABS = ['Emergency', 'Escalations', 'Referrals', 'Reports', 'Risk', 'Resources', 'Stats', 'PeerPerms'];
 
 function SectionSkeleton() {
   return (
@@ -384,6 +384,150 @@ function StatsTab() {
   );
 }
 
+// ── Peer Permissions / Supervision Queue ─────────────────────────────────────
+const FLAG_ACTIONS = [
+  { value: 'no_action',             label: 'No action' },
+  { value: 'refresher_recommended', label: 'Refresher recommended' },
+  { value: 'refresher_required',    label: 'Refresher required (sets inactive)' },
+  { value: 'temporary_suspension',  label: 'Temporary suspension' },
+  { value: 'revocation',            label: 'Revocation' },
+];
+
+const SIGNAL_LABELS = {
+  low_feedback:             'Low feedback ratings',
+  moderation_intervention:  'Moderation interventions',
+  unprepared_reflections:   'Felt unprepared',
+  category_drift:           'Topic category drift',
+};
+
+function PeerPermsTab() {
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showResolved, setShowResolved] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [resolving, setResolving] = useState(null); // flag id being resolved
+  const [actionChoice, setActionChoice] = useState('no_action');
+  const [resolveError, setResolveError] = useState('');
+
+  const load = useCallback(async (p = 1, resolved = false) => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await client.get(`/api/admin/permission-flags?page=${p}&resolved=${resolved}`);
+      setFlags(data.flags ?? []);
+      setPages(data.pages ?? 1);
+    } catch { setError('Failed to load flags.'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(page, showResolved); }, [page, showResolved, load]);
+
+  async function resolve(flagId) {
+    setResolveError('');
+    try {
+      await client.patch(`/api/admin/permission-flags/${flagId}/resolve`, { action_taken: actionChoice });
+      setResolving(null);
+      load(page, showResolved);
+    } catch (e) {
+      setResolveError(e.response?.data?.error || 'Failed to resolve flag.');
+    }
+  }
+
+  return (
+    <Section title="Peer Supervision Queue" loading={loading} error={error}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={showResolved}
+            onChange={(e) => { setShowResolved(e.target.checked); setPage(1); }}
+          />
+          Show resolved
+        </label>
+        {pages > 1 && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
+              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', color: 'inherit' }}>‹</button>
+            <span>{page} / {pages}</span>
+            <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)}
+              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', color: 'inherit' }}>›</button>
+          </div>
+        )}
+      </div>
+
+      {flags.length === 0 && (
+        <p style={{ textAlign: 'center', color: 'var(--color-success)' }}>
+          {showResolved ? 'No resolved flags.' : '✅ No open supervision flags'}
+        </p>
+      )}
+
+      {flags.map((f) => (
+        <div key={f.id} className="card" style={{ marginBottom: 10, borderLeft: '4px solid #C2A48A' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{f.peer_alias}</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>{f.peer_email}</div>
+              <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
+                <span style={{ fontWeight: 600 }}>{f.permission_name}</span>
+                {' — '}
+                <span>{SIGNAL_LABELS[f.signal_type] ?? f.signal_type}</span>
+              </div>
+              {f.signal_data && (
+                <div style={{ fontSize: '0.78rem', opacity: 0.75, marginTop: 3 }}>
+                  {Object.entries(f.signal_data)
+                    .filter(([k]) => k !== 'window_days')
+                    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+                    .join(' · ')}
+                </div>
+              )}
+              <div style={{ fontSize: '0.75rem', opacity: 0.55, marginTop: 4 }}>
+                Flagged {new Date(f.flagged_at).toLocaleDateString()}
+                {f.resolved && f.action_taken && (
+                  <> · Resolved: <strong>{f.action_taken.replace(/_/g, ' ')}</strong></>
+                )}
+              </div>
+            </div>
+
+            {!f.resolved && (
+              resolving === f.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 220 }}>
+                  <select
+                    value={actionChoice}
+                    onChange={(e) => setActionChoice(e.target.value)}
+                    style={{ fontSize: '0.82rem', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-surface-card)', color: 'inherit' }}
+                  >
+                    {FLAG_ACTIONS.map((a) => (
+                      <option key={a.value} value={a.value}>{a.label}</option>
+                    ))}
+                  </select>
+                  {resolveError && <div style={{ fontSize: '0.78rem', color: 'var(--color-warning)' }}>{resolveError}</div>}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => resolve(f.id)}
+                      style={{ flex: 1, padding: '5px 0', background: '#C2A48A', border: 'none', borderRadius: 6, fontWeight: 700, color: '#1A1A2E', cursor: 'pointer', fontSize: '0.82rem' }}>
+                      Confirm
+                    </button>
+                    <button onClick={() => { setResolving(null); setResolveError(''); }}
+                      style={{ flex: 1, padding: '5px 0', background: 'none', border: '1px solid var(--color-border)', borderRadius: 6, cursor: 'pointer', fontSize: '0.82rem', color: 'inherit' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { setResolving(f.id); setActionChoice('no_action'); setResolveError(''); }}
+                  style={{ padding: '6px 14px', background: 'none', border: '1px solid #C2A48A', borderRadius: 6, color: '#C2A48A', cursor: 'pointer', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                  Resolve
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      ))}
+    </Section>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -421,6 +565,7 @@ export default function AdminDashboard() {
         {tab === 'Risk'        && <RiskTab />}
         {tab === 'Resources'   && <ResourcesTab />}
         {tab === 'Stats'       && <StatsTab />}
+        {tab === 'PeerPerms'   && <PeerPermsTab />}
       </div>
     </div>
   );

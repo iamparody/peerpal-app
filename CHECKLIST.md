@@ -1634,13 +1634,13 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### Phase 31.6 — Quality Signals, Reflections & Moderation (backend + admin)
 
-- [ ] `POST /api/peer/session/:id/reflection` — peer submits post-session reflection (4 yes/no questions); stored in session_reflections; not linked to permission decisions
-- [ ] `POST /api/peer/session/:id/requester-feedback` — requester rates session 1–5 + optional note; stored separately
-- [ ] Flag aggregation job (runs nightly): compute rolling signal patterns per peer per permission; insert into permission_flags if pattern thresholds exceeded (thresholds defined in config, not hardcoded)
-- [ ] Supervision queue API — admin only:
+- [x] `POST /api/peer/session/:id/reflection` — peer submits post-session reflection (4 yes/no questions); stored in session_reflections; not linked to permission decisions
+- [x] `POST /api/peer/session/:id/requester-feedback` — requester rates session 1–5 + optional note; stored separately
+- [x] Flag aggregation job (runs nightly): compute rolling signal patterns per peer per permission; insert into permission_flags if pattern thresholds exceeded (thresholds defined in config, not hardcoded)
+- [x] Supervision queue API — admin only:
   - `GET /api/admin/permission-flags` — paginated flag queue with signal summaries
   - `PATCH /api/admin/permission-flags/:id/resolve` — action: no_action / refresher_recommended / refresher_required / temporary_suspension / revocation; sets peer_permissions.status accordingly; records reviewer_id
-- [ ] Admin panel: new "Peer Permissions" tab — flag queue, peer skill/permission view, manual grant/revoke, signal analytics
+- [x] Admin panel: new "Peer Permissions" tab — flag queue, peer skill/permission view, manual grant/revoke, signal analytics
 
 **Complete when:**
 - session_reflections table is never joined to permission_flags in any query (enforced by separation of concerns, verified by code review)

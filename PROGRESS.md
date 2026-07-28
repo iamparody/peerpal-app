@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 31.5 COMPLETE — Routing Integration live. Next: Phase 31.6 — Quality Signals & Moderation.**
+**Phase 31.6 COMPLETE — Quality Signals, Reflections & Moderation live. Next: Phase 31.7 — Frontend Training Flow.**
 
 ---
 
@@ -25,6 +25,34 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 31.3 Skill & Permission Issuance — COMPLETE (session 28)
 - 31.4 Policy Engine — COMPLETE (session 28)
 - 31.5 Routing Integration — COMPLETE (session 28)
+- 31.6 Quality Signals & Moderation — COMPLETE (session 29)
+
+---
+
+### Session 29 — 2026-07-28
+
+**Phase 31.6 — Quality Signals, Reflections & Moderation — COMPLETE**
+
+**`src/backend/routes/peer.js`** — 2 new endpoints
+- `POST /api/peer/session/:id/reflection` — peer submits 4 boolean reflection fields (topic_stayed_in_category, unexpected_topic_arose, felt_prepared, additional_training_wanted); caller must be the session's accepted_by peer; ON CONFLICT DO NOTHING on unique session_id
+- `POST /api/peer/session/:id/requester-feedback` — requester rates 1–5 + optional comment; stored anonymously in feedback table (no user_id); conditional INSERT WHERE NOT EXISTS prevents duplicate per session
+
+**`src/backend/jobs/flagAggregationJob.js`** — nightly signal aggregation (03:00 UTC / 6am EAT)
+- Computes 4 rolling signal patterns: low_feedback, moderation_intervention, unprepared_reflections, category_drift
+- Session_reflections read in complete isolation from permission_flags — application code bridges the gap (safety invariant preserved)
+- For each user crossing a threshold: fetches active permission_ids in a separate query, inserts flag via conditional INSERT WHERE NOT EXISTS (no duplicate open flags)
+- Thresholds sourced entirely from SUPERVISION_THRESHOLDS in config/screening.js
+
+**`src/backend/routes/admin.js`** — 2 new endpoints (both admin-only via adminAuth)
+- `GET /api/admin/permission-flags` — paginated (20/page), ?resolved=true|false filter, returns peer alias, email, permission slug/name, signal type, signal data, timestamps
+- `PATCH /api/admin/permission-flags/:id/resolve` — validates action_taken (5 values); resolves flag with reviewer_id=admin; applies side-effects: refresher_required→inactive, temporary_suspension→suspended, revocation→revoked+revoked_by (DB constraint enforces reviewer required)
+
+**`src/frontend/src/screens/admin/AdminDashboard.jsx`** — PeerPerms tab added
+- Added 'PeerPerms' to TABS array (8th tab)
+- PeerPermsTab component: paginated flag queue, show resolved toggle, resolve flow (inline select + confirm), human-readable signal labels, signal_data summary display
+
+**`src/backend/server.js`**
+- Added runFlagAggregationJob import + cron at '0 3 * * *' (03:00 UTC / 6am Nairobi EAT)
 
 ---
 
