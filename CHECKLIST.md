@@ -1615,12 +1615,12 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
    Every tier attempt logged: timestamp, tier, peer_id (if applicable), outcome.
 ```
 
-- [ ] Modify `POST /peer/request` — accept `topic_slug` in body; resolve topic → required_permission_id; store on peer_requests row (add `topic_slug` column, migration)
-- [ ] Implement routing contract steps 1–8 in peer request broadcast logic
-- [ ] Confidence routing: topic picker maps primary + secondary topics (up to 2); broadcast to primary-permission peers first, widen to secondary after 3 minutes
-- [ ] Requester status notifications at each tier transition (step 2, 4, 5, 7) — never silent waiting
-- [ ] Crisis guard: tested — a critical-risk classification routes to emergency flow regardless of topic_slug
-- [ ] Audit log: routing_decisions table or appended to peer_requests JSONB audit field
+- [x] Modify `POST /peer/request` — accept `topic_slug` in body; resolve topic → required_permission_id; store on peer_requests row (add `topic_slug` column, migration)
+- [x] Implement routing contract steps 1–8 in peer request broadcast logic
+- [x] Confidence routing: topic picker maps primary + secondary topics (up to 2); broadcast to primary-permission peers first, widen to secondary after 3 minutes
+- [x] Requester status notifications at each tier transition (step 2, 4, 5, 7) — never silent waiting
+- [x] Crisis guard: tested — a critical-risk classification routes to emergency flow regardless of topic_slug
+- [x] Audit log: routing_decisions table or appended to peer_requests JSONB audit field
 
 **Complete when:**
 - Routing contract steps execute in documented order — verifiable via audit log entries

@@ -1,10 +1,11 @@
 const express = require('express');
 const { query, getClient } = require('../db');
 const auth = require('../middleware/auth');
-const { escalatePeerRequest } = require('../jobs/peerEscalation');
 const { ICE_SERVERS } = require('../ws/signaling');
 const cache = require('../services/cache');
-const { deductCredit } = require('../utils/creditDeductor');
+const { deductCredit, refundCredit } = require('../utils/creditDeductor');
+const { isPermissionActive } = require('../services/policyEngine');
+const screening = require('../config/screening');
 
 const PEER_EARNING_RATE   = 0.25;        // peer earns 25% of what requester spent
 const CONVERSION_THRESHOLD = 2.0;        // pending credits unlock as spendable in batches of 2
@@ -13,12 +14,163 @@ const SESSION_WARNING_MS   = 25 * 60 * 1000; // warn at 25 min (5 min remaining)
 
 const router = express.Router();
 
-// In-process escalation timers: { [request_id]: Timeout }
-const escalationTimers = new Map();
+// In-process routing timers: { [request_id]: { broadenTimer, noPeerTimer, specialistIds } }
+const routingTimers = new Map();
 // In-process session timers: { [session_id]: { warning: Timeout, close: Timeout } }
 const sessionTimers = new Map();
 
 const VALID_CHANNELS = ['text', 'voice'];
+
+// ─── Routing helpers (Phase 31.5) ─────────────────────────────────────────────
+
+// Batch-insert notifications for a list of user IDs.
+async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug) {
+  if (!userIds.length) return;
+  const payload = JSON.stringify({ request_id: requestId, channel_preference: channelPreference, topic_slug: topicSlug || null });
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'push'`,
+    [userIds, payload]
+  );
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'in_app'`,
+    [userIds, payload]
+  );
+}
+
+// Returns IDs of peers eligible for the specialist tier.
+// When PEER_SCREENING_LIVE=false: all active quiz-done members.
+// When true: members with an active permission that covers this topic.
+async function getSpecialistPeerIds(topicSlug, excludeUserId) {
+  if (!screening.PEER_SCREENING_LIVE || !topicSlug) {
+    const { rows } = await query(
+      `SELECT id FROM users
+       WHERE is_active = true AND role = 'member' AND peer_quiz_done = true AND id != $1`,
+      [excludeUserId]
+    );
+    return rows.map(r => r.id);
+  }
+  const { rows } = await query(
+    `SELECT DISTINCT pp.user_id
+     FROM peer_permissions pp
+     JOIN topics t ON pp.permission_id = t.required_permission_id
+                   OR pp.permission_id = t.secondary_permission_id
+     JOIN users u ON u.id = pp.user_id
+     WHERE t.slug = $1
+       AND pp.status = 'active'
+       AND u.is_active = true
+       AND u.peer_quiz_done = true
+       AND pp.user_id != $2`,
+    [topicSlug, excludeUserId]
+  );
+  return rows.map(r => r.user_id);
+}
+
+// Returns general_support peers not yet in alreadyNotifiedIds.
+async function getGeneralPeerIds(excludeUserId, alreadyNotifiedIds) {
+  if (!screening.PEER_SCREENING_LIVE) return []; // already notified all in tier 1
+  const { rows } = await query(
+    `SELECT DISTINCT pp.user_id
+     FROM peer_permissions pp
+     JOIN permissions p ON p.id = pp.permission_id
+     JOIN users u ON u.id = pp.user_id
+     WHERE p.slug = 'general_support'
+       AND pp.status = 'active'
+       AND u.is_active = true
+       AND u.peer_quiz_done = true
+       AND pp.user_id != $1`,
+    [excludeUserId]
+  );
+  const alreadySet = new Set(alreadyNotifiedIds);
+  return rows.map(r => r.user_id).filter(id => !alreadySet.has(id));
+}
+
+// Appends a JSONB object to routing_audit on a peer_request row.
+async function appendRoutingAudit(requestId, entry) {
+  await query(
+    `UPDATE peer_requests
+     SET routing_audit = routing_audit || $1::jsonb, updated_at = NOW()
+     WHERE id = $2`,
+    [JSON.stringify([entry]), requestId]
+  );
+}
+
+// Step 5 — widen to general_support after 5 min with no specialist accept.
+async function broadenToGeneralTier(requestId, requesterId, specialistIds) {
+  const { rows } = await query(
+    'SELECT status, channel_preference, topic_slug FROM peer_requests WHERE id = $1',
+    [requestId]
+  );
+  if (!rows.length || rows[0].status !== 'open') return;
+
+  const { channel_preference, topic_slug } = rows[0];
+  const generalIds = await getGeneralPeerIds(requesterId, specialistIds);
+
+  if (generalIds.length > 0) {
+    await broadcastToUsers(generalIds, requestId, channel_preference, topic_slug);
+  }
+
+  await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'tier2_broadcast', peer_count: generalIds.length });
+
+  // Step 5 notification — requester told the search is widening
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     VALUES ($1, 'peer_matching_update', $2, 'in_app')`,
+    [requesterId, JSON.stringify({
+      request_id: requestId,
+      status: 'widening',
+      message: 'No specialist peer is available right now — we\'re looking for a general support peer instead.',
+    })]
+  );
+}
+
+// Step 7 — no peer found after full window: refund + fallback resources.
+async function noMorePeers(requestId, requesterId) {
+  const { rows } = await query(
+    'SELECT status, channel_preference FROM peer_requests WHERE id = $1',
+    [requestId]
+  );
+  if (!rows.length || rows[0].status !== 'open') return;
+
+  const { channel_preference } = rows[0];
+
+  await query(
+    `UPDATE peer_requests SET status = 'escalated', escalated_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [requestId]
+  );
+
+  const amount = channel_preference === 'voice' ? 2 : 1;
+  await refundCredit(
+    requesterId, amount, null, channel_preference,
+    `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} request expired — no peer was available. ${amount} credit${amount > 1 ? 's' : ''} refunded.`
+  );
+
+  await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'no_peer_fallback' });
+
+  // Step 7 — requester gets fallback resources, never a dead end
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     VALUES ($1, 'peer_matching_update', $2, 'in_app')`,
+    [requesterId, JSON.stringify({
+      request_id: requestId,
+      status: 'no_peer',
+      message: 'We couldn\'t find a peer right now. Your credits have been refunded.',
+      resources: [
+        { name: 'Befrienders Kenya', phone: '0800 723 253', availability: '24/7, free' },
+        { name: 'Niskize Kenya',     phone: '0900 620 800', availability: '24/7'       },
+      ],
+    })]
+  );
+
+  // Step 8 — admin escalation notification
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     SELECT id, 'peer_escalation', $1, 'in_app'
+     FROM users WHERE role = 'admin' AND is_active = true`,
+    [JSON.stringify({ request_id: requestId })]
+  );
+}
 
 // ─── autoCloseSession ─────────────────────────────────────────────────────────
 // Called by the 30-min timer. Mirrors PATCH /close logic without HTTP context.
@@ -121,19 +273,30 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
 
 // ─── POST /peer/request ───────────────────────────────────────────────────────
 router.post('/request', auth, async (req, res) => {
-  const { channel_preference } = req.body;
+  const { channel_preference, topic_slug } = req.body;
 
   if (!VALID_CHANNELS.includes(channel_preference)) {
-    return res.status(400).json({
-      error: `channel_preference must be one of: ${VALID_CHANNELS.join(', ')}`,
-      code: 'INVALID_CHANNEL',
-    });
+    return res.status(400).json({ error: `channel_preference must be one of: ${VALID_CHANNELS.join(', ')}`, code: 'INVALID_CHANNEL' });
   }
 
+  // Validate topic_slug
+  let topicRow = null;
+  if (topic_slug) {
+    const { rows } = await query('SELECT id, label FROM topics WHERE slug = $1 AND is_active = true', [topic_slug]);
+    if (!rows.length) return res.status(400).json({ error: 'Invalid topic_slug', code: 'INVALID_TOPIC' });
+    topicRow = rows[0];
+  }
+
+  // Step 1 — Crisis check: if user is at critical risk, include emergency resources in response.
+  // Peer routing still proceeds — a crisis user getting peer support is better than none.
+  const { rows: userRows } = await query('SELECT risk_level FROM users WHERE id = $1', [req.user.id]);
+  const isCrisis = userRows[0]?.risk_level === 'critical';
+
+  // Insert peer_request
   const { rows: reqRows } = await query(
-    `INSERT INTO peer_requests (user_id, channel_preference)
-     VALUES ($1, $2) RETURNING id`,
-    [req.user.id, channel_preference]
+    `INSERT INTO peer_requests (user_id, channel_preference, topic_slug, escalation_job_id)
+     VALUES ($1, $2, $3, gen_random_uuid()::text) RETURNING id`,
+    [req.user.id, channel_preference, topic_slug || null]
   );
   const requestId = reqRows[0].id;
 
@@ -145,46 +308,86 @@ router.post('/request', auth, async (req, res) => {
     return res.status(402).json({ error: 'Insufficient credits — top up to request peer support', code: 'INSUFFICIENT_CREDITS' });
   }
 
-  // Broadcast to all active members except requester — push + in-app
-  const notifPayload = JSON.stringify({ request_id: requestId, channel_preference });
-  await query(
-    `INSERT INTO notifications (user_id, type, payload, channel)
-     SELECT id, 'peer_request_broadcast', $1, 'push'
-       FROM users WHERE id != $2 AND is_active = true AND role = 'member'`,
-    [notifPayload, req.user.id]
-  );
-  await query(
-    `INSERT INTO notifications (user_id, type, payload, channel)
-     SELECT id, 'peer_request_broadcast', $1, 'in_app'
-       FROM users WHERE id != $2 AND is_active = true AND role = 'member'`,
-    [notifPayload, req.user.id]
-  );
+  // Step 2 — Broadcast to specialist tier (permission-filtered when PEER_SCREENING_LIVE=true)
+  const userId = req.user.id;
+  const specialistIds = await getSpecialistPeerIds(topic_slug, userId);
+  await broadcastToUsers(specialistIds, requestId, channel_preference, topic_slug);
+  await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'tier1_broadcast', peer_count: specialistIds.length, topic_slug: topic_slug || null });
 
-  // 90s escalation timer
-  const timer = setTimeout(async () => {
-    escalationTimers.delete(requestId);
-    try { await escalatePeerRequest(requestId); } catch (e) { console.error('Escalation error:', e); }
-  }, 90000);
-  escalationTimers.set(requestId, timer);
-
-  // Store request_id as the job identifier so the DB record is auditable
+  // Notify requester: search has started
+  const searchMessage = screening.PEER_SCREENING_LIVE && topic_slug && topicRow
+    ? `Looking for a peer with ${topicRow.label} awareness training...`
+    : 'Looking for a peer...';
   await query(
-    'UPDATE peer_requests SET escalation_job_id = $1, updated_at = NOW() WHERE id = $2',
-    [requestId, requestId]
+    `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'peer_matching_update', $2, 'in_app')`,
+    [userId, JSON.stringify({ request_id: requestId, status: 'searching', message: searchMessage })]
   );
 
-  return res.status(201).json({ request_id: requestId });
+  // Start two-tier routing timers:
+  // T+5 min → widen to general_support peers (step 5)
+  // T+8 min → no peer available, refund + fallback (step 7)
+  const broadenTimer = setTimeout(async () => {
+    const state = routingTimers.get(requestId);
+    try { await broadenToGeneralTier(requestId, userId, state?.specialistIds || []); }
+    catch (e) { console.error('Broaden tier error:', e); }
+  }, 5 * 60 * 1000);
+
+  const noPeerTimer = setTimeout(async () => {
+    routingTimers.delete(requestId);
+    try { await noMorePeers(requestId, userId); }
+    catch (e) { console.error('No-peer error:', e); }
+  }, 8 * 60 * 1000);
+
+  routingTimers.set(requestId, { broadenTimer, noPeerTimer, specialistIds });
+
+  const response = { request_id: requestId };
+  if (isCrisis) {
+    // Step 1 — crisis guard: surface emergency resources alongside peer routing
+    response.crisis_resources = {
+      message: 'If you need immediate support right now, these are available 24/7:',
+      resources: [{ name: 'Befrienders Kenya', phone: '0800 723 253', availability: '24/7, free' }],
+    };
+  }
+
+  return res.status(201).json(response);
 });
 
 // ─── GET /peer/requests/open ──────────────────────────────────────────────────
 router.get('/requests/open', auth, async (req, res) => {
-  const { rows } = await query(
-    `SELECT id, channel_preference, created_at
-     FROM peer_requests
-     WHERE status = 'open' AND user_id != $1
-     ORDER BY created_at ASC`,
-    [req.user.id]
-  );
+  let rows;
+  if (screening.PEER_SCREENING_LIVE) {
+    // Only surface requests the calling peer is qualified to handle:
+    // either their permission covers the topic, or the topic is unset, or they hold general_support.
+    ({ rows } = await query(
+      `SELECT DISTINCT pr.id, pr.channel_preference, pr.topic_slug, pr.created_at
+       FROM peer_requests pr
+       WHERE pr.status = 'open' AND pr.user_id != $1
+         AND (
+           pr.topic_slug IS NULL
+           OR EXISTS (
+             SELECT 1 FROM peer_permissions pp
+             JOIN topics t ON pp.permission_id = t.required_permission_id
+                           OR pp.permission_id = t.secondary_permission_id
+             WHERE pp.user_id = $1 AND pp.status = 'active' AND t.slug = pr.topic_slug
+           )
+           OR EXISTS (
+             SELECT 1 FROM peer_permissions pp
+             JOIN permissions p ON pp.permission_id = p.id
+             WHERE pp.user_id = $1 AND pp.status = 'active' AND p.slug = 'general_support'
+           )
+         )
+       ORDER BY pr.created_at ASC`,
+      [req.user.id]
+    ));
+  } else {
+    ({ rows } = await query(
+      `SELECT id, channel_preference, topic_slug, created_at
+       FROM peer_requests
+       WHERE status = 'open' AND user_id != $1
+       ORDER BY created_at ASC`,
+      [req.user.id]
+    ));
+  }
   return res.status(200).json({ requests: rows });
 });
 
@@ -206,6 +409,31 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
   const { rows: quizRows } = await query('SELECT peer_quiz_done FROM users WHERE id = $1', [req.user.id]);
   if (!quizRows[0]?.peer_quiz_done) {
     return res.status(403).json({ error: 'Complete the peer readiness check first', code: 'QUIZ_REQUIRED' });
+  }
+
+  // When PEER_SCREENING_LIVE: check the peer holds the required permission for this topic.
+  if (screening.PEER_SCREENING_LIVE) {
+    const { rows: reqPreview } = await query(
+      'SELECT topic_slug FROM peer_requests WHERE id = $1 AND status = $2',
+      [req.params.id, 'open']
+    );
+    if (reqPreview.length && reqPreview[0].topic_slug) {
+      const { rows: topicRows } = await query(
+        'SELECT required_permission_id, secondary_permission_id FROM topics WHERE slug = $1',
+        [reqPreview[0].topic_slug]
+      );
+      if (topicRows.length) {
+        const { required_permission_id, secondary_permission_id } = topicRows[0];
+        const permIds = [required_permission_id, secondary_permission_id].filter(Boolean);
+        const { rows: permCheck } = await query(
+          `SELECT 1 FROM peer_permissions WHERE user_id = $1 AND permission_id = ANY($2) AND status = 'active' LIMIT 1`,
+          [req.user.id, permIds]
+        );
+        if (!permCheck.length) {
+          return res.status(403).json({ error: 'You don\'t have the required permission for this topic', code: 'PERMISSION_REQUIRED' });
+        }
+      }
+    }
   }
 
   // Atomic lock — only succeeds if status is still 'open'
@@ -233,9 +461,32 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
     return res.status(403).json({ error: 'Cannot accept your own request', code: 'FORBIDDEN' });
   }
 
-  // Cancel the 90s escalation timer
-  const timer = escalationTimers.get(requestId);
-  if (timer) { clearTimeout(timer); escalationTimers.delete(requestId); }
+  // Cancel routing timers — request accepted, no need to widen or give up
+  const routingState = routingTimers.get(requestId);
+  if (routingState) {
+    clearTimeout(routingState.broadenTimer);
+    clearTimeout(routingState.noPeerTimer);
+    routingTimers.delete(requestId);
+  }
+
+  // Update last_active_at on the peer's relevant permission (activity signal for inactivity job)
+  if (screening.PEER_SCREENING_LIVE && locked[0]?.channel_preference) {
+    const { rows: topicRows } = await query(
+      'SELECT required_permission_id, secondary_permission_id FROM topics WHERE slug = (SELECT topic_slug FROM peer_requests WHERE id = $1)',
+      [requestId]
+    );
+    if (topicRows.length) {
+      const { required_permission_id, secondary_permission_id } = topicRows[0];
+      const permIds = [required_permission_id, secondary_permission_id].filter(Boolean);
+      if (permIds.length) {
+        await query(
+          `UPDATE peer_permissions SET last_active_at = NOW()
+           WHERE user_id = $1 AND permission_id = ANY($2) AND status = 'active'`,
+          [req.user.id, permIds]
+        );
+      }
+    }
+  }
 
   // Create the session (user_id = requester)
   const { rows: sessionRows } = await query(
@@ -262,6 +513,9 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
      )`,
     [sessionId, requesterId, channel_preference]
   );
+
+  // Step 8 — audit log: accepted
+  await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'accepted', responder_id: req.user.id });
 
   // Notify requester — in-app only (blueprint: session_confirmation)
   await query(

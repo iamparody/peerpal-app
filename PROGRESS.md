@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 31.4 COMPLETE — Policy Engine live. Next: Phase 31.5 — Routing Integration.**
+**Phase 31.5 COMPLETE — Routing Integration live. Next: Phase 31.6 — Quality Signals & Moderation.**
 
 ---
 
@@ -24,6 +24,7 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 31.2 Training/Scenario Engine backend — COMPLETE (session 28)
 - 31.3 Skill & Permission Issuance — COMPLETE (session 28)
 - 31.4 Policy Engine — COMPLETE (session 28)
+- 31.5 Routing Integration — COMPLETE (session 28)
 
 ---
 
