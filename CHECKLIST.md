@@ -1505,17 +1505,17 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### Phase 31.1 — Database Schema
 
-- [ ] Migration: `skills` table — id, slug, name, description, prerequisite_skill_ids (array), current_version, created_at
-- [ ] Migration: `skill_scenarios` table — id, skill_id, version, scenario_json (branching tree stored as JSONB), is_active, created_at
-- [ ] Migration: `peer_skills` table — user_id, skill_id, level (1/2/3), scenario_version_completed, earned_at, last_used_at, is_active
-- [ ] Migration: `permissions` table — id, slug, name, description, required_skills (JSONB: [{skill_id, min_version}]), created_at
-- [ ] Migration: `peer_permissions` table — user_id, permission_id, granted_at, expires_if_inactive_days, last_active_at, status (active/inactive/suspended/revoked), scenario_version_at_grant
-- [ ] Migration: `topics` table — id, slug, label (user-facing), required_permission_id, confidence_keywords (array for classifier), is_active
-- [ ] Migration: `skill_attempts` table — user_id, scenario_id, started_at, completed_at, score_json, passed
-- [ ] Migration: `session_reflections` table — session_id, peer_user_id, topic_stayed_in_category (bool), unexpected_topic_arose (bool), felt_prepared (bool), additional_training_wanted (bool), submitted_at
-  - Note: reflections feed system analytics only — never used for individual permission decisions
-- [ ] Migration: `permission_flags` table — user_id, permission_id, signal_type, signal_data (JSONB), flagged_at, reviewed_at, reviewer_id, action_taken, resolved
-- [ ] Verify all new tables have RLS deny-anon policies
+- [x] Migration: `skills` table — 049_skills.sql
+- [x] Migration: `skill_scenarios` table — 050_skill_scenarios.sql
+- [x] Migration: `peer_skills` table — 051_peer_skills.sql
+- [x] Migration: `permissions` table — 052_permissions.sql
+- [x] Migration: `peer_permissions` table — 053_peer_permissions.sql (revocation_requires_reviewer constraint)
+- [x] Migration: `topics` table — 054_topics.sql
+- [x] Migration: `skill_attempts` table — 055_skill_attempts.sql
+- [x] Migration: `session_reflections` table — 056_session_reflections.sql
+- [x] Migration: `permission_flags` table — 057_permission_flags.sql (flag_revocation_requires_reviewer constraint)
+- [x] Migration: `topic_slug` + `secondary_topic_slug` on peer_requests — 058_peer_requests_topic_slug.sql
+- [x] Verify all new tables have RLS deny-anon policies — applied in each migration
 
 **Complete when:**
 - All 8 migrations run cleanly against Supabase with no errors
