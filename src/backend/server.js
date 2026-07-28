@@ -10,6 +10,7 @@ const { runCheckinReminderJob } = require('./jobs/checkinReminderJob');
 const { runDailySummaryJob } = require('./jobs/dailySummaryJob');
 const { runDeletionJob } = require('./jobs/deletionJob');
 const { runPermissionInactivityJob } = require('./jobs/permissionInactivityJob');
+const { runVersionDriftJob } = require('./jobs/versionDriftJob');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -38,6 +39,9 @@ cron.schedule('0 * * * *', () => runDeletionJob().catch(console.error));
 
 // Permission inactivity expiry — 01:00 UTC (4am Nairobi EAT)
 cron.schedule('0 1 * * *', () => runPermissionInactivityJob().catch(console.error));
+
+// Permission version drift check — 02:00 UTC (5am Nairobi EAT)
+cron.schedule('0 2 * * *', () => runVersionDriftJob().catch(console.error));
 
 server.listen(PORT, () => {
   console.log(`PeerPal backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);

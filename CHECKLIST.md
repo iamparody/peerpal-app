@@ -1566,10 +1566,10 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### Phase 31.4 — Policy Engine (backend)
 
-- [ ] `isPermissionActive(userId, permissionSlug)` — checks peer_permissions status + that all required skill versions are still current; returns bool
-- [ ] Version drift check: when a skill's current_version increments, find all peer_permissions granted on older versions; set status = 'inactive' after grace period; enqueue refresh notification
-- [ ] Prerequisite enforcement: block skill issuance if any prerequisite skill not held
-- [ ] `GET /api/policy/permission-status/:permissionSlug` — returns active/inactive/suspended/revoked + reason + action required
+- [x] `isPermissionActive(userId, permissionSlug)` — checks peer_permissions status + that all required skill versions are still current; returns bool
+- [x] Version drift check: when a skill's current_version increments, find all peer_permissions granted on older versions; set status = 'inactive' after grace period; enqueue refresh notification
+- [x] Prerequisite enforcement: block skill issuance if any prerequisite skill not held
+- [x] `GET /api/policy/permission-status/:permissionSlug` — returns active/inactive/suspended/revoked + reason + action required
 
 **Complete when:**
 - isPermissionActive returns false for status=inactive/suspended/revoked

@@ -14,6 +14,7 @@
 const router = require('express').Router();
 const { query } = require('../db');
 const auth = require('../middleware/auth');
+const { checkPrerequisites, syncPermissions } = require('../services/policyEngine');
 
 // All training routes require authentication
 router.use(auth);
@@ -23,53 +24,6 @@ router.use(auth);
 async function getSkillIdBySlug(slug) {
   const { rows } = await query('SELECT id FROM skills WHERE slug = $1 AND is_active = true', [slug]);
   return rows[0]?.id || null;
-}
-
-async function checkPrerequisites(userId, skillId) {
-  const { rows } = await query('SELECT prerequisite_skill_ids FROM skills WHERE id = $1', [skillId]);
-  const prereqIds = rows[0]?.prerequisite_skill_ids || [];
-  if (prereqIds.length === 0) return true;
-
-  const { rows: held } = await query(
-    'SELECT COUNT(*) AS cnt FROM peer_skills WHERE user_id = $1 AND skill_id = ANY($2) AND is_active = true',
-    [userId, prereqIds]
-  );
-  return parseInt(held[0].cnt, 10) >= prereqIds.length;
-}
-
-// Evaluate and grant any permissions the user now qualifies for.
-// Called after a skill is issued.
-async function syncPermissions(userId) {
-  const { rows: perms } = await query(
-    'SELECT id, required_skills FROM permissions WHERE is_active = true'
-  );
-
-  for (const perm of perms) {
-    const required = perm.required_skills; // [{skill_id, min_version}]
-    if (!required.length) continue;
-
-    const skillIds = required.map(r => r.skill_id);
-    const { rows: held } = await query(
-      `SELECT skill_id FROM peer_skills
-       WHERE user_id = $1 AND skill_id = ANY($2) AND is_active = true`,
-      [userId, skillIds]
-    );
-
-    if (held.length < required.length) continue;
-
-    // Check min version for each required skill
-    const heldMap = Object.fromEntries(held.map(r => [r.skill_id, true]));
-    const allMet = required.every(r => heldMap[r.skill_id]);
-    if (!allMet) continue;
-
-    await query(`
-      INSERT INTO peer_permissions (user_id, permission_id, scenario_version_at_grant)
-      VALUES ($1, $2, 1)
-      ON CONFLICT (user_id, permission_id) DO UPDATE
-        SET status = 'active', last_active_at = NOW()
-        WHERE peer_permissions.status = 'inactive'
-    `, [userId, perm.id]);
-  }
 }
 
 // ─── GET /api/training/skills ─────────────────────────────────────────────────
