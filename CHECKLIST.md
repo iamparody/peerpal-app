@@ -1256,10 +1256,10 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [ ] Set `VITE_SENTRY_DSN` in Vercel environment variables — user frontend (React DSN)
 - [ ] Set `VITE_SENTRY_DSN` in Vercel environment variables — admin panel (same React DSN or separate)
 
-### 30.4 Peer text conversation screening — not yet started
-- [ ] Intercept relayed messages in `ws/signaling.js`; run regex patterns (phone, email, physical address)
-- [ ] On match: emit a warning event to both parties via WebSocket; do not block the message
-- [ ] Optional: route flagged messages through a light Groq classifier for nuance
+### 30.4 Peer text conversation screening ✅
+- [x] Intercept relayed messages in `ws/signaling.js`; run regex patterns (Kenyan phone, international phone, email)
+- [x] On match: emit `contact_warning` event to both parties via WebSocket; original message still relayed unchanged
+- [x] Frontend: `contact_warning` handler in `PeerTextChatScreen.jsx`; amber warning banner, auto-dismisses after 8s, manual dismiss button
 
 ---
 
@@ -1395,3 +1395,346 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### 29.7 — Documentation
 - [x] Update GRAPH_REPORT.md: Daraja utils, new endpoints, updated package definitions, migration 045
+
+---
+
+## Phase 31 — Peer Competency & Routing System
+
+> Capability-based access control for peer support. Peers earn skills through
+> scenario-based training, skills unlock permissions, permissions gate which
+> requests a peer receives. This is a safety system first; gamification is a
+> secondary effect. Simplicity principle: the training flow surfaces
+> progressively from within the app at natural moments — never as an
+> onboarding wall.
+
+---
+
+### Safety Invariants (must be preserved by every future feature)
+
+1. No permission implies clinical competence — only demonstrated platform-specific awareness.
+2. Every requester always has a fallback path — no category selection can leave them stranded.
+3. Permissions only expand routing eligibility; they never replace crisis protocols.
+4. Every active permission is traceable to specific skills and scenario versions.
+5. Permissions can be suspended individually without affecting unrelated permissions.
+6. No automated quality signal alone can revoke a permission — human review is required.
+7. All training content is versioned and auditable.
+
+---
+
+### Phase 31.0 — Domain Model & Governance (prerequisite — no code until complete)
+
+> **Clinical sign-off policy:** Draft scenarios are sufficient to build and test the full
+> system. Clinical review is required before the feature is enabled for real users in
+> production. Build with drafts; replace content when sign-off is obtained. All draft
+> scenarios must be clearly marked `status: draft` in the DB and the feature flag
+> `PEER_SCREENING_LIVE=false` must remain set until sign-off is complete.
+
+- [ ] Finalize and freeze skill taxonomy as **Skills v1** — no changes without version bump + change log entry
+- [ ] Finalize and freeze permission taxonomy as **Permissions v1**
+- [ ] Map each permission → required skill IDs + minimum skill versions
+- [ ] Define prerequisite graph as a directed acyclic graph (document clearly — e.g. trauma_informed_communication requires active_listening first)
+- [ ] Define situation categories (situation-based, not diagnosis-based — see list below)
+- [ ] Define supervision queue SLA: named reviewer, response window, permission status while under review
+- [ ] Define version grace period ceiling (recommended: 30 days to complete updated module after version bump)
+- [ ] Define change control process: who approves post-freeze changes, what triggers a version bump, does a version bump require re-running clinical review
+- [ ] Write draft baseline scenarios (5 skills × 1 branching scenario each) — label all as `status: draft`
+- [ ] Write draft specialty scenarios for first wave (trauma, grief, identity) — label as `status: draft`
+- [ ] Obtain clinical review of all scenarios before setting `PEER_SCREENING_LIVE=true` — named reviewer, written sign-off, scenarios updated to `status: approved`
+
+**Baseline skills — Skills v1 (every peer must complete before any specialty):**
+- active_listening
+- empathy_and_validation
+- confidentiality_and_privacy
+- boundary_setting
+- escalation_and_referral
+
+**Specialty skills — Skills v1 (unlock after all baseline complete):**
+- trauma_informed_communication
+- grief_and_loss_support
+- identity_sensitive_communication
+- addiction_awareness
+- domestic_violence_awareness
+- sexual_harassment_awareness
+- relationship_support
+- bullying_support
+- stress_and_burnout
+- financial_stress_support
+- parenting_support
+- disability_awareness
+- cultural_sensitivity
+
+**Situation categories (requester-facing topic picker):**
+- Someone experienced abuse or assault
+- Someone lost a loved one
+- Someone is questioning their identity
+- Someone is struggling in a relationship
+- Someone is overwhelmed by school or work
+- Someone experienced sexual harassment
+- Someone is dealing with addiction
+- Someone experiencing domestic violence
+- Someone is being bullied
+- Someone is burned out or exhausted
+- Someone is dealing with financial pressure
+- Someone needs parenting support
+- General — I just need someone to listen
+
+**Permissions v1 (policy layer — maps topics to required skills):**
+- general_support → [active_listening, empathy_and_validation, boundary_setting, escalation_and_referral]
+- trauma_support → [+ trauma_informed_communication]
+- grief_support → [+ grief_and_loss_support]
+- identity_support → [+ identity_sensitive_communication]
+- addiction_support → [+ addiction_awareness]
+- domestic_violence_support → [+ domestic_violence_awareness]
+- sexual_harassment_support → [+ sexual_harassment_awareness]
+- relationship_support → [+ relationship_support skill]
+- bullying_support → [+ bullying_support skill]
+- stress_burnout_support → [+ stress_and_burnout skill]
+- financial_support → [+ financial_stress_support skill]
+- parenting_support → [+ parenting_support skill]
+- (crisis requests always route to professional services — no permission unlocks them)
+
+**Complete when:**
+- Skill and permission taxonomies exist as named v1 documents, not as code comments
+- Prerequisite graph is documented and reviewed
+- Draft scenarios exist for all 5 baseline skills and first 3 specialty skills, all marked `status: draft`
+- Supervision queue SLA and change control process are documented in writing
+- `PEER_SCREENING_LIVE` feature flag is defined and defaults to `false`
+- Clinical sign-off is tracked separately and does not block 31.1+ from proceeding
+
+---
+
+### Phase 31.1 — Database Schema
+
+- [ ] Migration: `skills` table — id, slug, name, description, prerequisite_skill_ids (array), current_version, created_at
+- [ ] Migration: `skill_scenarios` table — id, skill_id, version, scenario_json (branching tree stored as JSONB), is_active, created_at
+- [ ] Migration: `peer_skills` table — user_id, skill_id, level (1/2/3), scenario_version_completed, earned_at, last_used_at, is_active
+- [ ] Migration: `permissions` table — id, slug, name, description, required_skills (JSONB: [{skill_id, min_version}]), created_at
+- [ ] Migration: `peer_permissions` table — user_id, permission_id, granted_at, expires_if_inactive_days, last_active_at, status (active/inactive/suspended/revoked), scenario_version_at_grant
+- [ ] Migration: `topics` table — id, slug, label (user-facing), required_permission_id, confidence_keywords (array for classifier), is_active
+- [ ] Migration: `skill_attempts` table — user_id, scenario_id, started_at, completed_at, score_json, passed
+- [ ] Migration: `session_reflections` table — session_id, peer_user_id, topic_stayed_in_category (bool), unexpected_topic_arose (bool), felt_prepared (bool), additional_training_wanted (bool), submitted_at
+  - Note: reflections feed system analytics only — never used for individual permission decisions
+- [ ] Migration: `permission_flags` table — user_id, permission_id, signal_type, signal_data (JSONB), flagged_at, reviewed_at, reviewer_id, action_taken, resolved
+- [ ] Verify all new tables have RLS deny-anon policies
+
+**Complete when:**
+- All 8 migrations run cleanly against Supabase with no errors
+- RLS deny-anon policies verified on all 8 new tables
+- Foreign key constraints prevent orphaned peer_skills or peer_permissions rows
+- No peer_permissions row can be set to status=revoked without reviewer_id present
+
+---
+
+### Phase 31.2 — Training & Scenario Engine (backend)
+
+> Depends on Phase 31.0 clinical sign-off for scenario content.
+
+- [ ] `GET /api/training/skills` — list all skills with peer's current status on each; includes prerequisite graph
+- [ ] `GET /api/training/skills/:slug` — skill detail + available scenario(s); requires auth
+- [ ] `POST /api/training/skills/:slug/start` — create skill_attempt row, return scenario_id + first node of scenario_json
+- [ ] `POST /api/training/scenarios/:id/respond` — accept choice_id; return next node; on final node evaluate pass/fail against scoring rubric in scenario_json
+  - Scoring rubric rewards: boundary-setting choices, escalation decisions, admitting uncertainty, open questions
+  - Scoring rubric penalises: advice-giving, clinical claims, minimising disclosures
+- [ ] `POST /api/training/scenarios/:id/complete` — mark attempt complete; if passed and prerequisites met, issue skill in peer_skills
+- [ ] `GET /api/training/my-skills` — return peer's earned skills, levels, versions, and which permissions they unlock
+- [ ] `GET /api/training/my-permissions` — return peer's active permissions with display copy and disclaimer text
+
+**Complete when:**
+- Branching scenarios load from DB (scenario_json JSONB), not from hardcoded files
+- Scoring is deterministic: identical choice sequence always yields identical pass/fail result
+- A peer selecting the advice-giving choice path cannot pass any scenario
+- A peer without all prerequisite skills cannot start a specialty scenario (blocked at API level)
+- scenario_version_completed is stored on the peer_skills row at issuance
+
+---
+
+### Phase 31.3 — Skill & Permission Issuance (backend)
+
+- [ ] Skill issuance service: on scenario pass, insert/update peer_skills; check prerequisite graph; emit in-app notification
+- [ ] Permission issuance service: after skill earned, check if peer now satisfies all requirements for any permission; if yes, grant permission and notify peer
+  - Permission display copy must include disclaimer: "Completed PeerPal's [X] awareness training. Peer supporters provide listening and support, not therapy or professional counselling."
+- [ ] Permission display name rules: never use "certified" or "qualified" — use "Awareness Training Complete" / "Ready" / "Experienced"
+- [ ] Inactivity check cron (runs nightly): set peer_permissions.status = 'inactive' where last_active_at < now - expires_if_inactive_days; send prompt notification
+
+**Complete when:**
+- Skill is never issued without prerequisite graph satisfied (tested by attempting out-of-order)
+- Permission is never issued if any required skill version is below minimum
+- No permission display text uses "certified", "qualified", or "trained professional"
+- Inactivity cron sets status=inactive on the affected permission only — other permissions unaffected
+
+---
+
+### Phase 31.4 — Policy Engine (backend)
+
+- [ ] `isPermissionActive(userId, permissionSlug)` — checks peer_permissions status + that all required skill versions are still current; returns bool
+- [ ] Version drift check: when a skill's current_version increments, find all peer_permissions granted on older versions; set status = 'inactive' after grace period; enqueue refresh notification
+- [ ] Prerequisite enforcement: block skill issuance if any prerequisite skill not held
+- [ ] `GET /api/policy/permission-status/:permissionSlug` — returns active/inactive/suspended/revoked + reason + action required
+
+**Complete when:**
+- isPermissionActive returns false for status=inactive/suspended/revoked
+- isPermissionActive returns false if any required skill version is outdated
+- Version drift check correctly identifies all affected permissions after a skill version bump
+- Prerequisite blocking returns a clear error, not a silent failure
+
+---
+
+### Phase 31.5 — Routing Integration (backend)
+
+**Routing contract — this sequence is a formal contract, not an implementation detail. Any future change to this order requires explicit review.**
+
+```
+1. Crisis check
+   If risk classifier flags message as critical severity → route to emergency flow immediately.
+   Topic selection and permissions are irrelevant at this point.
+
+2. Broadcast to specialist peers
+   Filter: isPermissionActive(peer, required_permission_for_topic) = true AND peer is available.
+   Notify requester: "Looking for a peer with [topic] awareness training..."
+
+3. Self-readiness confirmation (per peer)
+   Peer sees: topic label + "Are you comfortable supporting this conversation? [Yes / Not this time]"
+   Window: 90 seconds. No response = auto-decline. No penalty for declining.
+
+4. On decline or timeout
+   Route to next eligible specialist peer. Requester sees: "Still looking..."
+
+5. After 5 minutes with no specialist accept
+   Widen to general_support peers (active baseline permissions only).
+   Requester sees disclosure: "No specialist peer is available right now — connect with a general peer instead?"
+   Same 90-second self-readiness prompt applies.
+
+6. On general peer decline or timeout
+   Route to next general peer. Continue for up to 3 minutes.
+
+7. No peer available
+   Show user-facing fallback options: professional resources, emergency contacts.
+   Requester is never left with no next step.
+
+8. Audit log
+   Every tier attempt logged: timestamp, tier, peer_id (if applicable), outcome.
+```
+
+- [ ] Modify `POST /peer/request` — accept `topic_slug` in body; resolve topic → required_permission_id; store on peer_requests row (add `topic_slug` column, migration)
+- [ ] Implement routing contract steps 1–8 in peer request broadcast logic
+- [ ] Confidence routing: topic picker maps primary + secondary topics (up to 2); broadcast to primary-permission peers first, widen to secondary after 3 minutes
+- [ ] Requester status notifications at each tier transition (step 2, 4, 5, 7) — never silent waiting
+- [ ] Crisis guard: tested — a critical-risk classification routes to emergency flow regardless of topic_slug
+- [ ] Audit log: routing_decisions table or appended to peer_requests JSONB audit field
+
+**Complete when:**
+- Routing contract steps execute in documented order — verifiable via audit log entries
+- No peer without active required permission can receive a specialist request (tested directly)
+- 90-second timeout enforced and tested by letting window expire
+- Fallback chain produces a user-facing option at step 7 — never a dead end
+- Requester receives a status message at steps 2, 4, 5, and 7
+- Crisis guard tested: critical-risk message bypasses permissions and routes to emergency flow
+
+---
+
+### Phase 31.6 — Quality Signals, Reflections & Moderation (backend + admin)
+
+- [ ] `POST /api/peer/session/:id/reflection` — peer submits post-session reflection (4 yes/no questions); stored in session_reflections; not linked to permission decisions
+- [ ] `POST /api/peer/session/:id/requester-feedback` — requester rates session 1–5 + optional note; stored separately
+- [ ] Flag aggregation job (runs nightly): compute rolling signal patterns per peer per permission; insert into permission_flags if pattern thresholds exceeded (thresholds defined in config, not hardcoded)
+- [ ] Supervision queue API — admin only:
+  - `GET /api/admin/permission-flags` — paginated flag queue with signal summaries
+  - `PATCH /api/admin/permission-flags/:id/resolve` — action: no_action / refresher_recommended / refresher_required / temporary_suspension / revocation; sets peer_permissions.status accordingly; records reviewer_id
+- [ ] Admin panel: new "Peer Permissions" tab — flag queue, peer skill/permission view, manual grant/revoke, signal analytics
+
+**Complete when:**
+- session_reflections table is never joined to permission_flags in any query (enforced by separation of concerns, verified by code review)
+- No code path can set peer_permissions.status=revoked without reviewer_id present (DB constraint + API validation)
+- Supervision queue is accessible to admin role only — 403 for all other roles
+- Flag thresholds are defined in a config object, not hardcoded in application logic
+
+---
+
+### Phase 31.7 — Frontend: Training Flow
+
+> Simplicity principle: surfaces progressively, never as a wall.
+
+**Badge icon map** (icons represent capabilities, not conditions — set scales as new skills are added):
+
+| Skill | Icon | Group | Rationale |
+|---|---|---|---|
+| Active Listening | Ear | Baseline | Listening is the core competency |
+| Empathy & Validation | Heart | Baseline | Universal symbol of compassion |
+| Boundary Setting | Shield | Baseline | Safe limits and self-protection |
+| Confidentiality | Lock | Baseline | Trust and privacy |
+| Escalation & Referral | Lifebuoy | Baseline | Knowing when to seek additional help |
+| Trauma-Informed Communication | Four-leaf clover | Specialty | Resilience and careful support |
+| Grief & Loss Support | Candle | Specialty | Presence, remembrance, and patience |
+| Identity-Sensitive Communication | Prism | Specialty | Many facets without judgment |
+| Sexual Harassment Awareness | Lantern | Specialty | Guidance through difficult situations (see note) |
+| Relationship Support | Bridge | Specialty | Connection and communication |
+| Bullying Support | Umbrella | Specialty | Protection and standing alongside someone |
+| Stress & Burnout | Mountain | Specialty | Endurance and recovery |
+| Financial Stress Support | Compass | Specialty | Finding direction amid uncertainty |
+| Parenting Support | Sapling | Specialty | Growth and guidance |
+| Addiction Awareness | Anchor | Specialty | Stability without implying cure |
+| Domestic Violence Awareness | Lighthouse | Specialty | Safety and finding a way toward help |
+| Disability Awareness | Open door | Specialty | Accessibility and inclusion |
+| Cultural Sensitivity | Globe | Specialty | Respect across backgrounds |
+
+> **Note on Sexual Harassment Awareness icon:** Chess knight was considered (strategic protection) but may read as gaming/leadership to new users without context. Lantern (guidance through a difficult situation, helping someone find their way) is clearer on first sight. If the chess knight fits the brand language, it can be used — but expect users to need onboarding to understand the symbol rather than inferring it.
+
+**Color system:**
+- **Sage Green** — Baseline skills (active, earned)
+- **Amber** — Specialty skills (active, earned)
+- **Blue** — In progress (scenario started, not yet passed)
+- **Slate Gray** — Locked or not yet started
+- **Gold accent** — Milestone (all baseline complete, first specialty earned) — used sparingly
+
+**Icon states:**
+- Locked: slate gray, 40% opacity, padlock overlay
+- In progress: blue tint, partial fill animation
+- Active/earned: full brand colour (sage or amber), solid
+- Inactive (inactivity lapse): full colour at 40% opacity + small clock indicator
+- Suspended: amber with a small pause indicator
+
+- [ ] `TrainingHomeScreen.jsx` at `/training` — shows baseline progress ring + specialty skills; accessible from Profile tab; first surface after onboarding complete
+- [ ] `SkillDetailScreen.jsx` at `/training/:slug` — skill description, what it prepares you for, estimated time, prerequisite status, Start button
+- [ ] `ScenarioScreen.jsx` at `/training/scenario/:id` — branching scenario UI; one situation node at a time; choice buttons; no visible scoring; progress indicator; can pause and resume
+  - Narrative-first design: story branches, not quiz questions
+  - On pass: celebration moment + skill earned card with what it unlocks
+  - On fail: "You can try again" with brief guidance on what the scenario tests — no punitive language
+- [ ] `MyPermissionsScreen.jsx` at `/training/permissions` — lists earned permissions with disclaimer copy; links to relevant scenario refreshers; shows version/activity status
+- [ ] Profile tab: add "Peer Training" card showing skill count + next suggested skill — tap goes to TrainingHomeScreen
+- [ ] Confidence-to-accept overlay: when peer request notification arrives, show topic + yes/not-this-time prompt before accepting (90-second auto-decline)
+- [ ] Post-session reflection modal: fires after peer closes a session — 4 yes/no questions, optional skip after first completion
+
+**Complete when:**
+- TrainingHomeScreen renders correctly at 375px viewport (iPhone SE minimum)
+- Scenario screen retains progress if user navigates away and returns (no lost state)
+- All five badge states (locked/in-progress/active/inactive/suspended) render correctly for every skill
+- Confidence-to-accept 90-second countdown is visible and auto-declines on expiry without user action
+- Post-session reflection submits successfully and skip works without error
+
+---
+
+### Phase 31.8 — Frontend: Requester Topic Picker
+
+- [ ] `PeerRequestScreen.jsx` update — replace plain "Request Help" with topic picker step: scrollable situation cards with icon + 1-line label
+- [ ] Multi-topic: allow selecting primary + one secondary topic
+- [ ] Confidence display: after selection show "You'll be connected with a peer who has completed [X] awareness training" — not peer-specific, category-level
+- [ ] No clinical language in topic labels — situation descriptions only
+
+**Complete when:**
+- Topic selection is required — request cannot be submitted without it (validated at API and UI level)
+- Primary + secondary topic both stored correctly on peer_requests row
+- No diagnostic or clinical language appears in any topic label (manual review)
+- Awareness training copy displays after topic selection and references the category, not an individual peer
+
+---
+
+### Phase 31.9 — System Analytics (admin)
+
+- [ ] Admin stats: add peer competency dashboard — median match time by topic, fallback rate by topic, abandoned requests, confidence-decline rate, unmet demand by topic, skill completion rates
+- [ ] These metrics drive recruitment and training investment decisions — document their interpretation in admin panel tooltips
+
+**Complete when:**
+- All 6 system metrics populate from real session and routing data (not seeded or hardcoded)
+- Each metric has a tooltip explaining what it measures and what action it should prompt
+- Unmet demand by topic is queryable across any date range
+- Data is available within 24 hours of events occurring (nightly aggregation is acceptable)

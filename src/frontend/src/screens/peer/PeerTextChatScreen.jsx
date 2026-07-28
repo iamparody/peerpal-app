@@ -86,12 +86,15 @@ export default function PeerTextChatScreen() {
   const [sessionEnded, setSessionEnded] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
+  const [contactWarning, setContactWarning] = useState(false);
+
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
   const requestIdRef = useRef(null);
   const endTimeRef = useRef(null);
   const timerRef = useRef(null);
   const promptShownRef = useRef(false); // track per-block so it only fires once
+  const warnTimerRef = useRef(null);
 
   const handleEndSession = useCallback(async (reason = 'manual') => {
     clearInterval(timerRef.current);
@@ -150,6 +153,10 @@ export default function PeerTextChatScreen() {
             setMessages((prev) => [...prev, { from: 'peer', text: msg.text, ts: msg.ts || Date.now() }]);
           } else if (msg.type === 'peer_left') {
             setPeerLeft(true);
+          } else if (msg.type === 'contact_warning') {
+            setContactWarning(true);
+            clearTimeout(warnTimerRef.current);
+            warnTimerRef.current = setTimeout(() => setContactWarning(false), 8000);
           }
         };
         ws.onclose = () => setConnected(false);
@@ -158,7 +165,7 @@ export default function PeerTextChatScreen() {
       }
     }
     init();
-    return () => { clearInterval(timerRef.current); wsRef.current?.close(); };
+    return () => { clearInterval(timerRef.current); clearTimeout(warnTimerRef.current); wsRef.current?.close(); };
   }, [sessionId]);
 
   useEffect(() => {
@@ -292,6 +299,15 @@ export default function PeerTextChatScreen() {
       {peerLeft && (
         <div className="info-banner info-banner--warning" style={{ borderRadius: 0, borderLeft: 'none', borderRight: 'none', textAlign: 'center', fontSize: '0.85rem' }}>
           Your peer has left the session.
+        </div>
+      )}
+
+      {contactWarning && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, padding: '10px 14px', background: 'var(--color-warning-bg, #3a2a10)', borderBottom: '1px solid var(--color-warning, #C8943A)', flexShrink: 0 }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--color-warning, #C8943A)', lineHeight: 1.5, margin: 0 }}>
+            For your safety, please avoid sharing personal contact details — phone numbers, email addresses, or locations are against community guidelines.
+          </p>
+          <button onClick={() => setContactWarning(false)} style={{ background: 'none', border: 'none', color: 'var(--color-warning, #C8943A)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, flexShrink: 0, padding: 0 }} aria-label="Dismiss">×</button>
         </div>
       )}
 
