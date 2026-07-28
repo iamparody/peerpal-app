@@ -1439,7 +1439,7 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] Define change control process — governance.md §2
 - [x] Write draft baseline scenarios (5 skills × 1 branching scenario each) — `docs/peer-screening/scenarios/baseline/`
 - [x] Write draft specialty scenarios for first wave (trauma, grief, identity) — `docs/peer-screening/scenarios/specialty/`
-- [ ] Obtain clinical review of all scenarios before setting `PEER_SCREENING_LIVE=true` — named reviewer, written sign-off, scenarios updated to `status: approved`
+- [ ] Obtain clinical review of all scenarios before enabling `PEER_SCREENING_LIVE=true` in **production** — named reviewer, written sign-off, scenarios updated to `status: approved`. Flag may be enabled freely in dev/staging with draft scenarios.
 
 **Baseline skills — Skills v1 (every peer must complete before any specialty):**
 - active_listening

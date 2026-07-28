@@ -12,7 +12,9 @@ The peer screening system can be fully built and tested with this flag off. When
 - Routing engine does NOT filter by permission — all peers remain eligible
 - Topic picker appears in the UI but has no routing effect
 
-Set `PEER_SCREENING_LIVE=true` only after:
+**Development / staging:** Set `PEER_SCREENING_LIVE=true` freely — use draft scenarios for full end-to-end testing.
+
+**Production:** Set `PEER_SCREENING_LIVE=true` only after:
 - All baseline scenario content has received written clinical sign-off
 - Supervision queue has a named reviewer with a defined response window
 - At least 20 peers have completed baseline training in staging
