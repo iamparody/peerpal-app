@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Live on Render (backend) + Vercel (frontend + admin). Phase 30 in progress — age verification shipped; peer broadcast + notifications fixed; PWA installable with new brand logo. Resend domain + Sentry pending config.**
+**Phase 31.2 COMPLETE — Training/Scenario Engine backend live. 18 skills, 12 permissions, 12 topics seeded. 8 draft scenarios in DB. Next: Phase 31.3 — Skill & Permission Issuance service, then frontend training flow (31.7).**
 
 ---
 
@@ -12,11 +12,69 @@
 ### Phase 24 — Help a Friend Module (content-pending)
 Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 
-### Phase 30 — Age Verification, Resend Domain, Sentry, Peer Screening (in progress)
+### Phase 30 — Age Verification, Resend Domain, Sentry, Peer Screening
 - 30.1 Age verification — COMPLETE (shipped 2026-06-19)
 - 30.2 Resend domain — BLOCKED: no custom domain purchased yet
 - 30.3 Sentry — pending DSN config in Render + Vercel env vars (code already in place)
-- 30.4 Peer text screening — not started
+- 30.4 Peer text screening — COMPLETE (session 27: regex patterns in signaling.js, warning banner in PeerTextChatScreen)
+
+### Phase 31 — Peer Competency & Routing System (in progress)
+- 31.0 Governance docs — COMPLETE (session 27)
+- 31.1 DB schema (10 migrations) — COMPLETE (session 27)
+- 31.2 Training/Scenario Engine backend — COMPLETE (session 28)
+
+---
+
+### Session 28 — 2026-07-28
+
+**Phase 31.2 — Training & Scenario Engine (backend) — COMPLETE**
+
+**`src/backend/config/screening.js`**
+- Feature flag `PEER_SCREENING_LIVE` (false until clinical sign-off)
+- `SCENARIO_PASS_PERCENT` = 0.55
+- `SUPERVISION_THRESHOLDS` for the 4 signal types used by the nightly flagging job
+
+**`src/backend/seeds/01_screening_taxonomy.js`**
+- Inserts 18 skills (5 baseline, 13 specialty) with icon names matching frontend badge map
+- Sets prerequisite_skill_ids via slug resolution after insert
+- Inserts 12 permissions with required_skills JSONB (skill UUIDs + min_version)
+- Inserts 12 topics with required_permission_id and secondary_permission_id resolved by slug
+- Idempotent: ON CONFLICT DO NOTHING. Run again safely.
+
+**`src/backend/seeds/02_screening_scenarios.js`**
+- Inserts 8 draft branching scenarios (5 baseline + 3 specialty)
+  - "The Quiet Storm" — active_listening
+  - "The Weight of Small Things" — empathy_and_validation
+  - "The Mutual Friend" — confidentiality_and_privacy
+  - "The Long Night" — boundary_setting
+  - "The Red Flag" — escalation_and_referral
+  - "The Untold Story" — trauma_informed_communication
+  - "The First Year" — grief_and_loss_support
+  - "The Question" — identity_sensitive_communication
+- All status='draft'; production delivery gated behind PEER_SCREENING_LIVE flag
+- Each scenario: 3-node tree (start → 2 middle → end); 4 choices per node
+- Scoring: +15/+10/+5/-10 per choice via points field; pass_threshold=25 out of max 45
+- Tags array on each choice for feedback and analytics (never sent to client)
+
+**`src/backend/routes/training.js`** — 7 endpoints
+- `GET  /api/training/skills` — all skills + caller's status (locked/in_progress/earned/lapsed), prerequisite slugs
+- `GET  /api/training/skills/:slug` — detail + latest scenario metadata + last 5 attempts
+- `POST /api/training/skills/:slug/start` — prerequisite check, finds active scenario, creates attempt with initial score_json state, returns intro + first node (tags/points stripped for client)
+- `POST /api/training/scenarios/:attemptId/respond` — validates choice, updates score_json state, returns next node; on end node: auto-completes attempt, issues peer_skill if passed, calls syncPermissions()
+- `POST /api/training/scenarios/:attemptId/complete` — voluntary abandon; marks passed=false
+- `GET  /api/training/my-skills` — earned skills with contributes_to_permissions array
+- `GET  /api/training/my-permissions` — active permissions with disclaimer text
+
+**Scenario engine invariants:**
+- Tags and points are never sent to client (stripNodeForClient) — scoring cannot be gamed
+- Prerequisites enforced at API level before attempt creation
+- Existing in-progress attempt is auto-abandoned when a new start is requested
+- syncPermissions() fires after every skill issuance — no separate cron needed for initial grant
+- scenario_version_completed stored on peer_skills at issuance
+
+**Seeder run results:**
+- Skills: 18 | Permissions: 12 | Topics: 12
+- Scenarios: 8 inserted, 0 skipped
 
 ---
 

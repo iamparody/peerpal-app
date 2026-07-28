@@ -1529,15 +1529,15 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 > Depends on Phase 31.0 clinical sign-off for scenario content.
 
-- [ ] `GET /api/training/skills` — list all skills with peer's current status on each; includes prerequisite graph
-- [ ] `GET /api/training/skills/:slug` — skill detail + available scenario(s); requires auth
-- [ ] `POST /api/training/skills/:slug/start` — create skill_attempt row, return scenario_id + first node of scenario_json
-- [ ] `POST /api/training/scenarios/:id/respond` — accept choice_id; return next node; on final node evaluate pass/fail against scoring rubric in scenario_json
+- [x] `GET /api/training/skills` — list all skills with peer's current status on each; includes prerequisite graph
+- [x] `GET /api/training/skills/:slug` — skill detail + available scenario(s); requires auth
+- [x] `POST /api/training/skills/:slug/start` — create skill_attempt row, return scenario_id + first node of scenario_json
+- [x] `POST /api/training/scenarios/:id/respond` — accept choice_id; return next node; on final node evaluate pass/fail against scoring rubric in scenario_json
   - Scoring rubric rewards: boundary-setting choices, escalation decisions, admitting uncertainty, open questions
   - Scoring rubric penalises: advice-giving, clinical claims, minimising disclosures
-- [ ] `POST /api/training/scenarios/:id/complete` — mark attempt complete; if passed and prerequisites met, issue skill in peer_skills
-- [ ] `GET /api/training/my-skills` — return peer's earned skills, levels, versions, and which permissions they unlock
-- [ ] `GET /api/training/my-permissions` — return peer's active permissions with display copy and disclaimer text
+- [x] `POST /api/training/scenarios/:id/complete` — mark attempt complete; if passed and prerequisites met, issue skill in peer_skills
+- [x] `GET /api/training/my-skills` — return peer's earned skills, levels, versions, and which permissions they unlock
+- [x] `GET /api/training/my-permissions` — return peer's active permissions with display copy and disclaimer text
 
 **Complete when:**
 - Branching scenarios load from DB (scenario_json JSONB), not from hardcoded files

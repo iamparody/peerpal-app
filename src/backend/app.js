@@ -55,6 +55,7 @@ app.use('/api/referrals',     require('./routes/referrals'));
 app.use('/api/therapists',    require('./routes/therapists'));
 app.use('/api/profile',       require('./routes/profile'));
 app.use('/api/analytics',     require('./routes/analytics'));
+app.use('/api/training',      require('./routes/training'));
 
 // ─── Sentry error handler (must be before custom error handler) ───────────────
 if (process.env.SENTRY_DSN) {
