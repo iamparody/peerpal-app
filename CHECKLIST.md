@@ -1429,16 +1429,16 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > scenarios must be clearly marked `status: draft` in the DB and the feature flag
 > `PEER_SCREENING_LIVE=false` must remain set until sign-off is complete.
 
-- [ ] Finalize and freeze skill taxonomy as **Skills v1** — no changes without version bump + change log entry
-- [ ] Finalize and freeze permission taxonomy as **Permissions v1**
-- [ ] Map each permission → required skill IDs + minimum skill versions
-- [ ] Define prerequisite graph as a directed acyclic graph (document clearly — e.g. trauma_informed_communication requires active_listening first)
-- [ ] Define situation categories (situation-based, not diagnosis-based — see list below)
-- [ ] Define supervision queue SLA: named reviewer, response window, permission status while under review
-- [ ] Define version grace period ceiling (recommended: 30 days to complete updated module after version bump)
-- [ ] Define change control process: who approves post-freeze changes, what triggers a version bump, does a version bump require re-running clinical review
-- [ ] Write draft baseline scenarios (5 skills × 1 branching scenario each) — label all as `status: draft`
-- [ ] Write draft specialty scenarios for first wave (trauma, grief, identity) — label as `status: draft`
+- [x] Finalize and freeze skill taxonomy as **Skills v1** — `docs/peer-screening/taxonomy-v1.md`
+- [x] Finalize and freeze permission taxonomy as **Permissions v1** — `docs/peer-screening/taxonomy-v1.md`
+- [x] Map each permission → required skill IDs + minimum skill versions — taxonomy-v1.md §2
+- [x] Define prerequisite graph as a directed acyclic graph — `docs/peer-screening/prerequisite-graph.md`
+- [x] Define situation categories (situation-based, not diagnosis-based) — taxonomy-v1.md §3
+- [x] Define supervision queue SLA: named reviewer, response window, permission status while under review — `docs/peer-screening/governance.md` §3
+- [x] Define version grace period ceiling (30 days) — governance.md §4
+- [x] Define change control process — governance.md §2
+- [x] Write draft baseline scenarios (5 skills × 1 branching scenario each) — `docs/peer-screening/scenarios/baseline/`
+- [x] Write draft specialty scenarios for first wave (trauma, grief, identity) — `docs/peer-screening/scenarios/specialty/`
 - [ ] Obtain clinical review of all scenarios before setting `PEER_SCREENING_LIVE=true` — named reviewer, written sign-off, scenarios updated to `status: approved`
 
 **Baseline skills — Skills v1 (every peer must complete before any specialty):**
