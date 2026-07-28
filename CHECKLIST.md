@@ -1550,11 +1550,11 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### Phase 31.3 — Skill & Permission Issuance (backend)
 
-- [ ] Skill issuance service: on scenario pass, insert/update peer_skills; check prerequisite graph; emit in-app notification
-- [ ] Permission issuance service: after skill earned, check if peer now satisfies all requirements for any permission; if yes, grant permission and notify peer
+- [x] Skill issuance service: on scenario pass, insert/update peer_skills; check prerequisite graph; emit in-app notification
+- [x] Permission issuance service: after skill earned, check if peer now satisfies all requirements for any permission; if yes, grant permission and notify peer
   - Permission display copy must include disclaimer: "Completed PeerPal's [X] awareness training. Peer supporters provide listening and support, not therapy or professional counselling."
-- [ ] Permission display name rules: never use "certified" or "qualified" — use "Awareness Training Complete" / "Ready" / "Experienced"
-- [ ] Inactivity check cron (runs nightly): set peer_permissions.status = 'inactive' where last_active_at < now - expires_if_inactive_days; send prompt notification
+- [x] Permission display name rules: never use "certified" or "qualified" — use "Awareness Training Complete" / "Ready" / "Experienced"
+- [x] Inactivity check cron (runs nightly): set peer_permissions.status = 'inactive' where last_active_at < now - expires_if_inactive_days; send prompt notification
 
 **Complete when:**
 - Skill is never issued without prerequisite graph satisfied (tested by attempting out-of-order)

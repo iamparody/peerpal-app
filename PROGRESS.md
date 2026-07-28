@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 31.2 COMPLETE — Training/Scenario Engine backend live. 18 skills, 12 permissions, 12 topics seeded. 8 draft scenarios in DB. Next: Phase 31.3 — Skill & Permission Issuance service, then frontend training flow (31.7).**
+**Phase 31.3 COMPLETE — Permission inactivity cron live. Next: Phase 31.4 — Policy Engine.**
 
 ---
 
@@ -22,6 +22,7 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 31.0 Governance docs — COMPLETE (session 27)
 - 31.1 DB schema (10 migrations) — COMPLETE (session 27)
 - 31.2 Training/Scenario Engine backend — COMPLETE (session 28)
+- 31.3 Skill & Permission Issuance — COMPLETE (session 28)
 
 ---
 
