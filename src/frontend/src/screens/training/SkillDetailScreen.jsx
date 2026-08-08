@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Ear, Heart, Lock, Shield, LifePreserver, Leaf, Candle, Rainbow,
+  Ear, Heart, Lock, Shield, Lifebuoy, Leaf, Flame, Rainbow,
   Lightbulb, Link, Umbrella, Mountains, Compass, Plant, Anchor,
   Lighthouse, DoorOpen, Globe, Clock, Star, CheckCircle, XCircle,
 } from '@phosphor-icons/react';
@@ -12,9 +12,9 @@ const SKILL_ICONS = {
   heart:        Heart,
   lock:         Lock,
   shield:       Shield,
-  lifebuoy:     LifePreserver,
+  lifebuoy:     Lifebuoy,
   clover:       Leaf,
-  candle:       Candle,
+  candle:       Flame,
   prism:        Rainbow,
   lantern:      Lightbulb,
   bridge:       Link,
