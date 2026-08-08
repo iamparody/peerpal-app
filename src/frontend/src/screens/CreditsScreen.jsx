@@ -1,13 +1,55 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coin, CheckCircle, X } from '@phosphor-icons/react';
+import { Coin, CheckCircle, X, Leaf, Heart, Mountains } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const PACKAGES = [
-  { id: 'standard', label: 'Standard', price: 100, credits: 7,  desc: 'Most popular' },
-  { id: 'plus',     label: 'Plus',     price: 250, credits: 15, desc: 'Best value' },
-  { id: 'premium',  label: 'Premium',  price: 500, credits: 40, desc: 'Power user' },
+  {
+    id: 'standard',
+    name: 'Just for now',
+    tagline: 'Take it one day at a time',
+    price: 100,
+    credits: 7,
+    Icon: Leaf,
+    highlight: false,
+    iconColor: '#C2A48A',
+    iconBg: 'rgba(194,164,138,0.14)',
+    cardBg: 'rgba(255,255,255,0.55)',
+    border: '1px solid rgba(75,58,47,0.11)',
+    shadow: '0 4px 24px rgba(47,38,34,0.07), 0 1px 4px rgba(47,38,34,0.04)',
+    priceColor: 'var(--color-text-primary)',
+  },
+  {
+    id: 'plus',
+    name: "I'm committed",
+    tagline: "You're showing up for yourself",
+    price: 250,
+    credits: 15,
+    Icon: Heart,
+    highlight: true,
+    iconColor: '#8FAF9A',
+    iconBg: 'rgba(143,175,154,0.2)',
+    cardBg: 'rgba(143,175,154,0.09)',
+    border: '1.5px solid rgba(143,175,154,0.42)',
+    shadow: '0 8px 36px rgba(143,175,154,0.18), 0 2px 8px rgba(47,38,34,0.06)',
+    priceColor: '#6B9A7A',
+  },
+  {
+    id: 'premium',
+    name: 'All of me',
+    tagline: 'Full support, nothing held back',
+    price: 500,
+    credits: 40,
+    Icon: Mountains,
+    highlight: false,
+    iconColor: '#C2A48A',
+    iconBg: 'rgba(194,164,138,0.14)',
+    cardBg: 'rgba(255,255,255,0.55)',
+    border: '1px solid rgba(75,58,47,0.11)',
+    shadow: '0 4px 24px rgba(47,38,34,0.07), 0 1px 4px rgba(47,38,34,0.04)',
+    priceColor: 'var(--color-text-primary)',
+  },
 ];
 
 function txLabel(tx) {
@@ -75,7 +117,7 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1rem' }}>M-Pesa Payment</div>
+            <div style={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--font-editorial)' }}>{pkg.name}</div>
             <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
               {pkg.credits} credits · KSh {pkg.price}
             </div>
@@ -246,48 +288,77 @@ export default function CreditsScreen() {
         </div>
 
         {/* Top up */}
-        <div>
-          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 'var(--space-sm)' }}>
-            Top up
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
-            {PACKAGES.map((pkg) => (
-              <button
-                key={pkg.id}
-                onClick={() => { setPurchaseMessage(''); setModalError(''); setPendingPkg(pkg); }}
-                style={{
-                  padding: '14px 10px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--color-border)',
-                  background: 'var(--color-surface-card)',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  transition: 'border-color var(--duration-fast)',
-                }}
-              >
-                <div style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: 20, marginBottom: 2 }}>
-                  {pkg.credits} cr
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {PACKAGES.map((pkg) => (
+            <button
+              key={pkg.id}
+              onClick={() => { setPurchaseMessage(''); setModalError(''); setPendingPkg(pkg); }}
+              style={{
+                width: '100%',
+                padding: '18px 20px',
+                borderRadius: 'var(--radius-md)',
+                border: pkg.border,
+                background: pkg.cardBg,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                boxShadow: pkg.shadow,
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                transform: pkg.highlight ? 'scale(1.015)' : 'scale(1)',
+                transition: 'transform 180ms ease, box-shadow 180ms ease',
+              }}
+            >
+              <div style={{
+                width: 46, height: 46,
+                borderRadius: 13,
+                background: pkg.iconBg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <pkg.Icon size={22} weight="duotone" color={pkg.iconColor} />
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontFamily: 'var(--font-editorial)',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  color: 'var(--color-text-primary)',
+                  marginBottom: 3,
+                }}>
+                  {pkg.name}
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600, marginBottom: 2 }}>KSh {pkg.price}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{pkg.desc}</div>
-              </button>
-            ))}
-          </div>
-          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--color-surface-secondary)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
-            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 4 }}>How credits work</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span>💬 Peer text chat — <strong>1 credit = 30 min</strong></span>
-              <span>🎙️ Peer voice call — <strong>2 credits = 30 min</strong></span>
-              <span>⏱️ Extend any session for the same cost per 30 min</span>
-              <span>🩺 Therapist referral — <strong>free</strong></span>
-            </div>
-            <div style={{ marginTop: 6, borderTop: '1px solid var(--color-divider)', paddingTop: 6, color: 'var(--color-text-muted)' }}>
-              Always free: AI chat · Journal · Mood check-in · Breathing · Resources · Emergency
-            </div>
-            <div style={{ marginTop: 4, color: 'var(--color-text-muted)' }}>
-              Unused credits from cancelled or expired requests are automatically refunded.
-            </div>
-          </div>
+                <div style={{
+                  fontSize: '0.78rem',
+                  color: 'var(--color-text-muted)',
+                  lineHeight: 1.4,
+                }}>
+                  {pkg.tagline}
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{
+                  fontWeight: 800,
+                  fontSize: '1.05rem',
+                  color: pkg.priceColor,
+                  letterSpacing: '-0.01em',
+                }}>
+                  KSh {pkg.price}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  {pkg.credits} credits
+                </div>
+              </div>
+            </button>
+          ))}
+
+          <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 4, lineHeight: 1.6 }}>
+            1 credit = 30 min peer session · unused credits refunded automatically
+          </p>
         </div>
 
         {/* Transaction history */}
