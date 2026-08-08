@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Heart } from '@phosphor-icons/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import BottomNav from './components/BottomNav';
@@ -207,7 +208,7 @@ function PeerRequestBanner() {
         boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
       }}
     >
-      <span style={{ fontSize: 20, flexShrink: 0 }}>💙</span>
+      <Heart size={20} weight="fill" color="#fff" style={{ flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 700, fontSize: '0.88rem', lineHeight: 1.3 }}>
           Someone needs support

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
@@ -10,17 +11,17 @@ const COST_INFO = {
 
 const QUIZ_STEPS = [
   {
-    emoji: '🧘',
+    Icon: Brain,
     question: 'Are you in a safe, calm place right now where you can give someone your full attention?',
     confirm: "Yes, I'm ready",
   },
   {
-    emoji: '🩺',
+    Icon: Stethoscope,
     question: 'I understand that as a peer supporter, I am not a therapist and will not give medical advice or diagnoses.',
     confirm: 'I understand',
   },
   {
-    emoji: '🔒',
+    Icon: Lock,
     question: 'I will keep everything shared in peer sessions completely confidential.',
     confirm: 'I commit to this',
   },
@@ -48,7 +49,7 @@ function PeerQuizGate({ onComplete }) {
   if (phase === 'done') {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '24px 16px' }}>
-        <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+        <CheckCircle size={40} weight="fill" color="var(--color-calm)" style={{ marginBottom: 8 }} />
         <p style={{ fontWeight: 600 }}>Readiness check complete!</p>
         <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>You can now accept peer requests.</p>
       </div>
@@ -59,7 +60,7 @@ function PeerQuizGate({ onComplete }) {
     return (
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '20px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 28 }}>🤝</span>
+          <Handshake size={28} weight="duotone" color="var(--color-calm)" />
           <div>
             <div style={{ fontWeight: 600, fontSize: 15 }}>Ready to help someone?</div>
             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Complete a quick 3-step readiness check first</div>
@@ -90,7 +91,7 @@ function PeerQuizGate({ onComplete }) {
       </div>
 
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>{current.emoji}</div>
+        <div style={{ marginBottom: 12 }}><current.Icon size={40} weight="duotone" color="var(--color-accent)" /></div>
         <p style={{ fontSize: 15, lineHeight: 1.6, fontWeight: 500 }}>{current.question}</p>
       </div>
 
@@ -125,8 +126,11 @@ function ConfidenceOverlay({ request, topicLabel, onAccept, onDecline }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
       <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
-        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>
-          {request.channel_preference === 'voice' ? '🎙️ Voice' : '💬 Text'} support needed
+        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {request.channel_preference === 'voice'
+            ? <><Microphone size={18} weight="duotone" /> Voice</>
+            : <><ChatText size={18} weight="duotone" /> Text</>
+          } support needed
         </div>
         {topicLabel && (
           <div style={{ fontSize: '0.88rem', color: 'var(--color-accent)', marginBottom: 12 }}>
@@ -363,7 +367,9 @@ export default function PeerRequestScreen() {
                     cursor: 'pointer', textAlign: 'center',
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)' }}>{val === 'text' ? '💬' : '🎙️'} {info.label}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {val === 'text' ? <ChatText size={16} weight="duotone" /> : <Microphone size={16} weight="duotone" />} {info.label}
+                  </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{info.desc}</div>
                 </button>
               ))}
@@ -483,7 +489,10 @@ export default function PeerRequestScreen() {
                     return (
                       <div key={req.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{req.channel_preference === 'voice' ? '🎙️ Voice' : '💬 Text'} session</div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {req.channel_preference === 'voice' ? <Microphone size={15} weight="duotone" /> : <ChatText size={15} weight="duotone" />}
+                            {req.channel_preference === 'voice' ? 'Voice' : 'Text'} session
+                          </div>
                           {topicInfo && <div style={{ fontSize: '0.75rem', color: 'var(--color-accent)', marginTop: 2 }}>{topicInfo.label}</div>}
                           <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 1 }}>{new Date(req.created_at).toLocaleTimeString()}</div>
                         </div>

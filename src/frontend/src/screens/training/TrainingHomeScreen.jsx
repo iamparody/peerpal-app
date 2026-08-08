@@ -1,12 +1,31 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Ear, Heart, Lock, Shield, LifePreserver, Leaf, Candle, Rainbow,
+  Lightbulb, Link, Umbrella, Mountains, Compass, Plant, Anchor,
+  Lighthouse, DoorOpen, Globe, Clock, Star,
+} from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const SKILL_ICONS = {
-  ear: '👂', heart: '💛', lock: '🔒', shield: '🛡️', lifebuoy: '🛟',
-  clover: '🍀', candle: '🕯️', prism: '🌈', lantern: '🏮', bridge: '🌁',
-  umbrella: '☂️', mountain: '⛰️', compass: '🧭', sapling: '🌱',
-  anchor: '⚓', lighthouse: '🗼', 'door-open': '🚪', globe: '🌍',
+  ear:          Ear,
+  heart:        Heart,
+  lock:         Lock,
+  shield:       Shield,
+  lifebuoy:     LifePreserver,
+  clover:       Leaf,
+  candle:       Candle,
+  prism:        Rainbow,
+  lantern:      Lightbulb,
+  bridge:       Link,
+  umbrella:     Umbrella,
+  mountain:     Mountains,
+  compass:      Compass,
+  sapling:      Plant,
+  anchor:       Anchor,
+  lighthouse:   Lighthouse,
+  'door-open':  DoorOpen,
+  globe:        Globe,
 };
 
 function ProgressRing({ earned, total }) {
@@ -59,9 +78,10 @@ function SkillBadge({ skill, navigate }) {
         minHeight: 90,
       }}
     >
-      <span style={{ fontSize: 28, filter: locked ? 'grayscale(1)' : 'none', lineHeight: 1 }}>
-        {SKILL_ICONS[skill.icon_name] || '✦'}
-      </span>
+      {(() => {
+        const IconComp = SKILL_ICONS[skill.icon_name] || Star;
+        return <IconComp size={26} weight="duotone" color={locked ? '#9E9E9E' : labelColor} />;
+      })()}
       <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor, textAlign: 'center', lineHeight: 1.3 }}>
         {skill.name}
       </span>
@@ -69,7 +89,9 @@ function SkillBadge({ skill, navigate }) {
         <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: '50%', background: '#6B8CC7' }} />
       )}
       {lapsed && (
-        <span style={{ position: 'absolute', bottom: 5, right: 5, fontSize: 10 }}>🕐</span>
+        <span style={{ position: 'absolute', bottom: 4, right: 4 }}>
+          <Clock size={11} weight="bold" color="#9E9E9E" />
+        </span>
       )}
     </button>
   );

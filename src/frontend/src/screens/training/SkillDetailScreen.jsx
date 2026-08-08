@@ -1,12 +1,31 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Ear, Heart, Lock, Shield, LifePreserver, Leaf, Candle, Rainbow,
+  Lightbulb, Link, Umbrella, Mountains, Compass, Plant, Anchor,
+  Lighthouse, DoorOpen, Globe, Clock, Star, CheckCircle, XCircle,
+} from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const SKILL_ICONS = {
-  ear: '👂', heart: '💛', lock: '🔒', shield: '🛡️', lifebuoy: '🛟',
-  clover: '🍀', candle: '🕯️', prism: '🌈', lantern: '🏮', bridge: '🌁',
-  umbrella: '☂️', mountain: '⛰️', compass: '🧭', sapling: '🌱',
-  anchor: '⚓', lighthouse: '🗼', 'door-open': '🚪', globe: '🌍',
+  ear:          Ear,
+  heart:        Heart,
+  lock:         Lock,
+  shield:       Shield,
+  lifebuoy:     LifePreserver,
+  clover:       Leaf,
+  candle:       Candle,
+  prism:        Rainbow,
+  lantern:      Lightbulb,
+  bridge:       Link,
+  umbrella:     Umbrella,
+  mountain:     Mountains,
+  compass:      Compass,
+  sapling:      Plant,
+  anchor:       Anchor,
+  lighthouse:   Lighthouse,
+  'door-open':  DoorOpen,
+  globe:        Globe,
 };
 
 export default function SkillDetailScreen() {
@@ -81,7 +100,7 @@ export default function SkillDetailScreen() {
   const locked = s?.status === 'locked';
   const inProgress = s?.status === 'in_progress';
   const groupColor = earned ? (s.skill_group === 'baseline' ? '#8FAF9A' : '#C8943A') : 'var(--color-accent)';
-  const icon = SKILL_ICONS[s?.icon_name] || '✦';
+  const IconComp = SKILL_ICONS[s?.icon_name] || Star;
   const activeAttempt = recent_attempts?.find(a => !a.completed_at);
 
   return (
@@ -94,12 +113,12 @@ export default function SkillDetailScreen() {
       <div style={{ padding: '0 var(--space-md) var(--space-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {/* Skill hero */}
         <div className="card" style={{ textAlign: 'center', padding: '24px 16px', borderTop: `4px solid ${groupColor}` }}>
-          <div style={{ fontSize: 52, marginBottom: 12, lineHeight: 1 }}>{icon}</div>
+          <div style={{ marginBottom: 12 }}><IconComp size={48} weight="duotone" color={groupColor} /></div>
           <h2 style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.25rem', marginBottom: 8, color: groupColor }}>{s?.name}</h2>
           <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.65 }}>{s?.description}</p>
           {earned && s?.earned_at && (
             <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, background: groupColor + '22', borderRadius: 'var(--radius-pill)', padding: '4px 14px' }}>
-              <span style={{ color: groupColor, fontWeight: 700 }}>✓</span>
+              <CheckCircle size={14} weight="fill" color={groupColor} />
               <span style={{ fontSize: '0.8rem', fontWeight: 600, color: groupColor }}>
                 Earned {new Date(s.earned_at).toLocaleDateString()}
               </span>
@@ -113,7 +132,9 @@ export default function SkillDetailScreen() {
             <h3 style={{ marginBottom: 'var(--space-sm)' }}>Scenario</h3>
             <p style={{ fontWeight: 500, marginBottom: 6 }}>{scenario.title}</p>
             {scenario.estimated_minutes && (
-              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>⏱ About {scenario.estimated_minutes} minutes</p>
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={13} weight="regular" />About {scenario.estimated_minutes} minutes
+              </p>
             )}
           </div>
         )}
@@ -140,8 +161,11 @@ export default function SkillDetailScreen() {
             <h3 style={{ marginBottom: 'var(--space-sm)' }}>Recent Attempts</h3>
             {recent_attempts.filter(a => a.completed_at).map((a, i) => (
               <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < recent_attempts.length - 1 ? '1px solid var(--color-divider)' : 'none', fontSize: '0.82rem' }}>
-                <span style={{ color: a.passed ? '#8FAF9A' : 'var(--color-danger)', fontWeight: 500 }}>
-                  {a.passed ? '✓ Passed' : '✗ Did not pass'}
+                <span style={{ color: a.passed ? '#8FAF9A' : 'var(--color-danger)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {a.passed
+                    ? <><CheckCircle size={13} weight="fill" /> Passed</>
+                    : <><XCircle size={13} weight="fill" /> Did not pass</>
+                  }
                 </span>
                 <span style={{ color: 'var(--color-text-muted)' }}>{new Date(a.started_at).toLocaleDateString()}</span>
               </div>

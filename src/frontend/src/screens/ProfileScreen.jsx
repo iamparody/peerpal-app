@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Coin, SignOut } from '@phosphor-icons/react';
+import { Coin, SignOut, Fire, GraduationCap } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 
@@ -171,7 +171,9 @@ export default function ProfileScreen() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Streak</span>
-              <span style={{ fontWeight: 600, color: 'var(--color-warning)' }}>{profile?.streak_count ?? 0} 🔥</span>
+              <span style={{ fontWeight: 600, color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {profile?.streak_count ?? 0} <Fire size={15} weight="fill" color="var(--color-warning)" />
+              </span>
             </div>
           </div>
         </div>
@@ -307,7 +309,7 @@ export default function ProfileScreen() {
             <span style={{ color: 'var(--color-accent)', fontSize: '0.85rem', fontWeight: 600 }}>View →</span>
           </div>
           <div style={{ marginTop: 'var(--space-sm)', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 28 }}>🎓</span>
+            <GraduationCap size={28} weight="duotone" color="var(--color-calm)" />
             <div>
               {trainingData?.skills?.length > 0 ? (
                 <>

@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Trophy, Handshake, CheckCircle, BookOpen, Stethoscope, Clipboard,
+  ChatText, Warning, Bell, BellSlash, Info,
+} from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 
@@ -11,18 +15,18 @@ const LANES = [
 ];
 
 const TYPE_META = {
-  milestone:              { icon: '🏆', label: 'Milestone',            route: '/analytics' },
-  peer_broadcast:         { icon: '🤝', label: 'Peer update',           route: '/peer' },
-  peer_request_broadcast: { icon: '🤝', label: 'Someone needs support', route: '/peer' },
-  session_confirmation:   { icon: '✅', label: 'Session confirmed',     route: '/peer' },
-  journal_prompt:         { icon: '📓', label: 'Journal prompt',        route: '/journal' },
-  therapist_update:  { icon: '🩺', label: 'Therapist update',   route: '/therapists/status' },
-  referral_status:   { icon: '📋', label: 'Referral update',    route: '/referral' },
-  admin_message:     { icon: '💬', label: 'Message from admin', route: null },
-  credit_low:        { icon: '⚠️', label: 'Low balance',        route: '/credits' },
-  payment_confirmed: { icon: '✅', label: 'Payment confirmed',  route: '/credits' },
-  account_notice:    { icon: 'ℹ️', label: 'Account notice',     route: '/profile' },
-  generic:           { icon: '🔔', label: 'Notification',       route: null },
+  milestone:              { Icon: Trophy,       label: 'Milestone',            route: '/analytics' },
+  peer_broadcast:         { Icon: Handshake,    label: 'Peer update',           route: '/peer' },
+  peer_request_broadcast: { Icon: Handshake,    label: 'Someone needs support', route: '/peer' },
+  session_confirmation:   { Icon: CheckCircle,  label: 'Session confirmed',     route: '/peer' },
+  journal_prompt:         { Icon: BookOpen,     label: 'Journal prompt',        route: '/journal' },
+  therapist_update:       { Icon: Stethoscope,  label: 'Therapist update',      route: '/therapists/status' },
+  referral_status:        { Icon: Clipboard,    label: 'Referral update',       route: '/referral' },
+  admin_message:          { Icon: ChatText,     label: 'Message from admin',    route: null },
+  credit_low:             { Icon: Warning,      label: 'Low balance',           route: '/credits' },
+  payment_confirmed:      { Icon: CheckCircle,  label: 'Payment confirmed',     route: '/credits' },
+  account_notice:         { Icon: Info,         label: 'Account notice',        route: '/profile' },
+  generic:                { Icon: Bell,         label: 'Notification',          route: null },
 };
 
 function timeAgo(dateStr) {
@@ -38,6 +42,7 @@ function timeAgo(dateStr) {
 function NotifRow({ notif, onRead }) {
   const navigate = useNavigate();
   const meta = TYPE_META[notif.type] ?? TYPE_META.generic;
+  const { Icon } = meta;
   const body = notif.payload?.message ?? notif.payload?.body ?? notif.payload?.text ?? '';
   const unread = !notif.read_at;
 
@@ -58,7 +63,7 @@ function NotifRow({ notif, onRead }) {
         transition: 'background 150ms ease',
       }}
     >
-      <span style={{ fontSize: 22, flexShrink: 0, marginTop: 1 }}>{meta.icon}</span>
+      <Icon size={22} weight="duotone" color="var(--color-accent)" style={{ flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span style={{ fontWeight: unread ? 700 : 500, fontSize: '0.88rem', color: 'var(--color-text-primary)' }}>
@@ -203,7 +208,7 @@ export default function NotificationsScreen() {
           </div>
         ) : visible.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 10, textAlign: 'center' }}>
-            <span style={{ fontSize: 36 }}>🔕</span>
+            <BellSlash size={36} weight="duotone" color="var(--color-text-muted)" />
             <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>No {activeLane.label.toLowerCase()} notifications yet.</p>
           </div>
         ) : (

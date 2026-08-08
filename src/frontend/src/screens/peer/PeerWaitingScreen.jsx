@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Heart, MagnifyingGlass } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import client from '../../api/client';
 
@@ -75,7 +76,7 @@ export default function PeerWaitingScreen() {
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', padding: '32px 24px', gap: 24 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>💙</div>
+          <Heart size={48} weight="fill" color="var(--color-calm)" style={{ marginBottom: 12 }} />
           <h2 style={{ marginBottom: 6 }}>We're still looking</h2>
           <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
             No peer is available right now. Here's immediate support — no waiting required.
@@ -118,7 +119,7 @@ export default function PeerWaitingScreen() {
   if (phase === 'escalated') {
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '32px 24px', textAlign: 'center', gap: 16 }}>
-        <div style={{ fontSize: 48 }}>🔍</div>
+        <MagnifyingGlass size={48} weight="duotone" color="var(--color-accent)" />
         <h2>Still searching…</h2>
         <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
           Taking a bit longer than usual. We'll keep looking.

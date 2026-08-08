@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { GraduationCap } from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const STATUS_LABELS = {
@@ -46,7 +47,7 @@ export default function MyPermissionsScreen() {
 
         {!error && permissions.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🎓</div>
+            <GraduationCap size={40} weight="duotone" color="var(--color-accent)" style={{ marginBottom: 12 }} />
             <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
               No permissions yet. Complete your foundation training to earn your first peer support permission.
             </p>

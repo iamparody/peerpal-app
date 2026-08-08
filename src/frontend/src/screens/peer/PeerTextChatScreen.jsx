@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Heart, CheckCircle, Clock, ChatText, PaperPlaneTilt } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 import { useAuth } from '../../context/AuthContext';
@@ -36,7 +37,7 @@ function ReflectionModal({ sessionId, onDone }) {
       <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
         {submitted ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-md) 0' }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>💛</div>
+            <Heart size={36} weight="fill" color="#C8943A" style={{ marginBottom: 8 }} />
             <p style={{ fontWeight: 600 }}>Thank you — your reflection helps us improve.</p>
           </div>
         ) : (
@@ -95,7 +96,7 @@ function ReportModal({ sessionId, onClose }) {
       <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
         {submitted ? (
           <div style={{ textAlign: 'center', padding: 'var(--space-lg) 0' }}>
-            <div style={{ fontSize: 36, marginBottom: 'var(--space-sm)' }}>✅</div>
+            <CheckCircle size={36} weight="fill" color="var(--color-calm)" style={{ marginBottom: 'var(--space-sm)' }} />
             <h3 style={{ marginBottom: 'var(--space-xs)' }}>Report submitted</h3>
             <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 'var(--space-lg)' }}>Our team will review it. Thank you for keeping this space safe.</p>
             <button className="btn btn--primary" onClick={onClose}>Done</button>
@@ -277,7 +278,7 @@ export default function PeerTextChatScreen() {
     return (
       <>
         <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
-          <div style={{ fontSize: 40 }}>🕐</div>
+          <Clock size={40} weight="duotone" color="var(--color-text-muted)" />
           <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Session time ended</h2>
           <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
             Your 30-minute session has ended. You can start a new session any time.
@@ -323,7 +324,9 @@ export default function PeerTextChatScreen() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--color-bg-primary)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>💬 Peer Chat</div>
+          <div style={{ fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ChatText size={18} weight="duotone" /> Peer Chat
+          </div>
           <div style={{ fontSize: '0.7rem', color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
             {peerLeft ? 'Peer has left' : connected ? 'Connected' : 'Connecting…'}
           </div>
@@ -421,7 +424,7 @@ export default function PeerTextChatScreen() {
           style={{ width: 'auto', padding: '0 16px', flexShrink: 0 }}
           aria-label="Send"
         >
-          ➤
+          <PaperPlaneTilt size={20} weight="fill" />
         </button>
       </div>
 

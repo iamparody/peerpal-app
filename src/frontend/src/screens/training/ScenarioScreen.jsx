@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Leaf, Star, Plant } from '@phosphor-icons/react';
 import client from '../../api/client';
 
 export default function ScenarioScreen() {
@@ -79,7 +80,7 @@ export default function ScenarioScreen() {
   if (phase === 'intro') {
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '32px 24px', gap: 24, textAlign: 'center' }}>
-        <div style={{ fontSize: 52 }}>🌿</div>
+        <Leaf size={52} weight="duotone" color="var(--color-calm)" />
         <h2 style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.3rem', color: 'var(--color-accent)' }}>{title}</h2>
         <p style={{ fontSize: '0.95rem', color: 'var(--color-text-secondary)', lineHeight: 1.75 }}>{intro}</p>
         <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
@@ -102,7 +103,10 @@ export default function ScenarioScreen() {
     const message = passed ? result?.node?.pass_message : result?.node?.fail_message;
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '32px 24px', gap: 20, textAlign: 'center' }}>
-        <div style={{ fontSize: 56 }}>{passed ? '🌟' : '🌱'}</div>
+        {passed
+          ? <Star size={56} weight="fill" color="#C8943A" />
+          : <Plant size={56} weight="duotone" color="var(--color-calm)" />
+        }
         {passed ? (
           <>
             <h2 style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.2rem', color: '#8FAF9A' }}>Skill Earned</h2>
