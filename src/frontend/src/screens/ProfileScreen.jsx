@@ -48,6 +48,10 @@ export default function ProfileScreen() {
     queryKey: ['peer', 'stats'],
     queryFn: () => client.get('/api/peer/stats').then(r => r.data),
   });
+  const { data: trainingData } = useQuery({
+    queryKey: ['training', 'my-skills'],
+    queryFn: () => client.get('/api/training/my-skills').then(r => r.data),
+  });
 
   useEffect(() => {
     if (profile && notifPrefs === null) {
@@ -295,6 +299,36 @@ export default function ProfileScreen() {
             </div>
           );
         })()}
+
+        {/* Peer Training */}
+        <div className="card" style={{ cursor: 'pointer' }} onClick={() => navigate('/training')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>Peer Training</h3>
+            <span style={{ color: 'var(--color-accent)', fontSize: '0.85rem', fontWeight: 600 }}>View →</span>
+          </div>
+          <div style={{ marginTop: 'var(--space-sm)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 28 }}>🎓</span>
+            <div>
+              {trainingData?.skills?.length > 0 ? (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: '1rem', color: '#8FAF9A' }}>
+                    {trainingData.skills.length} skill{trainingData.skills.length !== 1 ? 's' : ''} earned
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    Tap to view your progress and add more skills
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Start peer training</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    Earn skills to become a qualified peer supporter
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Privacy & Data */}
         <div className="card">

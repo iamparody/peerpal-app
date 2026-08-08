@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 31.6 COMPLETE — Quality Signals, Reflections & Moderation live. Next: Phase 31.7 — Frontend Training Flow.**
+**Phase 31.9 COMPLETE — Frontend Training Flow, Topic Picker & Admin Competency Analytics live. Phase 31 fully complete.**
 
 ---
 
@@ -18,7 +18,7 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 30.3 Sentry — pending DSN config in Render + Vercel env vars (code already in place)
 - 30.4 Peer text screening — COMPLETE (session 27: regex patterns in signaling.js, warning banner in PeerTextChatScreen)
 
-### Phase 31 — Peer Competency & Routing System (in progress)
+### Phase 31 — Peer Competency & Routing System — COMPLETE
 - 31.0 Governance docs — COMPLETE (session 27)
 - 31.1 DB schema (10 migrations) — COMPLETE (session 27)
 - 31.2 Training/Scenario Engine backend — COMPLETE (session 28)
@@ -26,6 +26,67 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 31.4 Policy Engine — COMPLETE (session 28)
 - 31.5 Routing Integration — COMPLETE (session 28)
 - 31.6 Quality Signals & Moderation — COMPLETE (session 29)
+- 31.7 Frontend Training Flow — COMPLETE (session 30)
+- 31.8 Requester Topic Picker — COMPLETE (session 30)
+- 31.9 Admin Competency Analytics — COMPLETE (session 30)
+
+---
+
+### Session 30 — 2026-08-08
+
+**Phase 31.7 — Frontend Training Flow — COMPLETE**
+**Phase 31.8 — Requester Topic Picker — COMPLETE**
+**Phase 31.9 — Admin Competency Analytics — COMPLETE**
+
+**`src/backend/migrations/061_peer_requests_decline_count.sql`** — adds `decline_count SMALLINT NOT NULL DEFAULT 0` to peer_requests (powers confidence-decline rate metric)
+
+**`src/backend/routes/peer.js`**
+- `GET /api/peer/topics` — returns active topics with required_permission_name JOIN for confidence overlay copy
+- `PATCH /api/peer/request/:id/decline` — fire-and-forget: increments decline_count on open request
+- `POST /api/peer/request` — now accepts and stores `secondary_topic_slug`
+
+**`src/backend/routes/training.js`**
+- `GET /api/training/scenarios/:attemptId` — resumes in-progress attempt; returns current node stripped of scoring metadata
+
+**`src/backend/routes/admin.js`**
+- `GET /api/admin/competency-stats` — 6 parallel queries: median match time by topic, fallback rate, abandoned requests, confidence-decline totals, unmet demand, skill completion rates; accepts `?since=` ISO date param
+
+**`src/frontend/src/screens/training/TrainingHomeScreen.jsx`** — CREATED
+- 18-icon SKILL_ICONS map, ProgressRing SVG, 5-state SkillBadge component, 3-column badge grids for foundation and specialty skills
+
+**`src/frontend/src/screens/training/SkillDetailScreen.jsx`** — CREATED
+- Resume active attempt or Start/Try Again; detects prereqs; navigates with location.state for ScenarioScreen
+
+**`src/frontend/src/screens/training/ScenarioScreen.jsx`** — CREATED
+- mount check for location.state?.node (fresh start) vs GET fetch (resume); intro → question → result phases; no visible scoring
+
+**`src/frontend/src/screens/training/MyPermissionsScreen.jsx`** — CREATED
+- Shows active permissions with status colours, granted_at, last_active_at, disclaimer; empty state → Start Training CTA
+
+**`src/frontend/src/screens/ProfileScreen.jsx`** — added Peer Training card (session-count or CTA, navigates to /training)
+
+**`src/frontend/src/App.jsx`** — added 4 training routes; `/training/scenario` added to HIDE_NAV_ON
+
+**`src/frontend/src/screens/peer/PeerRequestScreen.jsx`** — HEAVILY MODIFIED
+- ConfidenceOverlay component (90s countdown, auto-decline, accept/decline buttons)
+- Topic picker UI: primary selection + secondary chip pills
+- Confidence copy: references required permission name from topics endpoint
+- handleAcceptIntent → overlay → confirmAccept / declineAccept (fire-and-forget PATCH)
+
+**`src/frontend/src/screens/peer/PeerTextChatScreen.jsx`** — MODIFIED
+- ReflectionModal component (4 checkbox questions, POST reflection, skip, auto-close 1500ms)
+- isPeerRef (useRef) wired to responder_id check in session init
+- handleEndSession: if peer → show reflection; if requester → navigate('/peer')
+- ReflectionModal rendered in JSX with onDone navigation
+
+**`src/frontend/src/screens/peer/PeerVoiceCallScreen.jsx`** — MODIFIED
+- Same ReflectionModal + isPeerRef + showReflection pattern as PeerTextChatScreen
+- endCall updated for peer reflection path
+
+**`src/frontend/src/screens/admin/AdminDashboard.jsx`** — MODIFIED
+- CompetencyMetric sub-component (value + label + tooltip)
+- StatsTab now loads /api/admin/competency-stats alongside existing stats
+- Displays 6 competency metrics in 2-column grid; collapsible all-topics breakdown
 
 ---
 

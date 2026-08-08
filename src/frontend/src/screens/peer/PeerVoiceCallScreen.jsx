@@ -2,6 +2,72 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
+import { useAuth } from '../../context/AuthContext';
+
+// ── Post-session reflection modal (peer only) ─────────────────────────────────
+const REFLECTION_QUESTIONS = [
+  { key: 'topic_stayed_in_category',   label: 'The conversation stayed within the area I expected.' },
+  { key: 'unexpected_topic_arose',     label: 'An unexpected topic came up that I wasn\'t prepared for.' },
+  { key: 'felt_prepared',              label: 'I felt prepared for this session.' },
+  { key: 'additional_training_wanted', label: 'I\'d like additional training after this session.' },
+];
+
+function ReflectionModal({ sessionId, onDone }) {
+  const [answers, setAnswers] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  function toggle(key) {
+    setAnswers(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    try {
+      await client.post(`/api/peer/session/${sessionId}/reflection`, answers);
+      setSubmitted(true);
+      setTimeout(onDone, 1500);
+    } catch { onDone(); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 150, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
+        {submitted ? (
+          <div style={{ textAlign: 'center', padding: 'var(--space-md) 0' }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>💛</div>
+            <p style={{ fontWeight: 600 }}>Thank you — your reflection helps us improve.</p>
+          </div>
+        ) : (
+          <>
+            <h3 style={{ marginBottom: 4 }}>Quick reflection</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>Optional — takes 30 seconds</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 'var(--space-md)' }}>
+              {REFLECTION_QUESTIONS.map(q => (
+                <label key={q.key} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: '0.88rem', lineHeight: 1.4 }}>
+                  <input
+                    type="checkbox"
+                    checked={answers[q.key] === true}
+                    onChange={() => toggle(q.key)}
+                    style={{ width: 20, height: 20, accentColor: 'var(--color-calm)', flexShrink: 0 }}
+                  />
+                  {q.label}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn--primary" style={{ flex: 1 }} onClick={handleSubmit} disabled={submitting}>
+                {submitting ? 'Saving…' : 'Submit'}
+              </button>
+              <button className="btn btn--muted" style={{ flex: 1 }} onClick={onDone}>Skip</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ReportModal({ sessionId, onClose }) {
   const [description, setDescription] = useState('');
@@ -74,6 +140,7 @@ function formatTime(seconds) {
 export default function PeerVoiceCallScreen() {
   const { id: sessionId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [callState, setCallState] = useState('connecting');
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState('');
@@ -83,6 +150,7 @@ export default function PeerVoiceCallScreen() {
   const [extendError, setExtendError] = useState('');
   const [sessionEnded, setSessionEnded] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showReflection, setShowReflection] = useState(false);
 
   const wsRef = useRef(null);
   const pcRef = useRef(null);
@@ -90,6 +158,7 @@ export default function PeerVoiceCallScreen() {
   const remoteAudioRef = useRef(null);
   const isInitiator = useRef(false);
   const requestIdRef = useRef(null);
+  const isPeerRef = useRef(false);
   const endTimeRef = useRef(null);
   const timerRef = useRef(null);
   const promptShownRef = useRef(false);
@@ -106,6 +175,9 @@ export default function PeerVoiceCallScreen() {
     trackEvent('peer_session_completed', { channel: 'voice', reason });
     if (reason === 'time_limit') {
       setSessionEnded(true);
+      if (isPeerRef.current) setShowReflection(true);
+    } else if (isPeerRef.current) {
+      setShowReflection(true);
     } else {
       navigate('/peer', { replace: true });
     }
@@ -135,6 +207,7 @@ export default function PeerVoiceCallScreen() {
       try {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         requestIdRef.current = data.session?.request_id ?? null;
+        isPeerRef.current = data.session?.responder_id === user?.id;
 
         const startedAt = data.session?.started_at ? new Date(data.session.started_at) : new Date();
         startTimer(startedAt.getTime() + SESSION_SECONDS * 1000);
@@ -254,6 +327,15 @@ export default function PeerVoiceCallScreen() {
           </button>
         </div>
         {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
+        {showReflection && (
+          <ReflectionModal
+            sessionId={sessionId}
+            onDone={() => {
+              setShowReflection(false);
+              navigate('/peer', { replace: true });
+            }}
+          />
+        )}
       </>
     );
   }
@@ -350,6 +432,17 @@ export default function PeerVoiceCallScreen() {
         <button className="btn btn--ghost" style={{ marginTop: 'var(--space-xl)', width: 'auto', padding: '10px 24px' }} onClick={() => navigate('/peer')}>
           Back
         </button>
+      )}
+
+      {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
+      {showReflection && (
+        <ReflectionModal
+          sessionId={sessionId}
+          onDone={() => {
+            setShowReflection(false);
+            if (!sessionEnded) navigate('/peer', { replace: true });
+          }}
+        />
       )}
     </div>
   );

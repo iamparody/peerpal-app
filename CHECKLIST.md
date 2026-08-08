@@ -1693,16 +1693,16 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - Inactive (inactivity lapse): full colour at 40% opacity + small clock indicator
 - Suspended: amber with a small pause indicator
 
-- [ ] `TrainingHomeScreen.jsx` at `/training` — shows baseline progress ring + specialty skills; accessible from Profile tab; first surface after onboarding complete
-- [ ] `SkillDetailScreen.jsx` at `/training/:slug` — skill description, what it prepares you for, estimated time, prerequisite status, Start button
-- [ ] `ScenarioScreen.jsx` at `/training/scenario/:id` — branching scenario UI; one situation node at a time; choice buttons; no visible scoring; progress indicator; can pause and resume
+- [x] `TrainingHomeScreen.jsx` at `/training` — shows baseline progress ring + specialty skills; accessible from Profile tab; first surface after onboarding complete
+- [x] `SkillDetailScreen.jsx` at `/training/:slug` — skill description, what it prepares you for, estimated time, prerequisite status, Start button
+- [x] `ScenarioScreen.jsx` at `/training/scenario/:id` — branching scenario UI; one situation node at a time; choice buttons; no visible scoring; progress indicator; can pause and resume
   - Narrative-first design: story branches, not quiz questions
   - On pass: celebration moment + skill earned card with what it unlocks
   - On fail: "You can try again" with brief guidance on what the scenario tests — no punitive language
-- [ ] `MyPermissionsScreen.jsx` at `/training/permissions` — lists earned permissions with disclaimer copy; links to relevant scenario refreshers; shows version/activity status
-- [ ] Profile tab: add "Peer Training" card showing skill count + next suggested skill — tap goes to TrainingHomeScreen
-- [ ] Confidence-to-accept overlay: when peer request notification arrives, show topic + yes/not-this-time prompt before accepting (90-second auto-decline)
-- [ ] Post-session reflection modal: fires after peer closes a session — 4 yes/no questions, optional skip after first completion
+- [x] `MyPermissionsScreen.jsx` at `/training/permissions` — lists earned permissions with disclaimer copy; links to relevant scenario refreshers; shows version/activity status
+- [x] Profile tab: add "Peer Training" card showing skill count + next suggested skill — tap goes to TrainingHomeScreen
+- [x] Confidence-to-accept overlay: when peer request notification arrives, show topic + yes/not-this-time prompt before accepting (90-second auto-decline)
+- [x] Post-session reflection modal: fires after peer closes a session — 4 yes/no questions, optional skip after first completion
 
 **Complete when:**
 - TrainingHomeScreen renders correctly at 375px viewport (iPhone SE minimum)
@@ -1715,10 +1715,10 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### Phase 31.8 — Frontend: Requester Topic Picker
 
-- [ ] `PeerRequestScreen.jsx` update — replace plain "Request Help" with topic picker step: scrollable situation cards with icon + 1-line label
-- [ ] Multi-topic: allow selecting primary + one secondary topic
-- [ ] Confidence display: after selection show "You'll be connected with a peer who has completed [X] awareness training" — not peer-specific, category-level
-- [ ] No clinical language in topic labels — situation descriptions only
+- [x] `PeerRequestScreen.jsx` update — replace plain "Request Help" with topic picker step: scrollable situation cards with icon + 1-line label
+- [x] Multi-topic: allow selecting primary + one secondary topic
+- [x] Confidence display: after selection show "You'll be connected with a peer who has completed [X] awareness training" — not peer-specific, category-level
+- [x] No clinical language in topic labels — situation descriptions only
 
 **Complete when:**
 - Topic selection is required — request cannot be submitted without it (validated at API and UI level)
@@ -1730,8 +1730,8 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### Phase 31.9 — System Analytics (admin)
 
-- [ ] Admin stats: add peer competency dashboard — median match time by topic, fallback rate by topic, abandoned requests, confidence-decline rate, unmet demand by topic, skill completion rates
-- [ ] These metrics drive recruitment and training investment decisions — document their interpretation in admin panel tooltips
+- [x] Admin stats: add peer competency dashboard — median match time by topic, fallback rate by topic, abandoned requests, confidence-decline rate, unmet demand by topic, skill completion rates
+- [x] These metrics drive recruitment and training investment decisions — document their interpretation in admin panel tooltips
 
 **Complete when:**
 - All 6 system metrics populate from real session and routing data (not seeded or hardcoded)

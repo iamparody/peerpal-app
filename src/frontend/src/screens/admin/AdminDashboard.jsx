@@ -336,17 +336,46 @@ function ResourcesTab() {
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
+function CompetencyMetric({ label, value, tooltip }) {
+  return (
+    <div className="card" style={{ padding: '12px 14px' }}>
+      <div style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 2 }}>{value ?? '—'}</div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{label}</div>
+      {tooltip && <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: 4, opacity: 0.75 }}>{tooltip}</div>}
+    </div>
+  );
+}
+
 function StatsTab() {
   const [stats, setStats] = useState(null);
+  const [competency, setCompetency] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([client.get('/api/admin/stats'), client.get('/api/admin/feedback')])
-      .then(([statsRes, fbRes]) => setStats({ ...statsRes.data, feedback: fbRes.data }))
+    Promise.all([
+      client.get('/api/admin/stats'),
+      client.get('/api/admin/feedback'),
+      client.get('/api/admin/competency-stats'),
+    ])
+      .then(([statsRes, fbRes, compRes]) => {
+        setStats({ ...statsRes.data, feedback: fbRes.data });
+        setCompetency(compRes.data);
+      })
       .catch(() => setError('Failed to load.'))
       .finally(() => setLoading(false));
   }, []);
+
+  function fmtMs(ms) {
+    if (ms == null) return '—';
+    const s = Math.round(ms / 1000);
+    if (s < 60) return `${s}s`;
+    return `${Math.round(s / 60)}m ${s % 60}s`;
+  }
+  function fmtPct(val) {
+    if (val == null) return '—';
+    return `${Math.round(val * 100)}%`;
+  }
 
   return (
     <Section title="System Stats" loading={loading} error={error}>
@@ -355,10 +384,10 @@ function StatsTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
             {[
               ['Daily Active Users', stats.dau],
-              ["Check-ins Today", stats.checkins_today],
-              ["Peer Sessions Today", stats.peer_sessions_today],
-              ["AI Sessions Today", stats.ai_sessions_today],
-              ["Credits Purchased Today", stats.credits_purchased_today],
+              ['Check-ins Today', stats.checkins_today],
+              ['Peer Sessions Today', stats.peer_sessions_today],
+              ['AI Sessions Today', stats.ai_sessions_today],
+              ['Credits Purchased Today', stats.credits_purchased_today],
             ].map(([label, value]) => (
               <div key={label} className="card" style={{ textAlign: 'center', padding: 12 }}>
                 <div style={{ fontWeight: 700, fontSize: '1.5rem' }}>{value ?? '—'}</div>
@@ -366,6 +395,70 @@ function StatsTab() {
               </div>
             ))}
           </div>
+
+          {competency && (
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ marginBottom: 10, fontSize: '0.95rem' }}>Peer Competency (last 30 days)</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {competency.match_time_by_topic?.length > 0 && (
+                  <CompetencyMetric
+                    label="Median match time (top topic)"
+                    value={fmtMs(competency.match_time_by_topic[0]?.median_match_ms)}
+                    tooltip={competency.match_time_by_topic[0]?.topic_slug}
+                  />
+                )}
+                {competency.fallback_rate_by_topic?.length > 0 && (
+                  <CompetencyMetric
+                    label="Fallback rate (top topic)"
+                    value={fmtPct(competency.fallback_rate_by_topic[0]?.fallback_rate)}
+                    tooltip={`${competency.fallback_rate_by_topic[0]?.topic_slug} — % routed to general support`}
+                  />
+                )}
+                {competency.abandoned_by_topic?.length > 0 && (
+                  <CompetencyMetric
+                    label="Abandoned requests (top topic)"
+                    value={competency.abandoned_by_topic[0]?.abandoned_count}
+                    tooltip={competency.abandoned_by_topic[0]?.topic_slug}
+                  />
+                )}
+                {competency.confidence_decline != null && (
+                  <CompetencyMetric
+                    label="Confidence overlay declines"
+                    value={competency.confidence_decline?.total_declines ?? '—'}
+                    tooltip="Peers who declined after seeing the overlay"
+                  />
+                )}
+                {competency.unmet_demand_by_topic?.length > 0 && (
+                  <CompetencyMetric
+                    label="Unmet demand (top topic)"
+                    value={competency.unmet_demand_by_topic[0]?.unmet_count}
+                    tooltip={`${competency.unmet_demand_by_topic[0]?.topic_slug} — requests with no peer`}
+                  />
+                )}
+                {competency.skill_completion_rates?.length > 0 && (
+                  <CompetencyMetric
+                    label="Skill completion (top skill)"
+                    value={fmtPct(competency.skill_completion_rates[0]?.completion_rate)}
+                    tooltip={competency.skill_completion_rates[0]?.skill_slug}
+                  />
+                )}
+              </div>
+              {(competency.match_time_by_topic?.length > 1 || competency.unmet_demand_by_topic?.length > 1) && (
+                <details style={{ marginTop: 10 }}>
+                  <summary style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', cursor: 'pointer' }}>All topics breakdown</summary>
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {competency.match_time_by_topic?.map(t => (
+                      <div key={t.topic_slug} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '4px 0', borderBottom: '1px solid var(--color-border)' }}>
+                        <span>{t.topic_slug}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>match: {fmtMs(t.median_match_ms)} · unmet: {competency.unmet_demand_by_topic?.find(u => u.topic_slug === t.topic_slug)?.unmet_count ?? 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+
           {stats.feedback && (
             <div className="card">
               <h3 style={{ marginBottom: 12 }}>Feedback</h3>

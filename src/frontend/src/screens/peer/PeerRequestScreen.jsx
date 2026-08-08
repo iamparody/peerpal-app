@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
@@ -105,16 +105,73 @@ function PeerQuizGate({ onComplete }) {
   );
 }
 
+// ── Confidence-to-accept overlay ─────────────────────────────────────────────
+function ConfidenceOverlay({ request, topicLabel, onAccept, onDecline }) {
+  const [secondsLeft, setSecondsLeft] = useState(90);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) { clearInterval(timerRef.current); onDecline(); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, []); // eslint-disable-line
+
+  const pct = (secondsLeft / 90) * 100;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
+        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>
+          {request.channel_preference === 'voice' ? '🎙️ Voice' : '💬 Text'} support needed
+        </div>
+        {topicLabel && (
+          <div style={{ fontSize: '0.88rem', color: 'var(--color-accent)', marginBottom: 12 }}>
+            Topic: <strong>{topicLabel}</strong>
+          </div>
+        )}
+        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginBottom: 'var(--space-md)' }}>
+          Do you feel ready to support someone with this right now?
+        </p>
+
+        {/* Countdown bar */}
+        <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2, marginBottom: 'var(--space-md)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: secondsLeft > 30 ? '#8FAF9A' : 'var(--color-warning)', width: `${pct}%`, transition: 'width 1s linear, background 300ms' }} />
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'center', marginBottom: 'var(--space-md)' }}>
+          Auto-declining in {secondsLeft}s
+        </p>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn--primary" style={{ flex: 1 }} onClick={() => { clearInterval(timerRef.current); onAccept(); }}>
+            Yes, I'm ready
+          </button>
+          <button className="btn btn--muted" style={{ flex: 1 }} onClick={() => { clearInterval(timerRef.current); onDecline(); }}>
+            Not this time
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PeerRequestScreen() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('support');
   const [balance, setBalance] = useState(null);
   const [openRequests, setOpenRequests] = useState([]);
+  const [topics, setTopics] = useState([]);
   const [quizDone, setQuizDone] = useState(true); // optimistic: hide gate until loaded
   const [channel, setChannel] = useState('text');
+  const [topicSlug, setTopicSlug] = useState('');
+  const [secondaryTopicSlug, setSecondaryTopicSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [confidenceRequest, setConfidenceRequest] = useState(null); // request pending confidence check
 
   // Leaderboard state
   const [stats, setStats] = useState(null);
@@ -124,14 +181,16 @@ export default function PeerRequestScreen() {
   useEffect(() => {
     async function load() {
       try {
-        const [balRes, reqRes, quizRes] = await Promise.all([
+        const [balRes, reqRes, quizRes, topicsRes] = await Promise.all([
           client.get('/api/credits/balance'),
           client.get('/api/peer/requests/open'),
           client.get('/api/peer/quiz/status'),
+          client.get('/api/peer/topics'),
         ]);
         setBalance(balRes.data.balance ?? 0);
         setOpenRequests(reqRes.data.requests ?? reqRes.data ?? []);
         setQuizDone(quizRes.data.peer_quiz_done);
+        setTopics(topicsRes.data.topics ?? []);
       } catch {
         setError('Failed to load. Please try again.');
       } finally {
@@ -171,6 +230,10 @@ export default function PeerRequestScreen() {
   }
 
   async function handleRequest() {
+    if (!topicSlug) {
+      setError('Please choose a topic before requesting support.');
+      return;
+    }
     const cost = COST_INFO[channel].cost;
     if (balance < cost) {
       setError(`You need ${cost} credit${cost > 1 ? 's' : ''} for a ${COST_INFO[channel].label.toLowerCase()}. Top up to continue.`);
@@ -179,8 +242,12 @@ export default function PeerRequestScreen() {
     setError('');
     setSubmitting(true);
     try {
-      const { data } = await client.post('/api/peer/request', { channel_preference: channel });
-      trackEvent('peer_request_created', { channel });
+      const { data } = await client.post('/api/peer/request', {
+        channel_preference: channel,
+        topic_slug: topicSlug,
+        secondary_topic_slug: secondaryTopicSlug || undefined,
+      });
+      trackEvent('peer_request_created', { channel, topic_slug: topicSlug });
       navigate(`/peer/waiting/${data.request_id}`, { replace: true });
     } catch (err) {
       const status = err.response?.status;
@@ -192,16 +259,21 @@ export default function PeerRequestScreen() {
     }
   }
 
-  async function handleAccept(requestId) {
+  function handleAcceptIntent(request) {
+    setConfidenceRequest(request);
+  }
+
+  async function confirmAccept(request) {
+    setConfidenceRequest(null);
     setError('');
     try {
-      const { data } = await client.patch(`/api/peer/request/${requestId}/accept`);
+      const { data } = await client.patch(`/api/peer/request/${request.id}/accept`);
       const ch = data.channel || 'text';
       navigate(`/peer/session/${data.session_id}/${ch}`, { replace: true });
     } catch (err) {
       const code = err.response?.data?.code;
       if (code === 'QUIZ_REQUIRED') {
-        setQuizDone(false); // force quiz gate visible
+        setQuizDone(false);
         return;
       }
       const status = err.response?.status;
@@ -209,6 +281,12 @@ export default function PeerRequestScreen() {
         ? 'This request was already accepted by someone else.'
         : err.response?.data?.error || 'Could not accept request. Please try again.');
     }
+  }
+
+  async function declineAccept(request) {
+    setConfidenceRequest(null);
+    // Fire-and-forget analytics — increment decline_count
+    client.patch(`/api/peer/request/${request.id}/decline`).catch(() => {});
   }
 
   if (loading) return (
@@ -269,6 +347,8 @@ export default function PeerRequestScreen() {
           {/* Request help */}
           <div>
             <h3 style={{ marginBottom: 12 }}>Need support?</h3>
+
+            {/* Channel selector */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               {Object.entries(COST_INFO).map(([val, info]) => (
                 <button
@@ -289,11 +369,90 @@ export default function PeerRequestScreen() {
               ))}
             </div>
 
+            {/* Topic picker */}
+            {topics.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>
+                  What would you like support with? <span style={{ color: 'var(--color-danger)' }}>*</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto', paddingRight: 2 }}>
+                  {topics.map(t => (
+                    <button
+                      key={t.slug}
+                      type="button"
+                      onClick={() => {
+                        if (topicSlug === t.slug) { setTopicSlug(''); }
+                        else { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }
+                      }}
+                      style={{
+                        padding: '10px 12px', textAlign: 'left',
+                        borderRadius: 'var(--radius-sm)',
+                        border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                        background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
+                        cursor: 'pointer', fontSize: '0.88rem', fontWeight: topicSlug === t.slug ? 600 : 400,
+                        color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Secondary topic */}
+                {topicSlug && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                      Anything else (optional):
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {topics.filter(t => t.slug !== topicSlug).map(t => (
+                        <button
+                          key={t.slug}
+                          type="button"
+                          onClick={() => setSecondaryTopicSlug(prev => prev === t.slug ? '' : t.slug)}
+                          style={{
+                            padding: '5px 10px', fontSize: '0.78rem',
+                            borderRadius: 'var(--radius-pill)',
+                            border: `1px solid ${secondaryTopicSlug === t.slug ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                            background: secondaryTopicSlug === t.slug ? 'rgba(194,164,138,0.2)' : 'none',
+                            cursor: 'pointer',
+                            color: secondaryTopicSlug === t.slug ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                          }}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Confidence copy */}
+                {topicSlug && (() => {
+                  const selected = topics.find(t => t.slug === topicSlug);
+                  if (!selected?.required_permission_name) return null;
+                  return (
+                    <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', lineHeight: 1.55, marginTop: 10, padding: '8px 10px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-calm)' }}>
+                      You'll be connected with a peer who has completed <strong>{selected.required_permission_name}</strong> awareness training.
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
+
             {error && <div className="error-msg" style={{ marginBottom: 12 }}>{error}</div>}
 
-            <button className="btn btn--primary" onClick={handleRequest} disabled={submitting || balance < COST_INFO[channel].cost}>
+            <button
+              className="btn btn--primary"
+              onClick={handleRequest}
+              disabled={submitting || balance < COST_INFO[channel].cost || !topicSlug}
+            >
               {submitting ? 'Requesting…' : 'Request Help'}
             </button>
+            {!topicSlug && topics.length > 0 && (
+              <p style={{ marginTop: 6, fontSize: '0.78rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                Select a topic above to continue
+              </p>
+            )}
             {balance < COST_INFO[channel].cost && (
               <p style={{ marginTop: 8, fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                 Not enough credits —{' '}
@@ -319,22 +478,36 @@ export default function PeerRequestScreen() {
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
                     Complete a session to earn 1 credit.
                   </p>
-                  {openRequests.map((req) => (
-                    <div key={req.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{req.channel_preference === 'voice' ? '🎙️ Voice' : '💬 Text'} session</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{new Date(req.created_at).toLocaleTimeString()}</div>
+                  {openRequests.map((req) => {
+                    const topicInfo = topics.find(t => t.slug === req.topic_slug);
+                    return (
+                      <div key={req.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{req.channel_preference === 'voice' ? '🎙️ Voice' : '💬 Text'} session</div>
+                          {topicInfo && <div style={{ fontSize: '0.75rem', color: 'var(--color-accent)', marginTop: 2 }}>{topicInfo.label}</div>}
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 1 }}>{new Date(req.created_at).toLocaleTimeString()}</div>
+                        </div>
+                        <button onClick={() => handleAcceptIntent(req)} className="btn btn--success btn--sm" style={{ width: 'auto', flexShrink: 0 }}>
+                          I'm here
+                        </button>
                       </div>
-                      <button onClick={() => handleAccept(req.id)} className="btn btn--success btn--sm" style={{ width: 'auto' }}>
-                        I'm here
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </div>
           )}
         </div>
+      )}
+
+      {/* Confidence overlay */}
+      {confidenceRequest && (
+        <ConfidenceOverlay
+          request={confidenceRequest}
+          topicLabel={topics.find(t => t.slug === confidenceRequest.topic_slug)?.label || null}
+          onAccept={() => confirmAccept(confidenceRequest)}
+          onDecline={() => declineAccept(confidenceRequest)}
+        />
       )}
 
       {tab === 'leaderboard' && (

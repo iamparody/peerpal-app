@@ -273,7 +273,7 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
 
 // ─── POST /peer/request ───────────────────────────────────────────────────────
 router.post('/request', auth, async (req, res) => {
-  const { channel_preference, topic_slug } = req.body;
+  const { channel_preference, topic_slug, secondary_topic_slug } = req.body;
 
   if (!VALID_CHANNELS.includes(channel_preference)) {
     return res.status(400).json({ error: `channel_preference must be one of: ${VALID_CHANNELS.join(', ')}`, code: 'INVALID_CHANNEL' });
@@ -294,9 +294,9 @@ router.post('/request', auth, async (req, res) => {
 
   // Insert peer_request
   const { rows: reqRows } = await query(
-    `INSERT INTO peer_requests (user_id, channel_preference, topic_slug, escalation_job_id)
-     VALUES ($1, $2, $3, gen_random_uuid()::text) RETURNING id`,
-    [req.user.id, channel_preference, topic_slug || null]
+    `INSERT INTO peer_requests (user_id, channel_preference, topic_slug, secondary_topic_slug, escalation_job_id)
+     VALUES ($1, $2, $3, $4, gen_random_uuid()::text) RETURNING id`,
+    [req.user.id, channel_preference, topic_slug || null, secondary_topic_slug || null]
   );
   const requestId = reqRows[0].id;
 
@@ -823,6 +823,29 @@ router.get('/leaderboard', auth, async (req, res) => {
      LIMIT 10`
   );
   return res.status(200).json({ leaderboard: rows });
+});
+
+// ─── GET /peer/topics ────────────────────────────────────────────────────────
+router.get('/topics', auth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT t.id, t.slug, t.label, p.name AS required_permission_name
+     FROM topics t
+     LEFT JOIN permissions p ON p.id = t.required_permission_id
+     WHERE t.is_active = true
+     ORDER BY t.label`,
+    []
+  );
+  return res.json({ topics: rows });
+});
+
+// ─── PATCH /peer/request/:id/decline ─────────────────────────────────────────
+// Called when a peer dismisses the confidence-to-accept overlay. Non-fatal analytics only.
+router.patch('/request/:id/decline', auth, async (req, res) => {
+  await query(
+    `UPDATE peer_requests SET decline_count = decline_count + 1 WHERE id = $1 AND status = 'open'`,
+    [req.params.id]
+  ).catch(() => {});
+  return res.json({ ok: true });
 });
 
 // ─── POST /peer/session/:id/reflection ───────────────────────────────────────

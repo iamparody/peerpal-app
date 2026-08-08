@@ -609,6 +609,77 @@ router.patch('/therapist-interests/:id/status', async (req, res) => {
   return res.status(200).json({ updated: true });
 });
 
+// ─── GET /admin/competency-stats ─────────────────────────────────────────────
+router.get('/competency-stats', async (req, res) => {
+  const since = req.query.since
+    ? new Date(req.query.since).toISOString()
+    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [matchTime, fallback, abandoned, decline, unmet, skillRates] = await Promise.all([
+    query(`
+      SELECT pr.topic_slug,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (
+               ORDER BY EXTRACT(EPOCH FROM (s.started_at - pr.created_at))
+             )::int AS median_seconds
+      FROM peer_requests pr
+      JOIN sessions s ON s.id = pr.session_id
+      WHERE pr.created_at >= $1 AND pr.accepted_by IS NOT NULL AND pr.topic_slug IS NOT NULL
+      GROUP BY pr.topic_slug ORDER BY median_seconds`, [since]),
+
+    query(`
+      SELECT topic_slug,
+             COUNT(*) AS total,
+             COUNT(*) FILTER (WHERE routing_audit::text LIKE '%tier2_broadcast%'
+                                 OR routing_audit::text LIKE '%no_peer_fallback%') AS fallbacks
+      FROM peer_requests
+      WHERE created_at >= $1 AND topic_slug IS NOT NULL
+      GROUP BY topic_slug`, [since]),
+
+    query(`
+      SELECT COALESCE(topic_slug,'unspecified') AS topic_slug, COUNT(*) AS count
+      FROM peer_requests
+      WHERE status = 'escalated' AND created_at >= $1
+      GROUP BY topic_slug ORDER BY count DESC`, [since]),
+
+    query(`
+      SELECT COALESCE(SUM(decline_count),0) AS total_declines,
+             COUNT(*) FILTER (WHERE decline_count > 0) AS requests_with_declines,
+             COUNT(*) AS total_requests
+      FROM peer_requests WHERE created_at >= $1`, [since]),
+
+    query(`
+      SELECT COALESCE(topic_slug,'unspecified') AS topic_slug, COUNT(*) AS unmet
+      FROM peer_requests
+      WHERE status = 'escalated' AND created_at >= $1
+      GROUP BY topic_slug ORDER BY unmet DESC`, [since]),
+
+    query(`
+      SELECT s.name, s.slug, s.skill_group,
+             COUNT(*) FILTER (WHERE sa.completed_at IS NOT NULL) AS attempts,
+             COUNT(*) FILTER (WHERE sa.passed = true) AS passed,
+             ROUND(
+               COUNT(*) FILTER (WHERE sa.passed = true)::numeric /
+               NULLIF(COUNT(*) FILTER (WHERE sa.completed_at IS NOT NULL), 0) * 100
+             , 1) AS pass_rate_pct
+      FROM skills s
+      LEFT JOIN skill_scenarios ss ON ss.skill_id = s.id
+      LEFT JOIN skill_attempts sa ON sa.scenario_id = ss.id
+      WHERE s.is_active = true
+      GROUP BY s.id, s.name, s.slug, s.skill_group
+      ORDER BY s.skill_group, s.name`, []),
+  ]);
+
+  return res.json({
+    since,
+    match_time_by_topic: matchTime.rows,
+    fallback_rate_by_topic: fallback.rows,
+    abandoned_by_topic: abandoned.rows,
+    confidence_decline: decline.rows[0] || { total_declines: 0, requests_with_declines: 0, total_requests: 0 },
+    unmet_demand_by_topic: unmet.rows,
+    skill_completion_rates: skillRates.rows,
+  });
+});
+
 // ─── GET /admin/permission-flags ─────────────────────────────────────────────
 router.get('/permission-flags', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);

@@ -62,6 +62,12 @@ import PeerWaitingScreen from './screens/peer/PeerWaitingScreen';
 import PeerTextChatScreen from './screens/peer/PeerTextChatScreen';
 import PeerVoiceCallScreen from './screens/peer/PeerVoiceCallScreen';
 
+// Training
+import TrainingHomeScreen   from './screens/training/TrainingHomeScreen';
+import SkillDetailScreen    from './screens/training/SkillDetailScreen';
+import ScenarioScreen       from './screens/training/ScenarioScreen';
+import MyPermissionsScreen  from './screens/training/MyPermissionsScreen';
+
 const HIDE_NAV_ON = [
   '/login', '/register', '/recover', '/email-sent', '/verify-email', '/reset-password',
   '/onboarding', '/welcome', '/ai-chat', '/peer/session', '/peer/waiting',
@@ -70,6 +76,7 @@ const HIDE_NAV_ON = [
   '/therapists',
   '/persona/edit',
   '/credits',
+  '/training/scenario',
 ];
 
 // Paths where the unverified banner should not appear
@@ -281,6 +288,12 @@ function Layout() {
         <Route path="/notifications"  element={<ProtectedRoute><NotificationsScreen /></ProtectedRoute>} />
         <Route path="/credits"        element={<ProtectedRoute><CreditsScreen /></ProtectedRoute>} />
         <Route path="/persona/edit"   element={<ProtectedRoute><EditPersonaScreen /></ProtectedRoute>} />
+
+        {/* Training */}
+        <Route path="/training"                     element={<ProtectedRoute><TrainingHomeScreen /></ProtectedRoute>} />
+        <Route path="/training/permissions"         element={<ProtectedRoute><MyPermissionsScreen /></ProtectedRoute>} />
+        <Route path="/training/:slug"               element={<ProtectedRoute><SkillDetailScreen /></ProtectedRoute>} />
+        <Route path="/training/scenario/:attemptId" element={<ProtectedRoute><ScenarioScreen /></ProtectedRoute>} />
 
         {/* Peer support */}
         <Route path="/peer"              element={<ProtectedRoute><PeerRequestScreen /></ProtectedRoute>} />

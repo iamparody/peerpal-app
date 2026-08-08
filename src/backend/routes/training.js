@@ -386,6 +386,37 @@ router.get('/my-permissions', async (req, res) => {
   }
 });
 
+// ─── GET /api/training/scenarios/:attemptId ──────────────────────────────────
+// Allows ScenarioScreen to recover current node after page refresh.
+
+router.get('/scenarios/:attemptId', async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT sa.score_json, ss.scenario_json, ss.title AS scenario_title, s.slug AS skill_slug
+      FROM skill_attempts sa
+      JOIN skill_scenarios ss ON ss.id = sa.scenario_id
+      JOIN skills s ON s.id = ss.skill_id
+      WHERE sa.id = $1 AND sa.user_id = $2 AND sa.completed_at IS NULL
+    `, [req.params.attemptId, req.user.id]);
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Attempt not found or already completed' });
+    }
+    const { score_json, scenario_json, scenario_title, skill_slug } = rows[0];
+    const currentNode = scenario_json.nodes[score_json.current_node];
+
+    res.json({
+      attempt_id: req.params.attemptId,
+      scenario_title,
+      skill_slug,
+      node: stripNodeForClient(currentNode),
+    });
+  } catch (err) {
+    console.error('GET /training/scenarios/:attemptId', err);
+    res.status(500).json({ error: 'Failed to resume scenario' });
+  }
+});
+
 // ─── Utility ──────────────────────────────────────────────────────────────────
 // Strip tags and points from choices before sending to client to prevent gaming.
 
