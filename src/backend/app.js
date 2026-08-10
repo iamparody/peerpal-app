@@ -13,15 +13,18 @@ app.set('trust proxy', 1);
 // ─── Security & parsing ───────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// CORS — explicit allowlist; no wildcard in production
+// CORS — explicit allowlist + Vercel preview subdomains
 const ALLOWED_ORIGINS = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
   : ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:5174', 'http://localhost:5175'];
 
+const VERCEL_PREVIEW_RE = /^https:\/\/[a-z0-9-]+-iamparodys-projects\.vercel\.app$/;
+
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow requests with no origin (curl, Postman, same-domain) and listed origins
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    if (VERCEL_PREVIEW_RE.test(origin)) return cb(null, true);
     cb(null, false);
   },
   credentials: true,
