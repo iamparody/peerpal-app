@@ -254,6 +254,7 @@ export default function PeerVoiceCallScreen() {
             await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
           } else if (msg.type === 'peer_left') {
             setCallState('ended');
+            endCall('peer_left');
           }
         };
 

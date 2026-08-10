@@ -41,6 +41,15 @@ function createSignalingServer(httpServer) {
         if (peers.length >= 2) { ws.close(); return; }
         peers.push(ws);
 
+        // Tell already-connected peers a new participant arrived.
+        // The voice screen uses this to know it should create the WebRTC offer.
+        if (peers.length > 1) {
+          const peerJoinedMsg = JSON.stringify({ type: 'peer_joined' });
+          for (let i = 0; i < peers.length - 1; i++) {
+            if (peers[i].readyState === WebSocket.OPEN) peers[i].send(peerJoinedMsg);
+          }
+        }
+
         ws.on('close', () => {
           const current = rooms.get(sessionId);
           if (!current) return;
