@@ -9,6 +9,25 @@ const COST_INFO = {
   voice: { cost: 2, label: 'Voice Call', desc: '2 credits · 30 min' },
 };
 
+const TOPIC_CATEGORIES = [
+  {
+    label: 'Life pressure',
+    slugs: ['overwhelmed_school_work', 'financial_stress', 'parenting', 'addiction'],
+  },
+  {
+    label: 'Relationships',
+    slugs: ['relationship', 'bullying', 'identity'],
+  },
+  {
+    label: 'Trauma & safety',
+    slugs: ['abuse_or_assault', 'sexual_harassment', 'domestic_violence'],
+  },
+  {
+    label: 'Loss & grief',
+    slugs: ['bereavement'],
+  },
+];
+
 const QUIZ_STEPS = [
   {
     Icon: Brain,
@@ -378,30 +397,69 @@ export default function PeerRequestScreen() {
             {/* Topic picker */}
             {topics.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 10, color: 'var(--color-text-secondary)' }}>
                   What would you like support with? <span style={{ color: 'var(--color-danger)' }}>*</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto', paddingRight: 2 }}>
-                  {topics.map(t => (
-                    <button
-                      key={t.slug}
-                      type="button"
-                      onClick={() => {
-                        if (topicSlug === t.slug) { setTopicSlug(''); }
-                        else { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }
-                      }}
-                      style={{
-                        padding: '10px 12px', textAlign: 'left',
-                        borderRadius: 'var(--radius-sm)',
-                        border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                        background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
-                        cursor: 'pointer', fontSize: '0.88rem', fontWeight: topicSlug === t.slug ? 600 : 400,
-                        color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+
+                {/* "Just listen" standalone */}
+                {topics.filter(t => t.slug === 'general').map(t => (
+                  <button
+                    key={t.slug}
+                    type="button"
+                    onClick={() => {
+                      if (topicSlug === t.slug) setTopicSlug('');
+                      else { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }
+                    }}
+                    style={{
+                      width: '100%', padding: '11px 14px', textAlign: 'left', marginBottom: 14,
+                      borderRadius: 'var(--radius-sm)',
+                      border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                      background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
+                      cursor: 'pointer', fontSize: '0.88rem',
+                      fontWeight: topicSlug === t.slug ? 600 : 400,
+                      color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+
+                {/* Categorised sections */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {TOPIC_CATEGORIES.map(cat => {
+                    const catTopics = cat.slugs.map(s => topics.find(t => t.slug === s)).filter(Boolean);
+                    if (!catTopics.length) return null;
+                    return (
+                      <div key={cat.label}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                          {cat.label}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                          {catTopics.map(t => (
+                            <button
+                              key={t.slug}
+                              type="button"
+                              onClick={() => {
+                                if (topicSlug === t.slug) setTopicSlug('');
+                                else { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }
+                              }}
+                              style={{
+                                padding: '9px 10px', textAlign: 'left',
+                                borderRadius: 'var(--radius-sm)',
+                                border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                                background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
+                                cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1.35,
+                                fontWeight: topicSlug === t.slug ? 600 : 400,
+                                color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                              }}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Secondary topic */}

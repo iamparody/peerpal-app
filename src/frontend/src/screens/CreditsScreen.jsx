@@ -109,84 +109,80 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
-        width: '100%', background: 'var(--color-surface-card)',
+        width: '100%',
+        maxHeight: '82dvh',
+        background: 'var(--color-surface-card)',
         borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        padding: '24px 20px 32px',
-        display: 'flex', flexDirection: 'column', gap: 16,
+        display: 'flex', flexDirection: 'column',
+        overflowY: 'auto',
       }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--font-editorial)' }}>{pkg.name}</div>
-            <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
-              {pkg.credits} credits · KSh {pkg.price}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
-              Safaricom phone number
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-              <span style={{
-                padding: '10px 12px', fontSize: 15, fontWeight: 600,
-                color: '#F5EDE4', background: 'rgba(255,255,255,0.08)',
-                borderRight: '1px solid var(--color-border)', flexShrink: 0, letterSpacing: 0.5,
-              }}>
-                +254
-              </span>
-              <input
-                type="tel"
-                value={digits}
-                onChange={handleChange}
-                placeholder="7XX XXX XXX"
-                inputMode="numeric"
-                autoFocus
-                style={{
-                  flex: 1, border: 'none', outline: 'none', padding: '10px 12px',
-                  fontSize: 15, background: 'transparent', color: '#F5EDE4',
-                  letterSpacing: 0.5,
-                }}
-              />
+        <div style={{ padding: '16px 20px 36px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--font-editorial)' }}>{pkg.name}</div>
+              <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                {pkg.credits} credits · KSh {pkg.price}
+              </div>
             </div>
-            {phoneErr && (
-              <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{phoneErr}</p>
-            )}
-            {error && (
-              <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{error}</p>
-            )}
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4, marginTop: -2 }}
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
           </div>
 
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-            You'll receive an M-Pesa prompt on this number. Enter your PIN to complete the payment.
-            Your number is used only for this transaction and is not stored.
-          </p>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Safaricom number
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                <span style={{
+                  padding: '11px 12px', fontSize: 15, fontWeight: 600,
+                  color: '#F5EDE4', background: 'rgba(255,255,255,0.08)',
+                  borderRight: '1px solid var(--color-border)', flexShrink: 0, letterSpacing: 0.5,
+                }}>
+                  +254
+                </span>
+                <input
+                  type="tel"
+                  value={digits}
+                  onChange={handleChange}
+                  placeholder="7XX XXX XXX"
+                  inputMode="numeric"
+                  autoFocus
+                  style={{
+                    flex: 1, border: 'none', outline: 'none', padding: '11px 12px',
+                    fontSize: 15, background: 'transparent', color: '#F5EDE4',
+                    letterSpacing: 0.5,
+                  }}
+                />
+              </div>
+              {phoneErr && <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{phoneErr}</p>}
+              {error && <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{error}</p>}
+            </div>
 
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={submitting || digits.length !== 9}
-          >
-            {submitting ? 'Sending prompt…' : 'Send M-Pesa Prompt'}
-          </button>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-        </form>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+              You'll get an M-Pesa prompt. Enter your PIN to confirm.
+            </p>
+
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={submitting || digits.length !== 9}
+            >
+              {submitting ? 'Sending prompt…' : 'Send M-Pesa Prompt'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
