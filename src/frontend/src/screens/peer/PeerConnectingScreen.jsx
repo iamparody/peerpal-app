@@ -113,7 +113,7 @@ export default function PeerConnectingScreen() {
             } else if (data.status === 'closed') {
               clearInterval(pollRef.current);
               setPhase('error');
-              setErrorMsg('No peer was available this time. You can try again whenever you're ready.');
+              setErrorMsg("No peer was available this time. You can try again whenever you're ready.");
             }
           } catch { /* keep polling on transient errors */ }
         }, 3000);
