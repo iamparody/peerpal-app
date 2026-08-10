@@ -129,7 +129,9 @@ function ReportModal({ sessionId, onClose }) {
   );
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+// Derive WS URL from the API URL so wss:// is used automatically on HTTPS
+const _apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const WS_URL = import.meta.env.VITE_WS_URL || _apiUrl.replace(/^http/, 'ws');
 const SESSION_SECONDS = 30 * 60; // 30 minutes
 
 function formatTime(seconds) {
@@ -227,6 +229,8 @@ export default function PeerTextChatScreen() {
             setMessages((prev) => [...prev, { from: 'peer', text: msg.text, ts: msg.ts || Date.now() }]);
           } else if (msg.type === 'peer_left') {
             setPeerLeft(true);
+            // End this party's session too — session is already closed server-side
+            handleEndSession('peer_left');
           } else if (msg.type === 'contact_warning') {
             setContactWarning(true);
             clearTimeout(warnTimerRef.current);

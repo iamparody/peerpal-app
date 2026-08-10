@@ -45,8 +45,16 @@ function createSignalingServer(httpServer) {
           const current = rooms.get(sessionId);
           if (!current) return;
           const remaining = current.filter((c) => c !== ws);
-          if (remaining.length === 0) rooms.delete(sessionId);
-          else rooms.set(sessionId, remaining);
+          if (remaining.length === 0) {
+            rooms.delete(sessionId);
+          } else {
+            rooms.set(sessionId, remaining);
+            // Notify remaining participant that this peer disconnected
+            const leaveMsg = JSON.stringify({ type: 'peer_left' });
+            for (const peer of remaining) {
+              if (peer.readyState === WebSocket.OPEN) peer.send(leaveMsg);
+            }
+          }
         });
 
         ws.send(JSON.stringify({ type: 'joined', peer_count: peers.length }));

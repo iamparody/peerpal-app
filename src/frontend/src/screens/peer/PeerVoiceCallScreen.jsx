@@ -129,7 +129,8 @@ function ReportModal({ sessionId, onClose }) {
   );
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+const _apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const WS_URL = import.meta.env.VITE_WS_URL || _apiUrl.replace(/^http/, 'ws');
 const SESSION_SECONDS = 30 * 60;
 
 function formatTime(seconds) {

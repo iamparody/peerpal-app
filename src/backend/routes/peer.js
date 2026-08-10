@@ -610,11 +610,17 @@ router.patch('/request/:id/close', auth, async (req, res) => {
   const timers = sessionTimers.get(session_id);
   if (timers) { clearTimeout(timers.warning); clearTimeout(timers.close); sessionTimers.delete(session_id); }
 
+  // Only transition from active → completed; a second call is a no-op
   const { rows: sessionRows } = await query(
     `UPDATE sessions SET status = 'completed', ended_at = NOW()
-     WHERE id = $1 RETURNING ended_at, started_at`,
+     WHERE id = $1 AND status = 'active' RETURNING ended_at, started_at`,
     [session_id]
   );
+
+  if (!sessionRows.length) {
+    // Already closed — return without re-running earning logic
+    return res.status(200).json({ ended_at: null });
+  }
 
   await query(
     `UPDATE peer_requests SET status = 'closed', updated_at = NOW() WHERE id = $1`,
