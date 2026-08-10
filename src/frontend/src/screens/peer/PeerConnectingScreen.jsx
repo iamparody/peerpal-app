@@ -49,7 +49,6 @@ export default function PeerConnectingScreen() {
 
   const [phase, setPhase] = useState('submitting'); // submitting | waiting | connected | error
   const [requestId, setRequestId] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
   const [sessionChannel, setSessionChannel] = useState(location.state?.channel || 'text');
   const [topicLabel, setTopicLabel] = useState(location.state?.topicLabel || '');
   const [errorMsg, setErrorMsg] = useState('');
@@ -64,78 +63,90 @@ export default function PeerConnectingScreen() {
     initRef.current = true;
 
     async function init() {
-      try {
-        // 1. Recover any existing active request (handles refresh / remount)
-        const { data: activeData } = await client.get('/api/peer/request/active');
+      // Retry once on network/timeout errors (Render free tier cold starts ~20-30s)
+      let attempt = 0;
+      while (attempt < 2) {
+        try {
+          // 1. Recover any existing active request (handles refresh / remount)
+          const { data: activeData } = await client.get('/api/peer/request/active', { timeout: 35000 });
 
-        let rid = null;
+          let rid = null;
 
-        if (activeData.request) {
-          const r = activeData.request;
-          rid = r.id;
-          setSessionChannel(r.channel_preference || 'text');
-          if (r.topic_label) setTopicLabel(r.topic_label);
+          if (activeData.request) {
+            const r = activeData.request;
+            rid = r.id;
+            setSessionChannel(r.channel_preference || 'text');
+            if (r.topic_label) setTopicLabel(r.topic_label);
 
-          // Already matched — go straight to session
-          if (r.status === 'active' && r.session_id) {
-            navigate(`/peer/session/${r.session_id}/${r.channel_preference || 'text'}`, { replace: true });
-            return;
-          }
-        } else {
-          // 2. No existing request — create one from route state
-          const { topic, channel, topicLabel: tl } = location.state || {};
-          if (!topic || !channel) {
-            navigate('/peer', { replace: true });
-            return;
-          }
-          if (tl) setTopicLabel(tl);
-          setSessionChannel(channel);
-
-          const { data } = await client.post('/api/peer/request', {
-            channel_preference: channel,
-            topic_slug: topic,
-          });
-          rid = data.request_id;
-        }
-
-        setRequestId(rid);
-        setPhase('waiting');
-
-        // 3. Poll — backend is authoritative; no client-side escalation timers
-        pollRef.current = setInterval(async () => {
-          try {
-            const { data } = await client.get(`/api/peer/request/${rid}/status`);
-            if (data.status === 'active' && data.session_id) {
-              clearInterval(pollRef.current);
-              setSessionId(data.session_id);
-              setSessionChannel(data.channel_preference || 'text');
-              setPhase('connected');
-            } else if (data.status === 'closed') {
-              clearInterval(pollRef.current);
-              setPhase('error');
-              setErrorMsg("No peer was available this time. You can try again whenever you're ready.");
+            // Already matched — go straight to session
+            if (r.status === 'active' && r.session_id) {
+              navigate(`/peer/session/${r.session_id}/${r.channel_preference || 'text'}`, { replace: true });
+              return;
             }
-          } catch { /* keep polling on transient errors */ }
-        }, 3000);
+          } else {
+            // 2. No existing request — create one from route state
+            const { topic, channel, topicLabel: tl } = location.state || {};
+            if (!topic || !channel) {
+              navigate('/peer', { replace: true });
+              return;
+            }
+            if (tl) setTopicLabel(tl);
+            setSessionChannel(channel);
 
-      } catch (err) {
-        const code = err.response?.data?.code;
-        if (code === 'INSUFFICIENT_CREDITS') {
-          navigate('/credits', { replace: true });
-          return;
+            const { data } = await client.post('/api/peer/request', {
+              channel_preference: channel,
+              topic_slug: topic,
+            }, { timeout: 35000 });
+            rid = data.request_id;
+          }
+
+          setRequestId(rid);
+          setPhase('waiting');
+
+          // 3. Poll every 2s — navigate immediately when peer accepts (no button click needed)
+          pollRef.current = setInterval(async () => {
+            try {
+              const { data } = await client.get(`/api/peer/request/${rid}/status`);
+              if (data.status === 'active' && data.session_id) {
+                clearInterval(pollRef.current);
+                navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
+              } else if (data.status === 'closed') {
+                clearInterval(pollRef.current);
+                setPhase('error');
+                setErrorMsg("No peer was available this time. You can try again whenever you're ready.");
+              }
+            } catch { /* keep polling on transient errors */ }
+          }, 2000);
+
+          return; // success — exit retry loop
+
+        } catch (err) {
+          const code = err.response?.data?.code;
+          if (code === 'INSUFFICIENT_CREDITS') {
+            navigate('/credits', { replace: true });
+            return;
+          }
+          // Hard errors (4xx) don't benefit from retrying
+          if (err.response?.status >= 400 && err.response?.status < 500) {
+            setPhase('error');
+            setErrorMsg(err.response?.data?.error || 'Something went wrong. Please try again.');
+            return;
+          }
+          attempt++;
+          if (attempt < 2) {
+            // Wait 3s then retry (gives Render cold start time to complete)
+            await new Promise(r => setTimeout(r, 3000));
+          } else {
+            setPhase('error');
+            setErrorMsg('Server is waking up — please try again in a moment.');
+          }
         }
-        setPhase('error');
-        setErrorMsg(err.response?.data?.error || 'Something went wrong. Please try again.');
       }
     }
 
     init();
     return () => clearInterval(pollRef.current);
   }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleProceed() {
-    navigate(`/peer/session/${sessionId}/${sessionChannel}`, { replace: true });
-  }
 
   function handleCancel() {
     clearInterval(pollRef.current);
@@ -274,21 +285,10 @@ export default function PeerConnectingScreen() {
             }}>
               {phase === 'submitting' && 'Getting things ready…'}
               {phase === 'waiting' && 'Looking for the right peer…'}
-              {phase === 'connected' && 'Your peer is ready and waiting for you.'}
+              {phase === 'connected' && 'Peer found — joining your session…'}
               {phase === 'error' && errorMsg}
             </p>
           </div>
-
-          {/* CTA — only when connected */}
-          {phase === 'connected' && (
-            <button
-              className="btn btn--primary"
-              onClick={handleProceed}
-              style={{ width: '100%', maxWidth: 360, fontSize: '1rem', padding: '14px' }}
-            >
-              Step in →
-            </button>
-          )}
 
           {/* Retry — only on error */}
           {phase === 'error' && (
