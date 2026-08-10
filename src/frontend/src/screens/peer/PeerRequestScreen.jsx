@@ -372,8 +372,8 @@ export default function PeerRequestScreen() {
 
       {tab === 'support' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Scrollable body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Scrollable body — extra bottom padding so sticky bar + nav don't cover content */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(80px + var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* ── Accept card — always at top if requests exist ── */}
             {openRequests.length > 0 && (
@@ -442,83 +442,60 @@ export default function PeerRequestScreen() {
               ))}
             </div>
 
-            {/* Topic dropdown */}
+            {/* Topic grid — always visible, no dropdown */}
             {topics.length > 0 && (
-              <div>
-                {/* Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setTopicOpen(o => !o)}
-                  style={{
-                    width: '100%', padding: '11px 14px',
-                    borderRadius: topicOpen ? 'var(--radius-sm) var(--radius-sm) 0 0' : 'var(--radius-sm)',
-                    border: `2px solid ${topicSlug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                    background: 'var(--color-surface-card)',
-                    cursor: 'pointer', textAlign: 'left',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    fontSize: '0.88rem', fontWeight: topicSlug ? 600 : 400,
-                    color: topicSlug ? 'var(--color-calm)' : 'var(--color-text-muted)',
-                  }}
-                >
-                  <span>{topicSlug ? topics.find(t => t.slug === topicSlug)?.label : 'What do you need support with?'}</span>
-                  <span style={{ fontSize: 10, opacity: 0.55, display: 'inline-block', transform: topicOpen ? 'rotate(180deg)' : 'none', transition: 'transform 180ms' }}>▼</span>
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                  What do you need support with? <span style={{ color: 'var(--color-danger)' }}>*</span>
+                </div>
 
-                {topicOpen && (
-                  <div style={{
-                    border: '2px solid var(--color-calm)', borderTop: 'none',
-                    borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
-                    background: 'var(--color-surface-card)',
-                    maxHeight: 260, overflowY: 'auto',
-                    padding: '10px 10px 8px',
-                    display: 'flex', flexDirection: 'column', gap: 10,
-                  }}>
-                    {topics.filter(t => t.slug === 'general').map(t => (
-                      <button key={t.slug} type="button"
-                        onClick={() => { setTopicSlug(t.slug); setTopicOpen(false); }}
-                        style={{
-                          width: '100%', padding: '8px 10px', textAlign: 'left',
-                          borderRadius: 'var(--radius-sm)',
-                          border: `1.5px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                          background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'transparent',
-                          cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500,
-                          color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
-                        }}
-                      >{t.label}</button>
-                    ))}
-                    {TOPIC_CATEGORIES.map(cat => {
-                      const catTopics = cat.slugs.map(s => topics.find(t => t.slug === s)).filter(Boolean);
-                      if (!catTopics.length) return null;
-                      return (
-                        <div key={cat.label}>
-                          <div style={{ fontSize: '0.67rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 5 }}>{cat.label}</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-                            {catTopics.map(t => (
-                              <button key={t.slug} type="button"
-                                onClick={() => { setTopicSlug(t.slug); setTopicOpen(false); }}
-                                style={{
-                                  padding: '7px 8px', textAlign: 'left',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: `1.5px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                                  background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'transparent',
-                                  cursor: 'pointer', fontSize: '0.77rem', lineHeight: 1.3,
-                                  fontWeight: topicSlug === t.slug ? 600 : 400,
-                                  color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
-                                }}
-                              >{t.label}</button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* "Just listen" — full width */}
+                {topics.filter(t => t.slug === 'general').map(t => (
+                  <button key={t.slug} type="button"
+                    onClick={() => { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }}
+                    style={{
+                      width: '100%', padding: '9px 12px', textAlign: 'left',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                      background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
+                      cursor: 'pointer', fontSize: '0.85rem', fontWeight: topicSlug === t.slug ? 600 : 400,
+                      color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                    }}
+                  >{t.label}</button>
+                ))}
+
+                {/* Categorised 2-column grid */}
+                {TOPIC_CATEGORIES.map(cat => {
+                  const catTopics = cat.slugs.map(s => topics.find(t => t.slug === s)).filter(Boolean);
+                  if (!catTopics.length) return null;
+                  return (
+                    <div key={cat.label}>
+                      <div style={{ fontSize: '0.67rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 5 }}>{cat.label}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                        {catTopics.map(t => (
+                          <button key={t.slug} type="button"
+                            onClick={() => { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }}
+                            style={{
+                              padding: '8px 8px', textAlign: 'left',
+                              borderRadius: 'var(--radius-sm)',
+                              border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                              background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
+                              cursor: 'pointer', fontSize: '0.77rem', lineHeight: 1.35,
+                              fontWeight: topicSlug === t.slug ? 600 : 400,
+                              color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                            }}
+                          >{t.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
 
                 {topicSlug && topicSlug !== 'general' && (() => {
                   const selected = topics.find(t => t.slug === topicSlug);
                   if (!selected?.required_permission_name) return null;
                   return (
-                    <p style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', lineHeight: 1.5, marginTop: 6, padding: '6px 10px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-calm)' }}>
+                    <p style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', lineHeight: 1.5, padding: '6px 10px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-calm)' }}>
                       We'll match you with a peer trained in {selected.required_permission_name}.
                     </p>
                   );
@@ -536,9 +513,12 @@ export default function PeerRequestScreen() {
             )}
           </div>
 
-          {/* ── Sticky bottom bar — Request Help always visible ── */}
+          {/* ── Fixed bottom bar — sits above the nav ribbon ── */}
           <div style={{
-            flexShrink: 0, padding: '10px 16px 16px',
+            position: 'fixed',
+            bottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom))',
+            left: 0, right: 0, zIndex: 50,
+            padding: '10px 16px',
             borderTop: '1px solid var(--color-border)',
             background: 'var(--color-surface)',
           }}>
