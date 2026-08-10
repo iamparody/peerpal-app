@@ -489,12 +489,20 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
   }
 
   // Create the session (user_id = requester)
-  const { rows: sessionRows } = await query(
-    `INSERT INTO sessions (user_id, type, channel, status, peer_request_id)
-     VALUES ($1, 'peer', $2, 'active', $3) RETURNING id`,
-    [requesterId, channel_preference, requestId]
-  );
-  const sessionId = sessionRows[0].id;
+  let sessionId;
+  try {
+    const { rows: sessionRows } = await query(
+      `INSERT INTO sessions (user_id, type, channel, status, peer_request_id)
+       VALUES ($1, 'peer', $2, 'active', $3) RETURNING id`,
+      [requesterId, channel_preference, requestId]
+    );
+    sessionId = sessionRows[0].id;
+  } catch (err) {
+    // Roll back the lock so another peer can accept
+    await query(`UPDATE peer_requests SET status = 'open', accepted_by = NULL, updated_at = NOW() WHERE id = $1`, [requestId]);
+    console.error('Session insert failed, request unlocked:', err.message);
+    return res.status(500).json({ error: 'Could not create session. Please try again.', code: 'SESSION_CREATE_FAILED' });
+  }
 
   // Activate the peer request with the session
   await query(

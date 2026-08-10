@@ -42,10 +42,11 @@ export default function PeerWaitingScreen() {
         if (data?.status === 'active' && data?.session_id) {
           clearInterval(pollRef.current);
           clearInterval(timerRef.current);
-          // Invalidate credits so balance reflects the deduction on the next screen
           qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
           navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
         }
+        // If request is stuck 'locked' for >10s due to a failed accept, reset it server-side
+        // by letting it time out — nothing to do on the client, just keep waiting
       } catch { /* non-fatal */ }
     }, 3000);
 

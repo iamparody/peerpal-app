@@ -191,6 +191,7 @@ export default function PeerRequestScreen() {
   const [channel, setChannel] = useState('text');
   const [topicSlug, setTopicSlug] = useState('');
   const [secondaryTopicSlug, setSecondaryTopicSlug] = useState('');
+  const [topicOpen, setTopicOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -355,12 +356,51 @@ export default function PeerRequestScreen() {
       </div>
 
       {tab === 'support' && (
-        <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ padding: '8px 16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* ── Open requests — top of page, immediately visible ── */}
+          {openRequests.length > 0 && (
+            <div style={{
+              background: 'rgba(143,175,154,0.1)',
+              border: '1.5px solid rgba(143,175,154,0.4)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 14px 10px',
+            }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-calm)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+                Someone needs support now
+              </div>
+              {!quizDone ? (
+                <PeerQuizGate onComplete={() => setQuizDone(true)} />
+              ) : (
+                <>
+                  {openRequests.map((req) => {
+                    const topicInfo = topics.find(t => t.slug === req.topic_slug);
+                    return (
+                      <div key={req.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingBottom: 8, marginBottom: 8, borderBottom: '1px solid rgba(143,175,154,0.2)' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-text)' }}>
+                            {req.channel_preference === 'voice' ? <Microphone size={14} weight="duotone" color="var(--color-calm)" /> : <ChatText size={14} weight="duotone" color="var(--color-calm)" />}
+                            {req.channel_preference === 'voice' ? 'Voice' : 'Text'} session
+                          </div>
+                          {topicInfo && <div style={{ fontSize: '0.73rem', color: 'var(--color-calm)', marginTop: 2 }}>{topicInfo.label}</div>}
+                        </div>
+                        <button onClick={() => handleAcceptIntent(req)} className="btn btn--primary btn--sm" style={{ width: 'auto', flexShrink: 0, background: 'var(--color-calm)', borderColor: 'var(--color-calm)' }}>
+                          I'm here
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 2 }}>Earn 1 credit for completing a session.</p>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Credit balance */}
-          <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Your credits</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: balanceLow ? 'var(--color-emergency)' : 'var(--color-text)' }}>{balance ?? '—'}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Your credits</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 700, color: balanceLow ? 'var(--color-emergency)' : 'var(--color-text)' }}>{balance ?? '—'}</div>
             </div>
             {balanceLow && (
               <button onClick={() => navigate('/credits')} className="btn btn--ghost btn--sm" style={{ width: 'auto' }}>Top Up</button>
@@ -368,142 +408,137 @@ export default function PeerRequestScreen() {
           </div>
 
           {/* Request help */}
-          <div>
-            <h3 style={{ marginBottom: 12 }}>Need support?</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h3 style={{ marginBottom: 0 }}>Need support?</h3>
 
             {/* Channel selector */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               {Object.entries(COST_INFO).map(([val, info]) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => setChannel(val)}
                   style={{
-                    flex: 1, padding: 14,
+                    flex: 1, padding: '10px 8px',
                     borderRadius: 'var(--radius-sm)',
                     border: `2px solid ${channel === val ? 'var(--color-primary)' : 'var(--color-border)'}`,
                     background: channel === val ? 'rgba(194,164,138,0.15)' : 'var(--color-surface-card)',
                     cursor: 'pointer', textAlign: 'center',
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {val === 'text' ? <ChatText size={16} weight="duotone" /> : <Microphone size={16} weight="duotone" />} {info.label}
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                    {val === 'text' ? <ChatText size={15} weight="duotone" /> : <Microphone size={15} weight="duotone" />} {info.label}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{info.desc}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 3 }}>{info.desc}</div>
                 </button>
               ))}
             </div>
 
-            {/* Topic picker */}
+            {/* Topic picker — dropdown */}
             {topics.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 10, color: 'var(--color-text-secondary)' }}>
-                  What would you like support with? <span style={{ color: 'var(--color-danger)' }}>*</span>
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, color: 'var(--color-text-secondary)' }}>
+                  Topic <span style={{ color: 'var(--color-danger)' }}>*</span>
                 </div>
 
-                {/* "Just listen" standalone */}
-                {topics.filter(t => t.slug === 'general').map(t => (
-                  <button
-                    key={t.slug}
-                    type="button"
-                    onClick={() => {
-                      if (topicSlug === t.slug) setTopicSlug('');
-                      else { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }
-                    }}
-                    style={{
-                      width: '100%', padding: '11px 14px', textAlign: 'left', marginBottom: 14,
-                      borderRadius: 'var(--radius-sm)',
-                      border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                      background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
-                      cursor: 'pointer', fontSize: '0.88rem',
-                      fontWeight: topicSlug === t.slug ? 600 : 400,
-                      color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                {/* Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setTopicOpen(o => !o)}
+                  style={{
+                    width: '100%', padding: '10px 12px',
+                    borderRadius: topicOpen ? 'var(--radius-sm) var(--radius-sm) 0 0' : 'var(--radius-sm)',
+                    border: `2px solid ${topicSlug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                    background: 'var(--color-surface-card)',
+                    cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    fontSize: '0.88rem', fontWeight: topicSlug ? 600 : 400,
+                    color: topicSlug ? 'var(--color-calm)' : 'var(--color-text-muted)',
+                  }}
+                >
+                  <span>{topicSlug ? topics.find(t => t.slug === topicSlug)?.label : 'Choose what you need support with…'}</span>
+                  <span style={{ fontSize: 11, opacity: 0.6, transform: topicOpen ? 'rotate(180deg)' : 'none', transition: 'transform 180ms' }}>▼</span>
+                </button>
 
-                {/* Categorised sections */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {TOPIC_CATEGORIES.map(cat => {
-                    const catTopics = cat.slugs.map(s => topics.find(t => t.slug === s)).filter(Boolean);
-                    if (!catTopics.length) return null;
-                    return (
-                      <div key={cat.label}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 6 }}>
-                          {cat.label}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                          {catTopics.map(t => (
-                            <button
-                              key={t.slug}
-                              type="button"
-                              onClick={() => {
-                                if (topicSlug === t.slug) setTopicSlug('');
-                                else { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }
-                              }}
-                              style={{
-                                padding: '9px 10px', textAlign: 'left',
-                                borderRadius: 'var(--radius-sm)',
-                                border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                                background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
-                                cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1.35,
-                                fontWeight: topicSlug === t.slug ? 600 : 400,
-                                color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
-                              }}
-                            >
-                              {t.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* Dropdown panel */}
+                {topicOpen && (
+                  <div style={{
+                    border: '2px solid var(--color-calm)',
+                    borderTop: 'none',
+                    borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+                    background: 'var(--color-surface-card)',
+                    maxHeight: 280, overflowY: 'auto',
+                    padding: '10px 10px 6px',
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                  }}>
+                    {/* "Just listen" */}
+                    {topics.filter(t => t.slug === 'general').map(t => (
+                      <button
+                        key={t.slug}
+                        type="button"
+                        onClick={() => { setTopicSlug(t.slug); setTopicOpen(false); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }}
+                        style={{
+                          width: '100%', padding: '9px 10px', textAlign: 'left',
+                          borderRadius: 'var(--radius-sm)',
+                          border: `1.5px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                          background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'transparent',
+                          cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500,
+                          color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
 
-                {/* Secondary topic */}
-                {topicSlug && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 6 }}>
-                      Anything else (optional):
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {topics.filter(t => t.slug !== topicSlug).map(t => (
-                        <button
-                          key={t.slug}
-                          type="button"
-                          onClick={() => setSecondaryTopicSlug(prev => prev === t.slug ? '' : t.slug)}
-                          style={{
-                            padding: '5px 10px', fontSize: '0.78rem',
-                            borderRadius: 'var(--radius-pill)',
-                            border: `1px solid ${secondaryTopicSlug === t.slug ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                            background: secondaryTopicSlug === t.slug ? 'rgba(194,164,138,0.2)' : 'none',
-                            cursor: 'pointer',
-                            color: secondaryTopicSlug === t.slug ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                          }}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Categories */}
+                    {TOPIC_CATEGORIES.map(cat => {
+                      const catTopics = cat.slugs.map(s => topics.find(t => t.slug === s)).filter(Boolean);
+                      if (!catTopics.length) return null;
+                      return (
+                        <div key={cat.label}>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 5 }}>
+                            {cat.label}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                            {catTopics.map(t => (
+                              <button
+                                key={t.slug}
+                                type="button"
+                                onClick={() => { setTopicSlug(t.slug); setTopicOpen(false); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }}
+                                style={{
+                                  padding: '7px 8px', textAlign: 'left',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: `1.5px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                                  background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'transparent',
+                                  cursor: 'pointer', fontSize: '0.78rem', lineHeight: 1.3,
+                                  fontWeight: topicSlug === t.slug ? 600 : 400,
+                                  color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                                }}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Confidence copy */}
-                {topicSlug && (() => {
+                {/* Confidence copy — only for specialty topics, not general */}
+                {topicSlug && topicSlug !== 'general' && (() => {
                   const selected = topics.find(t => t.slug === topicSlug);
                   if (!selected?.required_permission_name) return null;
                   return (
-                    <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', lineHeight: 1.55, marginTop: 10, padding: '8px 10px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-calm)' }}>
-                      You'll be connected with a peer who has completed <strong>{selected.required_permission_name}</strong> awareness training.
+                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.55, marginTop: 6, padding: '7px 10px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-calm)' }}>
+                      We'll match you with a peer trained in {selected.required_permission_name}.
                     </p>
                   );
                 })()}
               </div>
             )}
 
-            {error && <div className="error-msg" style={{ marginBottom: 12 }}>{error}</div>}
+            {error && <div className="error-msg">{error}</div>}
 
             <button
               className="btn btn--primary"
@@ -513,57 +548,19 @@ export default function PeerRequestScreen() {
               {submitting ? 'Requesting…' : 'Request Help'}
             </button>
             {!topicSlug && topics.length > 0 && (
-              <p style={{ marginTop: 6, fontSize: '0.78rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                Select a topic above to continue
+              <p style={{ fontSize: '0.75rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                Choose a topic above to continue
               </p>
             )}
             {balance < COST_INFO[channel].cost && (
-              <p style={{ marginTop: 8, fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              <p style={{ fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                 Not enough credits —{' '}
-                <button
-                  onClick={() => navigate('/credits')}
-                  style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}
-                >
+                <button onClick={() => navigate('/credits')} style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}>
                   top up
                 </button>
               </p>
             )}
           </div>
-
-          {/* Open requests — gated by quiz */}
-          {openRequests.length > 0 && (
-            <div>
-              <h3 style={{ marginBottom: 12 }}>Someone needs support now</h3>
-
-              {!quizDone ? (
-                <PeerQuizGate onComplete={() => setQuizDone(true)} />
-              ) : (
-                <>
-                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
-                    Complete a session to earn 1 credit.
-                  </p>
-                  {openRequests.map((req) => {
-                    const topicInfo = topics.find(t => t.slug === req.topic_slug);
-                    return (
-                      <div key={req.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            {req.channel_preference === 'voice' ? <Microphone size={15} weight="duotone" /> : <ChatText size={15} weight="duotone" />}
-                            {req.channel_preference === 'voice' ? 'Voice' : 'Text'} session
-                          </div>
-                          {topicInfo && <div style={{ fontSize: '0.75rem', color: 'var(--color-accent)', marginTop: 2 }}>{topicInfo.label}</div>}
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 1 }}>{new Date(req.created_at).toLocaleTimeString()}</div>
-                        </div>
-                        <button onClick={() => handleAcceptIntent(req)} className="btn btn--success btn--sm" style={{ width: 'auto', flexShrink: 0 }}>
-                          I'm here
-                        </button>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-            </div>
-          )}
         </div>
       )}
 
