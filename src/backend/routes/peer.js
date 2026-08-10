@@ -279,6 +279,15 @@ router.post('/request', auth, async (req, res) => {
     return res.status(400).json({ error: `channel_preference must be one of: ${VALID_CHANNELS.join(', ')}`, code: 'INVALID_CHANNEL' });
   }
 
+  // Idempotency: return existing open/locked request rather than creating a duplicate
+  const { rows: existing } = await query(
+    `SELECT id FROM peer_requests WHERE user_id = $1 AND status IN ('open', 'locked') ORDER BY created_at DESC LIMIT 1`,
+    [req.user.id]
+  );
+  if (existing.length) {
+    return res.status(200).json({ request_id: existing[0].id, reused: true });
+  }
+
   // Validate topic_slug
   let topicRow = null;
   if (topic_slug) {
@@ -551,6 +560,22 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
   sessionTimers.set(sessionId, { warning: warnTimer, close: autoCloseTimer });
 
   return res.status(200).json({ session_id: sessionId, channel: channel_preference, request_id: requestId });
+});
+
+// ─── GET /peer/request/active ─────────────────────────────────────────────────
+// Returns the caller's current open/locked/active request — used by the
+// connecting screen to recover state after refresh or remount.
+router.get('/request/active', auth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT pr.id, pr.status, pr.channel_preference, pr.topic_slug, pr.session_id,
+            t.label AS topic_label
+     FROM peer_requests pr
+     LEFT JOIN topics t ON t.slug = pr.topic_slug
+     WHERE pr.user_id = $1 AND pr.status IN ('open', 'locked', 'active')
+     ORDER BY pr.created_at DESC LIMIT 1`,
+    [req.user.id]
+  );
+  return res.status(200).json({ request: rows[0] || null });
 });
 
 // ─── GET /peer/request/:id/status ─────────────────────────────────────────────

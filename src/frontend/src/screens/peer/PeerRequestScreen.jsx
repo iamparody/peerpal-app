@@ -372,8 +372,8 @@ export default function PeerRequestScreen() {
 
       {tab === 'support' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Scrollable body — extra bottom padding so sticky bar + nav don't cover content */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(80px + var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Scrollable body */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* ── Accept card — always at top if requests exist ── */}
             {openRequests.length > 0 && (
@@ -452,14 +452,14 @@ export default function PeerRequestScreen() {
                 {/* "Just listen" — full width */}
                 {topics.filter(t => t.slug === 'general').map(t => (
                   <button key={t.slug} type="button"
-                    onClick={() => { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }}
+                    onClick={() => navigate('/peer/connecting', { state: { topic: t.slug, channel, topicLabel: t.label } })}
                     style={{
-                      width: '100%', padding: '9px 12px', textAlign: 'left',
+                      width: '100%', padding: '11px 14px', textAlign: 'left',
                       borderRadius: 'var(--radius-sm)',
-                      border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                      background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
-                      cursor: 'pointer', fontSize: '0.85rem', fontWeight: topicSlug === t.slug ? 600 : 400,
-                      color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                      border: '2px solid var(--color-border)',
+                      background: 'var(--color-surface-card)',
+                      cursor: 'pointer', fontSize: '0.88rem', fontWeight: 400,
+                      color: 'var(--color-text)',
                     }}
                   >{t.label}</button>
                 ))}
@@ -474,15 +474,14 @@ export default function PeerRequestScreen() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
                         {catTopics.map(t => (
                           <button key={t.slug} type="button"
-                            onClick={() => { setTopicSlug(t.slug); if (secondaryTopicSlug === t.slug) setSecondaryTopicSlug(''); }}
+                            onClick={() => navigate('/peer/connecting', { state: { topic: t.slug, channel, topicLabel: t.label } })}
                             style={{
-                              padding: '8px 8px', textAlign: 'left',
+                              padding: '9px 8px', textAlign: 'left',
                               borderRadius: 'var(--radius-sm)',
-                              border: `2px solid ${topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-border)'}`,
-                              background: topicSlug === t.slug ? 'var(--color-calm-bg)' : 'var(--color-surface-card)',
-                              cursor: 'pointer', fontSize: '0.77rem', lineHeight: 1.35,
-                              fontWeight: topicSlug === t.slug ? 600 : 400,
-                              color: topicSlug === t.slug ? 'var(--color-calm)' : 'var(--color-text)',
+                              border: '2px solid var(--color-border)',
+                              background: 'var(--color-surface-card)',
+                              cursor: 'pointer', fontSize: '0.78rem', lineHeight: 1.35,
+                              color: 'var(--color-text)',
                             }}
                           >{t.label}</button>
                         ))}
@@ -490,16 +489,6 @@ export default function PeerRequestScreen() {
                     </div>
                   );
                 })}
-
-                {topicSlug && topicSlug !== 'general' && (() => {
-                  const selected = topics.find(t => t.slug === topicSlug);
-                  if (!selected?.required_permission_name) return null;
-                  return (
-                    <p style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', lineHeight: 1.5, padding: '6px 10px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-calm)' }}>
-                      We'll match you with a peer trained in {selected.required_permission_name}.
-                    </p>
-                  );
-                })()}
               </div>
             )}
 
@@ -513,23 +502,6 @@ export default function PeerRequestScreen() {
             )}
           </div>
 
-          {/* ── Fixed bottom bar — sits above the nav ribbon ── */}
-          <div style={{
-            position: 'fixed',
-            bottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom))',
-            left: 0, right: 0, zIndex: 50,
-            padding: '10px 16px',
-            borderTop: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-          }}>
-            <button
-              className="btn btn--primary"
-              onClick={handleRequest}
-              disabled={submitting || balance < COST_INFO[channel].cost || !topicSlug}
-            >
-              {submitting ? 'Requesting…' : topicSlug ? 'Request Help' : 'Choose a topic to continue'}
-            </button>
-          </div>
         </div>
       )}
 
