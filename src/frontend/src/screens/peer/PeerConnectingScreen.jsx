@@ -193,7 +193,7 @@ export default function PeerConnectingScreen() {
           {/* Heading */}
           <div style={{ textAlign: 'center' }}>
             <h2 style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.45rem', lineHeight: 1.3, marginBottom: 8 }}>
-              {phase === 'connected' ? 'Someone's here for you' : "Let's find you someone to talk to"}
+              {phase === 'connected' ? "Someone's here for you" : "Let's find you someone to talk to"}
             </h2>
             {(topicLabel || isVoice) && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
