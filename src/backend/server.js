@@ -5,6 +5,7 @@ const http = require('http');
 const cron = require('node-cron');
 const app = require('./app');
 const { createSignalingServer } = require('./ws/signaling');
+const { runRoutingJob } = require('./jobs/routingJob');
 const { runRiskScoreJob } = require('./jobs/riskScoreJob');
 const { runCheckinReminderJob } = require('./jobs/checkinReminderJob');
 const { runDailySummaryJob } = require('./jobs/dailySummaryJob');
@@ -26,6 +27,10 @@ startEmailWorker();
 startNotificationWorker();
 
 // ─── Background jobs ──────────────────────────────────────────────────────────
+// Peer routing catch-all — every 2 minutes (handles requests whose in-process
+// timers were lost due to server restart or Render free-tier sleep)
+cron.schedule('*/2 * * * *', () => runRoutingJob().catch(console.error));
+
 // Risk score recalculation — midnight UTC
 cron.schedule('0 0 * * *', () => runRiskScoreJob().catch(console.error));
 

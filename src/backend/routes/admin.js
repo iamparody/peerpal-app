@@ -609,6 +609,93 @@ router.patch('/therapist-interests/:id/status', async (req, res) => {
   return res.status(200).json({ updated: true });
 });
 
+// ─── GET /admin/peer-requests ────────────────────────────────────────────────
+// Live view of all peer requests from the last 24 hours — open, stuck,
+// escalated, and completed — so admins can see what's happening in the queue.
+router.get('/peer-requests', async (req, res) => {
+  const { rows } = await query(
+    `SELECT pr.id, pr.status, pr.channel_preference, pr.topic_slug,
+            pr.created_at, pr.broaden_at, pr.escalate_at, pr.escalated_at,
+            pr.decline_count,
+            u.alias AS requester_alias,
+            au.alias AS accepted_by_alias,
+            s.id AS session_id, s.status AS session_status,
+            pr.routing_audit
+     FROM peer_requests pr
+     JOIN users u ON u.id = pr.user_id
+     LEFT JOIN users au ON au.id = pr.accepted_by
+     LEFT JOIN sessions s ON s.id = pr.session_id
+     WHERE pr.created_at > NOW() - INTERVAL '24 hours'
+     ORDER BY pr.created_at DESC
+     LIMIT 100`
+  );
+  return res.status(200).json({ peer_requests: rows });
+});
+
+// ─── GET /admin/activity ──────────────────────────────────────────────────────
+// Recent cross-app activity feed: sessions started/ended, emergencies,
+// peer escalations, reports — gives admins a live pulse of the platform.
+router.get('/activity', async (req, res) => {
+  const limit = Math.min(50, Math.max(5, parseInt(req.query.limit) || 30));
+
+  const [sessions, emergencies, escalations, reports] = await Promise.all([
+    query(
+      `SELECT 'session' AS event_type, s.id AS ref_id,
+              s.type || '_' || s.channel AS sub_type,
+              s.status, s.started_at AS event_at,
+              u.alias
+       FROM sessions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.started_at > NOW() - INTERVAL '24 hours'
+       ORDER BY s.started_at DESC LIMIT $1`,
+      [limit]
+    ),
+    query(
+      `SELECT 'emergency' AS event_type, el.id AS ref_id,
+              el.trigger_type AS sub_type,
+              el.status, el.triggered_at AS event_at,
+              u.alias
+       FROM emergency_logs el
+       JOIN users u ON u.id = el.user_id
+       WHERE el.triggered_at > NOW() - INTERVAL '24 hours'
+       ORDER BY el.triggered_at DESC LIMIT $1`,
+      [limit]
+    ),
+    query(
+      `SELECT 'peer_escalation' AS event_type, pr.id AS ref_id,
+              pr.channel_preference AS sub_type,
+              pr.status, COALESCE(pr.escalated_at, pr.updated_at) AS event_at,
+              u.alias
+       FROM peer_requests pr
+       JOIN users u ON u.id = pr.user_id
+       WHERE pr.status = 'escalated'
+         AND pr.updated_at > NOW() - INTERVAL '24 hours'
+       ORDER BY pr.updated_at DESC LIMIT $1`,
+      [limit]
+    ),
+    query(
+      `SELECT 'report' AS event_type, pr.id AS ref_id,
+              'peer' AS sub_type,
+              pr.status, pr.created_at AS event_at,
+              u.alias
+       FROM peer_reports pr
+       JOIN users u ON u.id = pr.reporter_id
+       WHERE pr.created_at > NOW() - INTERVAL '24 hours'
+       ORDER BY pr.created_at DESC LIMIT $1`,
+      [limit]
+    ),
+  ]);
+
+  const feed = [
+    ...sessions.rows,
+    ...emergencies.rows,
+    ...escalations.rows,
+    ...reports.rows,
+  ].sort((a, b) => new Date(b.event_at) - new Date(a.event_at)).slice(0, limit);
+
+  return res.status(200).json({ feed });
+});
+
 // ─── GET /admin/competency-stats ─────────────────────────────────────────────
 router.get('/competency-stats', async (req, res) => {
   const since = req.query.since

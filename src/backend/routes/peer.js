@@ -128,7 +128,9 @@ async function appendRoutingAudit(requestId, entry) {
 }
 
 // Step 5 — widen to general_support after 5 min with no specialist accept.
-async function broadenToGeneralTier(requestId, requesterId, specialistIds) {
+// Already-notified peer IDs are derived from the notifications table so this
+// is safe to call from the DB-polling cron job after a server restart.
+async function broadenToGeneralTier(requestId, requesterId) {
   const { rows } = await query(
     'SELECT status, channel_preference, topic_slug FROM peer_requests WHERE id = $1',
     [requestId]
@@ -136,7 +138,16 @@ async function broadenToGeneralTier(requestId, requesterId, specialistIds) {
   if (!rows.length || rows[0].status !== 'open') return;
 
   const { channel_preference, topic_slug } = rows[0];
-  const generalIds = await getGeneralPeerIds(requesterId, specialistIds);
+
+  // Derive already-notified IDs from the DB so we never need in-memory state
+  const { rows: alreadyRows } = await query(
+    `SELECT DISTINCT user_id FROM notifications
+     WHERE type = 'peer_request_broadcast' AND payload::jsonb->>'request_id' = $1`,
+    [String(requestId)]
+  );
+  const alreadyNotifiedIds = alreadyRows.map(r => r.user_id);
+
+  const generalIds = await getGeneralPeerIds(requesterId, alreadyNotifiedIds);
 
   if (generalIds.length > 0) {
     await broadcastToUsers(generalIds, requestId, channel_preference, topic_slug);
@@ -332,10 +343,11 @@ router.post('/request', auth, async (req, res) => {
   const { rows: userRows } = await query('SELECT risk_level FROM users WHERE id = $1', [req.user.id]);
   const isCrisis = userRows[0]?.risk_level === 'critical';
 
-  // Insert peer_request
+  // Insert peer_request — broaden_at/escalate_at persist the routing schedule
+  // so the cron job can fire them even if the server restarts before the timers fire.
   const { rows: reqRows } = await query(
-    `INSERT INTO peer_requests (user_id, channel_preference, topic_slug, secondary_topic_slug, escalation_job_id)
-     VALUES ($1, $2, $3, $4, gen_random_uuid()::text) RETURNING id`,
+    `INSERT INTO peer_requests (user_id, channel_preference, topic_slug, secondary_topic_slug, escalation_job_id, broaden_at, escalate_at)
+     VALUES ($1, $2, $3, $4, gen_random_uuid()::text, NOW() + INTERVAL '5 minutes', NOW() + INTERVAL '8 minutes') RETURNING id`,
     [req.user.id, channel_preference, topic_slug || null, secondary_topic_slug || null]
   );
   const requestId = reqRows[0].id;
@@ -366,9 +378,10 @@ router.post('/request', auth, async (req, res) => {
   // Start two-tier routing timers:
   // T+5 min → widen to general_support peers (step 5)
   // T+8 min → no peer available, refund + fallback (step 7)
+  // In-process fast-path timers — these fire immediately when the server is live.
+  // The routingJob cron provides a persistent fallback if the server restarts first.
   const broadenTimer = setTimeout(async () => {
-    const state = routingTimers.get(requestId);
-    try { await broadenToGeneralTier(requestId, userId, state?.specialistIds || []); }
+    try { await broadenToGeneralTier(requestId, userId); }
     catch (e) { console.error('Broaden tier error:', e); }
   }, 5 * 60 * 1000);
 
@@ -378,7 +391,7 @@ router.post('/request', auth, async (req, res) => {
     catch (e) { console.error('No-peer error:', e); }
   }, 8 * 60 * 1000);
 
-  routingTimers.set(requestId, { broadenTimer, noPeerTimer, specialistIds });
+  routingTimers.set(requestId, { broadenTimer, noPeerTimer });
 
   const response = { request_id: requestId };
   if (isCrisis) {
@@ -1056,3 +1069,6 @@ router.post('/report', auth, async (req, res) => {
 });
 
 module.exports = router;
+// Exported for use by the routing cron job
+module.exports.broadenToGeneralTier = broadenToGeneralTier;
+module.exports.noMorePeers = noMorePeers;
