@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 
-const TABS = ['Emergency', 'Escalations', 'Referrals', 'Reports', 'Risk', 'Resources', 'Stats', 'PeerPerms'];
+const TABS = ['Activity', 'PeerQueue', 'Emergency', 'Escalations', 'Referrals', 'Reports', 'Risk', 'Resources', 'Stats', 'PeerPerms'];
 
 function SectionSkeleton() {
   return (
@@ -22,6 +22,229 @@ function Section({ title, loading, error, children }) {
         : error ? <div className="error-msg">{error}</div>
         : children}
     </div>
+  );
+}
+
+// ── Shared time helpers ───────────────────────────────────────────────────────
+function ago(ts) {
+  if (!ts) return '—';
+  const m = Math.floor((Date.now() - new Date(ts)) / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+function timeUntil(ts) {
+  if (!ts) return '—';
+  const ms = new Date(ts) - Date.now();
+  if (ms <= 0) return 'overdue';
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `in ${m}m`;
+  return `in ${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+// ── Activity Feed ─────────────────────────────────────────────────────────────
+const EVENT_STYLES = {
+  session:          { bg: 'rgba(143,175,154,0.15)', border: 'rgba(143,175,154,0.5)', label: 'Session' },
+  emergency:        { bg: 'rgba(220,60,60,0.12)',   border: 'var(--color-danger)',    label: 'Emergency' },
+  peer_escalation:  { bg: 'rgba(232,139,63,0.15)',  border: 'var(--color-warning)',   label: 'Escalation' },
+  report:           { bg: 'rgba(194,164,138,0.15)', border: '#C2A48A',               label: 'Report' },
+};
+
+function ActivityTab() {
+  const [feed, setFeed] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { data } = await client.get('/api/admin/activity?limit=40');
+      setFeed(data.feed ?? []);
+    } catch { setError('Failed to load activity feed.'); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <Section title="Activity Feed (last 24h)" loading={loading} error={error}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <button onClick={load} style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: '0.78rem', color: 'inherit' }}>
+          Refresh
+        </button>
+      </div>
+      {feed.length === 0 ? (
+        <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No activity in the last 24 hours</p>
+      ) : feed.map((e, i) => {
+        const st = EVENT_STYLES[e.event_type] || EVENT_STYLES.report;
+        return (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 12px', marginBottom: 6, borderRadius: 'var(--radius-md)',
+            background: st.bg, border: `1px solid ${st.border}`,
+          }}>
+            <span style={{
+              fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.06em', whiteSpace: 'nowrap',
+              color: st.border === 'var(--color-danger)' ? 'var(--color-danger)' : 'inherit',
+            }}>
+              {st.label}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{e.alias}</span>
+              {e.sub_type && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: 6 }}>
+                  {e.sub_type.replace(/_/g, ' ')}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{ago(e.event_at)}</span>
+              {e.status && (
+                <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', opacity: 0.7 }}>{e.status}</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </Section>
+  );
+}
+
+// ── Peer Request Queue ────────────────────────────────────────────────────────
+const STATUS_COLORS = {
+  open:      { bg: 'rgba(232,139,63,0.12)', border: 'var(--color-warning)' },
+  locked:    { bg: 'rgba(143,175,154,0.12)', border: 'rgba(143,175,154,0.5)' },
+  active:    { bg: 'rgba(143,175,154,0.2)',  border: 'var(--color-calm)' },
+  escalated: { bg: 'rgba(220,60,60,0.1)',    border: 'var(--color-danger)' },
+  closed:    { bg: 'transparent',             border: 'var(--color-border)' },
+};
+
+function RoutingTrail({ audit }) {
+  if (!audit || !audit.length) return null;
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+      {audit.map((step, i) => (
+        <span key={i} style={{
+          fontSize: '0.62rem', padding: '2px 6px', borderRadius: 10,
+          background: 'var(--color-surface-secondary)',
+          color: 'var(--color-text-muted)',
+        }}>
+          {step.event === 'tier1_broadcast'  ? `T1 (${step.peer_count ?? 0} peers)` :
+           step.event === 'tier2_broadcast'  ? `T2 (${step.peer_count ?? 0} peers)` :
+           step.event === 'accepted'         ? '✓ accepted' :
+           step.event === 'no_peer_fallback' ? '✗ no peer' :
+           step.event}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PeerQueueTab() {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { data } = await client.get('/api/admin/peer-requests');
+      setRequests(data.peer_requests ?? []);
+    } catch { setError('Failed to load peer requests.'); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter);
+  const counts = requests.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] || 0) + 1 }), {});
+
+  return (
+    <Section title="Peer Request Queue (last 24h)" loading={loading} error={error}>
+      {/* Filter pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {['all', 'open', 'active', 'escalated', 'closed'].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '4px 10px', borderRadius: 10, border: '1px solid var(--color-border)',
+            background: filter === f ? '#C2A48A' : 'none',
+            color: filter === f ? '#1A1A2E' : 'inherit',
+            fontSize: '0.75rem', fontWeight: filter === f ? 700 : 400, cursor: 'pointer',
+          }}>
+            {f === 'all' ? `All (${requests.length})` : `${f} (${counts[f] ?? 0})`}
+          </button>
+        ))}
+        <button onClick={load} style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: '0.75rem', color: 'inherit' }}>
+          Refresh
+        </button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          No {filter === 'all' ? '' : filter + ' '}requests in the last 24 hours
+        </p>
+      ) : filtered.map((r) => {
+        const sc = STATUS_COLORS[r.status] || STATUS_COLORS.closed;
+        const audit = (() => { try { return Array.isArray(r.routing_audit) ? r.routing_audit : JSON.parse(r.routing_audit || '[]'); } catch { return []; } })();
+        const isOpen = r.status === 'open';
+        return (
+          <div key={r.id} style={{
+            padding: '10px 12px', marginBottom: 8, borderRadius: 'var(--radius-md)',
+            background: sc.bg, border: `1px solid ${sc.border}`,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{r.requester_alias}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                    {r.channel_preference} {r.topic_slug ? `· ${r.topic_slug.replace(/_/g, ' ')}` : ''}
+                  </span>
+                  <span style={{
+                    fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase',
+                    padding: '2px 6px', borderRadius: 8,
+                    background: sc.border === 'var(--color-danger)' ? 'rgba(220,60,60,0.2)' : 'rgba(194,164,138,0.2)',
+                    color: sc.border === 'var(--color-danger)' ? 'var(--color-danger)' : '#C2A48A',
+                  }}>
+                    {r.status}
+                  </span>
+                </div>
+
+                {r.accepted_by_alias && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 3 }}>
+                    Accepted by: <strong>{r.accepted_by_alias}</strong>
+                  </div>
+                )}
+
+                <RoutingTrail audit={audit} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0, fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                <span>{ago(r.created_at)}</span>
+                {isOpen && r.escalate_at && (
+                  <span style={{ color: new Date(r.escalate_at) < new Date() ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+                    escalate {timeUntil(r.escalate_at)}
+                  </span>
+                )}
+                {r.decline_count > 0 && (
+                  <span style={{ color: 'var(--color-warning)' }}>{r.decline_count} decline{r.decline_count !== 1 ? 's' : ''}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </Section>
   );
 }
 
@@ -624,7 +847,7 @@ function PeerPermsTab() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('Emergency');
+  const [tab, setTab] = useState('Activity');
 
   return (
     <div className="screen screen--no-nav" style={{ padding: '0 0 16px' }}>
@@ -651,6 +874,8 @@ export default function AdminDashboard() {
       </div>
 
       <div style={{ padding: '16px' }}>
+        {tab === 'Activity'    && <ActivityTab />}
+        {tab === 'PeerQueue'   && <PeerQueueTab />}
         {tab === 'Emergency'   && <EmergencyTab />}
         {tab === 'Escalations' && <EscalationsTab />}
         {tab === 'Referrals'   && <ReferralsTab />}
