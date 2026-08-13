@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin } from '@phosphor-icons/react';
+import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin, BellRinging, BellSlash } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 
@@ -196,6 +196,9 @@ export default function PeerRequestScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confidenceRequest, setConfidenceRequest] = useState(null); // request pending confidence check
+  const [availableUntil, setAvailableUntil] = useState(null); // ISO string or null
+  const [availNow, setAvailNow] = useState('');    // live countdown string
+  const [availToggling, setAvailToggling] = useState(false);
 
   // Leaderboard state
   const [stats, setStats] = useState(null);
@@ -205,16 +208,18 @@ export default function PeerRequestScreen() {
   useEffect(() => {
     async function load() {
       try {
-        const [balRes, reqRes, quizRes, topicsRes] = await Promise.all([
+        const [balRes, reqRes, quizRes, topicsRes, availRes] = await Promise.all([
           client.get('/api/credits/balance'),
           client.get('/api/peer/requests/open'),
           client.get('/api/peer/quiz/status'),
           client.get('/api/peer/topics'),
+          client.get('/api/peer/availability'),
         ]);
         setBalance(balRes.data.balance ?? 0);
         setOpenRequests(reqRes.data.requests ?? reqRes.data ?? []);
         setQuizDone(quizRes.data.peer_quiz_done);
         setTopics(topicsRes.data.topics ?? []);
+        if (availRes.data.available) setAvailableUntil(availRes.data.available_until);
       } catch {
         setError('Failed to load. Please try again.');
       } finally {
@@ -233,6 +238,36 @@ export default function PeerRequestScreen() {
 
     return () => clearInterval(poll);
   }, []);
+
+  // Live countdown for availability window
+  useEffect(() => {
+    if (!availableUntil) { setAvailNow(''); return; }
+    function tick() {
+      const diffMs = new Date(availableUntil) - Date.now();
+      if (diffMs <= 0) { setAvailableUntil(null); setAvailNow(''); return; }
+      const mins = Math.floor(diffMs / 60000);
+      const secs = Math.floor((diffMs % 60000) / 1000);
+      setAvailNow(`${mins}:${String(secs).padStart(2, '0')}`);
+    }
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [availableUntil]);
+
+  async function handleAvailToggle() {
+    if (availToggling) return;
+    setAvailToggling(true);
+    try {
+      if (availableUntil) {
+        await client.delete('/api/peer/availability');
+        setAvailableUntil(null);
+      } else {
+        const { data } = await client.post('/api/peer/availability', { hours: 2 });
+        setAvailableUntil(data.available_until);
+      }
+    } catch { /* non-fatal */ }
+    finally { setAvailToggling(false); }
+  }
 
   async function loadLeaderboard() {
     if (stats) return;
@@ -374,6 +409,45 @@ export default function PeerRequestScreen() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Scrollable body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* ── Availability toggle ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: `1.5px solid ${availableUntil ? 'rgba(143,175,154,0.6)' : 'var(--color-border)'}`,
+              background: availableUntil ? 'rgba(143,175,154,0.08)' : 'var(--color-surface-card)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {availableUntil
+                  ? <BellRinging size={18} weight="duotone" color="var(--color-calm)" />
+                  : <BellSlash size={18} weight="duotone" color="var(--color-text-muted)" />}
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: availableUntil ? 'var(--color-calm)' : 'var(--color-text)' }}>
+                    {availableUntil ? `Available for ${availNow}` : 'Be available to help'}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 1 }}>
+                    {availableUntil ? 'You\'ll receive push alerts for new requests' : 'Get notified when someone needs support'}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={handleAvailToggle}
+                disabled={availToggling}
+                style={{
+                  padding: '5px 12px', borderRadius: 'var(--radius-pill)',
+                  border: 'none', cursor: availToggling ? 'default' : 'pointer',
+                  fontSize: '0.75rem', fontWeight: 600,
+                  background: availableUntil ? 'rgba(220,60,60,0.12)' : 'var(--color-calm)',
+                  color: availableUntil ? 'var(--color-danger)' : '#fff',
+                  opacity: availToggling ? 0.6 : 1,
+                  transition: 'opacity 150ms',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {availableUntil ? 'Stop' : '+ 2 hours'}
+              </button>
+            </div>
 
             {/* ── Accept card — always at top if requests exist ── */}
             {openRequests.length > 0 && (

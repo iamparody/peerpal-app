@@ -23,19 +23,50 @@ const VALID_CHANNELS = ['text', 'voice'];
 
 // ─── Routing helpers (Phase 31.5) ─────────────────────────────────────────────
 
-// Batch-insert notifications for a list of user IDs.
+// Batch-insert notifications for a list of user IDs and fire FCM to available peers.
 async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug) {
   if (!userIds.length) return;
   const payload = JSON.stringify({ request_id: requestId, channel_preference: channelPreference, topic_slug: topicSlug || null });
-  await query(
-    `INSERT INTO notifications (user_id, type, payload, channel)
-     SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'push'`,
-    [userIds, payload]
-  );
+
+  // In-app notification for all candidate peers
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'in_app'`,
     [userIds, payload]
+  );
+
+  // FCM push: only to peers who have opted in (availability window active),
+  // have an FCM token, and are not currently in an active session.
+  const { rows: pushTargets } = await query(
+    `SELECT u.id, u.fcm_token
+     FROM users u
+     WHERE u.id = ANY($1::uuid[])
+       AND u.fcm_token IS NOT NULL
+       AND u.peer_available_until > NOW()
+       AND NOT EXISTS (
+         SELECT 1 FROM peer_requests pr2
+         WHERE pr2.accepted_by = u.id AND pr2.status = 'active'
+       )`,
+    [userIds]
+  );
+
+  if (!pushTargets.length) return;
+
+  const { enqueuePushNotification } = require('../utils/fcm');
+  for (const { fcm_token } of pushTargets) {
+    await enqueuePushNotification(
+      fcm_token,
+      'Someone needs support',
+      'A peer is looking for help. Tap to see if you can assist.',
+      { type: 'peer_request_broadcast', request_id: String(requestId) }
+    ).catch((err) => console.warn('[broadcast] FCM enqueue error:', err.message));
+  }
+
+  const pushIds = pushTargets.map(r => r.id);
+  await query(
+    `INSERT INTO notifications (user_id, type, payload, channel)
+     SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'push'`,
+    [pushIds, payload]
   );
 }
 
@@ -959,6 +990,43 @@ router.post('/session/:id/requester-feedback', auth, async (req, res) => {
     return res.status(409).json({ error: 'Feedback already submitted for this session', code: 'ALREADY_SUBMITTED' });
   }
   return res.status(201).json({ feedback_id: rows[0].id });
+});
+
+// ─── POST /peer/availability ─────────────────────────────────────────────────
+// Opt in to FCM push broadcasts for a timed window (default 2 h, max 8 h).
+router.post('/availability', auth, async (req, res) => {
+  const hours = Math.min(8, Math.max(0.5, parseFloat(req.body.hours) || 2));
+  const until = new Date(Date.now() + hours * 3600 * 1000);
+  await query(
+    'UPDATE users SET peer_available_until = $1, updated_at = NOW() WHERE id = $2',
+    [until.toISOString(), req.user.id]
+  );
+  return res.status(200).json({ available_until: until });
+});
+
+// ─── DELETE /peer/availability ────────────────────────────────────────────────
+// Cancel the current availability window early.
+router.delete('/availability', auth, async (req, res) => {
+  await query(
+    'UPDATE users SET peer_available_until = NULL, updated_at = NOW() WHERE id = $1',
+    [req.user.id]
+  );
+  return res.status(200).json({ ok: true });
+});
+
+// ─── GET /peer/availability ───────────────────────────────────────────────────
+// Returns current availability state for the authenticated user.
+router.get('/availability', auth, async (req, res) => {
+  const { rows } = await query(
+    'SELECT peer_available_until FROM users WHERE id = $1',
+    [req.user.id]
+  );
+  const until = rows[0]?.peer_available_until;
+  const isActive = until && new Date(until) > new Date();
+  return res.status(200).json({
+    available: !!isActive,
+    available_until: isActive ? until : null,
+  });
 });
 
 // ─── POST /peer/report ────────────────────────────────────────────────────────

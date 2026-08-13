@@ -10,6 +10,7 @@ router.get('/', auth, async (req, res) => {
     `SELECT u.alias, u.email, u.consent_version, u.consented_at, u.streak_count,
             u.role, u.created_at, c.balance AS credits_balance,
             u.notif_peer_broadcast, u.notif_checkin_reminder, u.notif_group_messages, u.notif_credit_low,
+            u.peer_available_until,
             p.persona_name, p.tone, p.response_style, p.formality
      FROM users u
      LEFT JOIN credits c ON c.user_id = u.id
@@ -28,6 +29,9 @@ router.get('/', auth, async (req, res) => {
     ? { persona_name: user.persona_name, tone: user.tone, response_style: user.response_style, formality: user.formality }
     : null;
 
+  const availableUntil = user.peer_available_until;
+  const peerAvailable = availableUntil && new Date(availableUntil) > new Date();
+
   return res.status(200).json({
     alias: user.alias,
     email: maskedEmail,
@@ -39,9 +43,39 @@ router.get('/', auth, async (req, res) => {
     notif_checkin_reminder: user.notif_checkin_reminder ?? true,
     notif_group_messages: user.notif_group_messages ?? true,
     notif_credit_low: user.notif_credit_low ?? true,
+    peer_available: !!peerAvailable,
+    peer_available_until: peerAvailable ? availableUntil : null,
     persona,
     member_since: user.created_at,
   });
+});
+
+// ─── PATCH /profile ───────────────────────────────────────────────────────────
+// Updates notification preferences or registers/rotates the FCM token.
+router.patch('/', auth, async (req, res) => {
+  const ALLOWED = ['notif_peer_broadcast', 'notif_checkin_reminder', 'notif_group_messages', 'notif_credit_low', 'fcm_token'];
+  const updates = {};
+  for (const key of ALLOWED) {
+    if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+      updates[key] = req.body[key];
+    }
+  }
+  if (!Object.keys(updates).length) {
+    return res.status(400).json({ error: 'No updatable fields provided', code: 'NO_FIELDS' });
+  }
+  if ('fcm_token' in updates && updates.fcm_token !== null && typeof updates.fcm_token !== 'string') {
+    return res.status(400).json({ error: 'fcm_token must be a string or null', code: 'INVALID_TOKEN' });
+  }
+
+  const keys = Object.keys(updates);
+  const setClauses = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+  const values = [...Object.values(updates), req.user.id];
+
+  await query(
+    `UPDATE users SET ${setClauses}, updated_at = NOW() WHERE id = $${values.length}`,
+    values
+  );
+  return res.status(200).json({ updated: true });
 });
 
 // ─── POST /profile/delete-data ────────────────────────────────────────────────
