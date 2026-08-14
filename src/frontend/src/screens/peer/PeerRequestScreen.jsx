@@ -508,7 +508,7 @@ export default function PeerRequestScreen() {
                     cursor: 'pointer', textAlign: 'center',
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: channel === val ? 'var(--color-text)' : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                     {val === 'text' ? <ChatText size={14} weight="duotone" /> : <Microphone size={14} weight="duotone" />} {info.label}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{info.desc}</div>
@@ -533,7 +533,7 @@ export default function PeerRequestScreen() {
                       border: '2px solid var(--color-border)',
                       background: 'var(--color-surface-card)',
                       cursor: 'pointer', fontSize: '0.88rem', fontWeight: 400,
-                      color: 'var(--color-text)',
+                      color: '#ffffff',
                     }}
                   >{t.label}</button>
                 ))}
@@ -555,7 +555,7 @@ export default function PeerRequestScreen() {
                               border: '2px solid var(--color-border)',
                               background: 'var(--color-surface-card)',
                               cursor: 'pointer', fontSize: '0.78rem', lineHeight: 1.35,
-                              color: 'var(--color-text)',
+                              color: '#ffffff',
                             }}
                           >{t.label}</button>
                         ))}
