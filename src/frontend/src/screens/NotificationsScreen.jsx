@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 
 const LANES = [
-  { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'session_confirmation', 'journal_prompt'] },
+  { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'peer_matching_update', 'session_confirmation', 'journal_prompt'] },
   { key: 'support',  label: 'Support',   types: ['therapist_update', 'referral_status', 'admin_message'] },
   { key: 'payments', label: 'Payments',  types: ['credit_low', 'payment_confirmed'] },
   { key: 'system',   label: 'System',    types: ['account_notice', 'generic'] },
@@ -18,6 +18,7 @@ const TYPE_META = {
   milestone:              { Icon: Trophy,       label: 'Milestone',            route: '/analytics' },
   peer_broadcast:         { Icon: Handshake,    label: 'Peer update',           route: '/peer' },
   peer_request_broadcast: { Icon: Handshake,    label: 'Someone needs support', route: '/peer' },
+  peer_matching_update:   { Icon: Handshake,    label: 'Peer request update',   route: '/calm-space' },
   session_confirmation:   { Icon: CheckCircle,  label: 'Session confirmed',     route: '/peer' },
   journal_prompt:         { Icon: BookOpen,     label: 'Journal prompt',        route: '/journal' },
   therapist_update:       { Icon: Stethoscope,  label: 'Therapist update',      route: '/therapists/status' },

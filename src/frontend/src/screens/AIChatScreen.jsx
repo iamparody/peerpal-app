@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { PaperPlaneRight, Robot } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
@@ -26,6 +26,8 @@ function AIChatSkeleton() {
 
 export default function AIChatScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const peerContext = location.state?.peerContext || null;
   const qc = useQueryClient();
   const [sessionId, setSessionId] = useState(null);
   const [personaName, setPersonaName] = useState('Your companion');
@@ -45,7 +47,8 @@ export default function AIChatScreen() {
     setStarting(true);
     setStartError('');
     try {
-      const { data } = await client.post('/api/ai/session/start');
+      const body = peerContext ? { context: peerContext.context, topic_label: peerContext.topic_label } : {};
+      const { data } = await client.post('/api/ai/session/start', body);
       setSessionId(data.session_id);
       setPersonaName(data.persona_name || 'Your companion');
       setMessages([{ role: 'assistant', content: data.greeting || `Hello. I'm ${data.persona_name || 'your companion'}. How are you feeling today?` }]);
@@ -54,7 +57,7 @@ export default function AIChatScreen() {
     } finally {
       setStarting(false);
     }
-  }, []);
+  }, [peerContext]);
 
   useEffect(() => { startSession(); }, [startSession]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);

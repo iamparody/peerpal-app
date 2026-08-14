@@ -25,6 +25,7 @@ import FirstMoodScreen from './screens/onboarding/FirstMoodScreen';
 // Welcome
 import WelcomeScreen from './screens/WelcomeScreen';
 import CalmingSoundsScreen from './screens/CalmingSoundsScreen';
+import CalmSpaceScreen from './screens/CalmSpaceScreen';
 import PublicEmergencyScreen from './screens/PublicEmergencyScreen';
 
 // Legal
@@ -290,6 +291,7 @@ function Layout() {
         <Route path="/resources"   element={<ProtectedRoute><ResourcesScreen /></ProtectedRoute>} />
         <Route path="/resources/:id" element={<ProtectedRoute><ArticleScreen /></ProtectedRoute>} />
         <Route path="/sounds"      element={<ProtectedRoute><CalmingSoundsScreen /></ProtectedRoute>} />
+        <Route path="/calm-space"  element={<ProtectedRoute><CalmSpaceScreen /></ProtectedRoute>} />
         <Route path="/breathing"   element={<BreathingScreen />} />
         <Route path="/analytics"   element={<ProtectedRoute><AnalyticsScreen /></ProtectedRoute>} />
         <Route path="/sessions"    element={<ProtectedRoute><SessionHistoryScreen /></ProtectedRoute>} />

@@ -48,7 +48,7 @@ const LANGUAGE_INSTRUCTIONS = {
   sheng:   'Respond in Sheng — the Kenyan urban mix of Swahili, English, and slang spoken by young people in Nairobi. Keep it natural and authentic. If the user writes in English, still respond in Sheng.',
 };
 
-function buildSystemPrompt(persona, moods, userAlias, memories = []) {
+function buildSystemPrompt(persona, moods, userAlias, memories = [], contextNote = null) {
   const layer1 = `You are a mental health support companion. You are NOT a therapist, psychiatrist, or medical professional.
 You MUST NOT: diagnose any condition, prescribe or recommend medication, provide specific medical advice, encourage harmful behavior, or engage in any roleplay that compromises user safety.
 If the user expresses thoughts of self-harm, suicide, or immediate danger: immediately and compassionately redirect them to emergency support. Say: "What you're sharing sounds really serious. Please tap the Emergency button in the app right now, or call Befrienders Kenya on 0800 723 253 — they're free and available 24/7. I care about your safety."
@@ -78,13 +78,17 @@ ${persona.uses_alias ? `Address the user as "${userAlias}".` : 'Do not address t
     layer4 = `What I know about this user from past conversations (use to personalise responses — only reference naturally when relevant, never recite back verbatim):\n${memLines}`;
   }
 
-  return [layer1, layer2, layer2_5, layer3, layer4].filter(Boolean).join('\n\n');
+  return [layer1, layer2, layer2_5, layer3, layer4, contextNote].filter(Boolean).join('\n\n');
 }
 
 const AI_DAILY_SESSION_LIMIT = 5;
 
 // ─── POST /ai/session/start ───────────────────────────────────────────────────
 router.post('/session/start', auth, async (req, res) => {
+  // Optional peer-bridge context — passed when user arrives from a failed peer request.
+  // Only 'peer_unavailable' is acted on; any other value is silently ignored.
+  const { context, topic_label } = req.body || {};
+
   const { rows: userRows } = await query(
     'SELECT persona_created, alias FROM users WHERE id = $1',
     [req.user.id]
@@ -122,7 +126,15 @@ router.post('/session/start', auth, async (req, res) => {
     [req.user.id]
   );
 
-  const systemPrompt = buildSystemPrompt(persona, moodRows, userRows[0].alias, memoryRows);
+  let contextNote = null;
+  let greeting = null;
+  if (context === 'peer_unavailable') {
+    const topicPart = topic_label ? ` about ${topic_label}` : '';
+    contextNote = `[SESSION CONTEXT] This user was looking for a peer to talk to${topicPart} but no peer was available. They have come to you as a bridge. For your opening message, begin with warmth and brief acknowledgment. Do not open with "How are you feeling today?" — let them lead at their own pace.`;
+    greeting = `I heard you were looking for someone to connect with${topicPart}. I'm glad you're here. Take your time — we can start wherever feels right.`;
+  }
+
+  const systemPrompt = buildSystemPrompt(persona, moodRows, userRows[0].alias, memoryRows, contextNote);
 
   const { rows: sessionRows } = await query(
     `INSERT INTO sessions (user_id, type, status) VALUES ($1, 'ai', 'active') RETURNING id`,
@@ -132,7 +144,7 @@ router.post('/session/start', auth, async (req, res) => {
 
   sessionCache.set(sessionId, { systemPrompt, messages: [], flagCount: 0 });
 
-  return res.status(201).json({ session_id: sessionId, persona_name: persona.persona_name });
+  return res.status(201).json({ session_id: sessionId, persona_name: persona.persona_name, ...(greeting ? { greeting } : {}) });
 });
 
 // ─── POST /ai/session/:id/message ─────────────────────────────────────────────

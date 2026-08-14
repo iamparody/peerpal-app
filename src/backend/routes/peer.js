@@ -190,20 +190,30 @@ async function noMorePeers(requestId, requesterId) {
 
   await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'no_peer_fallback' });
 
-  // Step 7 — requester gets fallback resources, never a dead end
+  // Step 7 — requester gets a calm space offer, never a dead end
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, 'peer_matching_update', $2, 'in_app')`,
     [requesterId, JSON.stringify({
       request_id: requestId,
       status: 'no_peer',
-      message: 'We couldn\'t find a peer right now. Your credits have been refunded.',
-      resources: [
-        { name: 'Befrienders Kenya', phone: '0800 723 253', availability: '24/7, free' },
-        { name: 'Niskize Kenya',     phone: '0900 620 800', availability: '24/7'       },
-      ],
+      cta: 'calm_space',
+      message: "We couldn't find a peer right now. Your calm space is ready for you.",
     })]
   );
+
+  // FCM push so the user is reached even if they closed the app while waiting
+  const { rows: fcmRows } = await query('SELECT fcm_token FROM users WHERE id = $1', [requesterId]);
+  const fcm_token = fcmRows[0]?.fcm_token;
+  if (fcm_token) {
+    const { enqueuePushNotification } = require('../utils/fcm');
+    enqueuePushNotification(
+      fcm_token,
+      "Your calm space is ready",
+      "We couldn't find a peer right now — tap to find support another way.",
+      { type: 'peer_matching_update', cta: 'calm_space' }
+    ).catch(err => console.warn('[noMorePeers] FCM enqueue error:', err.message));
+  }
 
   // Step 8 — admin escalation notification
   await query(

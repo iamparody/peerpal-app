@@ -25,7 +25,10 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const path = event.notification.data?.type === 'peer_request_broadcast' ? '/peer' : '/';
+  const d = event.notification.data || {};
+  let path = '/';
+  if (d.type === 'peer_request_broadcast') path = '/peer';
+  else if (d.type === 'peer_matching_update' && d.cta === 'calm_space') path = '/calm-space';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const c of clientList) {

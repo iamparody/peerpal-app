@@ -56,6 +56,7 @@ export default function PeerConnectingScreen() {
 
   const initRef = useRef(false);
   const pollRef = useRef(null);
+  const userCancelledRef = useRef(false);
   const initials = getInitials(user?.alias);
 
   useEffect(() => {
@@ -110,10 +111,14 @@ export default function PeerConnectingScreen() {
               if (data.status === 'active' && data.session_id) {
                 clearInterval(pollRef.current);
                 navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
-              } else if (data.status === 'closed') {
+              } else if (data.status === 'closed' || data.status === 'escalated') {
                 clearInterval(pollRef.current);
-                setPhase('error');
-                setErrorMsg("No peer was available this time. You can try again whenever you're ready.");
+                if (!userCancelledRef.current) {
+                  navigate('/calm-space', {
+                    replace: true,
+                    state: { topicLabel, topicSlug: location.state?.topic },
+                  });
+                }
               }
             } catch { /* keep polling on transient errors */ }
           }, 2000);
@@ -149,6 +154,7 @@ export default function PeerConnectingScreen() {
   }, [retryKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleCancel() {
+    userCancelledRef.current = true;
     clearInterval(pollRef.current);
     if (requestId) client.patch(`/api/peer/request/${requestId}/close`).catch(() => {});
     navigate('/peer', { replace: true });
