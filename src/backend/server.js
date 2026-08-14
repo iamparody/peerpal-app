@@ -10,6 +10,7 @@ const { runRiskScoreJob } = require('./jobs/riskScoreJob');
 const { runCheckinReminderJob } = require('./jobs/checkinReminderJob');
 const { runDailySummaryJob } = require('./jobs/dailySummaryJob');
 const { runDeletionJob } = require('./jobs/deletionJob');
+const { runVentPurgeJob } = require('./jobs/ventPurgeJob');
 const { runPermissionInactivityJob } = require('./jobs/permissionInactivityJob');
 const { runVersionDriftJob } = require('./jobs/versionDriftJob');
 const { runFlagAggregationJob } = require('./jobs/flagAggregationJob');
@@ -42,6 +43,9 @@ cron.schedule('0 18 * * *', () => runDailySummaryJob().catch(console.error));
 
 // Account deletion processing — every hour
 cron.schedule('0 * * * *', () => runDeletionJob().catch(console.error));
+
+// Vent record purge — 04:00 UTC daily (7am Nairobi EAT), enforces 90-day retention
+cron.schedule('0 4 * * *', () => runVentPurgeJob().catch(console.error));
 
 // Permission inactivity expiry — 01:00 UTC (4am Nairobi EAT)
 cron.schedule('0 1 * * *', () => runPermissionInactivityJob().catch(console.error));
