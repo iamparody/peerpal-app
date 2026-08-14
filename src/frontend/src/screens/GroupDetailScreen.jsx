@@ -41,7 +41,7 @@ export default function GroupDetailScreen() {
   if (loading) return (
     <div className="screen">
       <div className="page-header">
-        <button className="page-header__back" onClick={() => navigate('/groups')} aria-label="Back">‹</button>
+        <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
         <h2 className="page-header__title">Group</h2>
       </div>
       <div style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
@@ -70,7 +70,7 @@ export default function GroupDetailScreen() {
   return (
     <div className="screen" style={{ padding: '0 0 24px' }}>
       <div className="page-header">
-        <button className="page-header__back" onClick={() => navigate('/groups')} aria-label="Back">‹</button>
+        <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
         <h2 className="page-header__title">{group.name}</h2>
       </div>
 

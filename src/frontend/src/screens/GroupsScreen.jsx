@@ -81,7 +81,7 @@ export default function GroupsScreen() {
                       <span className="pill pill--active" style={{ fontSize: 10, padding: '2px 7px' }}>Joined</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {meta.label} · {g.member_count ?? 0} {Number(g.member_count) === 1 ? 'member' : 'members'}
                   </div>
                 </div>
