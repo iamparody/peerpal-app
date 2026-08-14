@@ -352,6 +352,7 @@ export default function GroupChatScreen() {
         <PageHeader
           title={group?.name ?? 'Group'}
           onBack={() => navigate(`/groups/${groupId}`)}
+          onBack={() => navigate(-1)}
           right={isAdmin ? (
             <button
               onClick={() => setShowPromptSheet(true)}

@@ -78,28 +78,36 @@ export default function GroupDetailScreen() {
         {error && <div className="error-msg">{error}</div>}
 
         {/* Group identity card */}
-        <div className="card" style={{ textAlign: 'center', padding: 'var(--space-lg) var(--space-md)' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-sm)', lineHeight: 1 }}>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+            background: meta.bg,
+            border: `2px solid ${meta.color}44`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 28,
+          }}>
             {meta.emoji}
           </div>
-          <h2 style={{ marginBottom: 6 }}>{group.name}</h2>
-          <span style={{
-            display: 'inline-block',
-            fontSize: '0.75rem', fontWeight: 600, padding: '3px 10px',
-            borderRadius: 'var(--radius-full)',
-            background: `${meta.color}22`, color: meta.color,
-            border: `1px solid ${meta.color}44`,
-          }}>
-            {meta.label}
-          </span>
-          <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
-            {group.member_count ?? 0} {Number(group.member_count) === 1 ? 'member' : 'members'}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{
+                fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px',
+                borderRadius: 'var(--radius-full)',
+                background: `${meta.color}22`, color: meta.color,
+                border: `1px solid ${meta.color}44`,
+              }}>
+                {meta.label}
+              </span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                {group.member_count ?? 0} {Number(group.member_count) === 1 ? 'member' : 'members'}
+              </span>
+            </div>
+            {group.description && (
+              <p style={{ fontSize: '0.85rem', lineHeight: 'var(--leading-normal)', margin: 0 }}>
+                {group.description}
+              </p>
+            )}
           </div>
-          {group.description && (
-            <p style={{ marginTop: 'var(--space-md)', fontSize: '0.88rem', lineHeight: 'var(--leading-relaxed)', textAlign: 'left' }}>
-              {group.description}
-            </p>
-          )}
         </div>
 
         {/* Active prompt preview (non-members only — members go straight to chat) */}
