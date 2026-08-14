@@ -348,7 +348,7 @@ export default function PeerVoiceCallScreen() {
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
         <p style={{ marginBottom: 16 }}>{error}</p>
-        <button className="btn btn--primary" onClick={() => navigate('/peer')}>Back</button>
+        <button className="btn btn--primary" onClick={() => navigate('/peer', { replace: true })}>Back</button>
       </div>
     );
   }
@@ -433,7 +433,7 @@ export default function PeerVoiceCallScreen() {
       </div>
 
       {callState === 'ended' && (
-        <button className="btn btn--ghost" style={{ marginTop: 'var(--space-xl)', width: 'auto', padding: '10px 24px' }} onClick={() => navigate('/peer')}>
+        <button className="btn btn--ghost" style={{ marginTop: 'var(--space-xl)', width: 'auto', padding: '10px 24px' }} onClick={() => navigate('/peer', { replace: true })}>
           Back
         </button>
       )}

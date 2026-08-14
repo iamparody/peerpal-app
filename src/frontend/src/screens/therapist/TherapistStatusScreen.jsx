@@ -49,7 +49,7 @@ export default function TherapistStatusScreen() {
       <div style={{ ...s.content, opacity: visible ? 1 : 0, transform: visible ? 'none' : 'translateY(8px)' }}>
 
         {/* Back */}
-        <button style={s.back} onClick={() => navigate('/dashboard')}>← Home</button>
+        <button style={s.back} onClick={() => navigate('/dashboard', { replace: true })}>← Home</button>
 
         <h1 style={s.heading}>Your therapist request</h1>
 
