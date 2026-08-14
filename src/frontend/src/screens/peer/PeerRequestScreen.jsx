@@ -408,7 +408,7 @@ export default function PeerRequestScreen() {
       {tab === 'support' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Scrollable body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom) + 16px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* ── Availability toggle ── */}
             <div style={{
@@ -590,7 +590,7 @@ export default function PeerRequestScreen() {
       )}
 
       {tab === 'leaderboard' && (
-        <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px', paddingBottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom) + 16px)', display: 'flex', flexDirection: 'column', gap: 20 }}>
           {boardLoading ? (
             <>
               <div className="skeleton" style={{ height: 80, borderRadius: 'var(--radius-lg)' }} />
