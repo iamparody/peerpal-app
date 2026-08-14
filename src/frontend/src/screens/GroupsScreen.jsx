@@ -75,10 +75,10 @@ export default function GroupsScreen() {
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <h3 style={{ fontSize: 15, lineHeight: 1.2 }}>{g.name}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, minWidth: 0 }}>
+                    <h3 style={{ fontSize: 15, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{g.name}</h3>
                     {g.is_member && (
-                      <span className="pill pill--active" style={{ fontSize: 10, padding: '2px 7px' }}>Joined</span>
+                      <span className="pill pill--active" style={{ fontSize: 10, padding: '2px 7px', flexShrink: 0 }}>Joined</span>
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
