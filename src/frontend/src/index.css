@@ -25,6 +25,7 @@
   --color-text-muted:     rgba(245,237,228,0.55);
   --color-border:         rgba(194,164,138,0.25);
   --color-divider:        rgba(194,164,138,0.15);
+  color: var(--color-text-primary);
 }
 
 /* ── Typography ─────────────────────────────────────────────────────────────── */
