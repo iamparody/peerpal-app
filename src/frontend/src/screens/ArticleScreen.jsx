@@ -118,7 +118,7 @@ export default function ArticleScreen() {
       <div style={{ padding: '8px 16px' }}>
         {/* Badge */}
         {isStory ? (
-          <span className="pill" style={{ fontSize: '0.8rem', marginBottom: 10, display: 'inline-block', background: 'var(--color-accent)', color: '#1a1209' }}>
+          <span className="pill" style={{ fontSize: '0.8rem', marginBottom: 10, display: 'inline-block', background: 'var(--color-accent)', color: '#ffffff' }}>
             Personal Story
           </span>
         ) : (

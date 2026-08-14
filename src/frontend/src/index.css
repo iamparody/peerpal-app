@@ -64,7 +64,7 @@ a  { color: var(--color-text-secondary); }
 
 .btn--primary {
   background: var(--color-accent);
-  color: var(--color-text-dark);
+  color: #ffffff;
   box-shadow: var(--shadow-button);
 }
 .btn--primary:hover:not(:disabled) { background: var(--color-accent-hover); }
@@ -73,7 +73,7 @@ a  { color: var(--color-text-secondary); }
 .btn--danger {
   height: 56px;
   background: var(--color-danger);
-  color: var(--color-text-primary);
+  color: #ffffff;
   box-shadow: 0 4px 16px rgba(179,92,92,0.35);
   animation: emergencyPulse 2s ease-in-out infinite;
 }
@@ -250,7 +250,7 @@ a  { color: var(--color-text-secondary); }
   transform: translateX(-50%);
   background: var(--color-surface-primary);
   border: 1px solid var(--color-border-focus);
-  color: var(--color-text-primary);
+  color: #F5EDE4;
   padding: 12px var(--space-md);
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -297,7 +297,7 @@ a  { color: var(--color-text-secondary); }
 }
 .pill--active {
   background: var(--color-accent);
-  color: var(--color-text-dark);
+  color: #ffffff;
   border-color: var(--color-accent);
 }
 
@@ -385,7 +385,7 @@ a  { color: var(--color-text-secondary); }
 }
 .bubble--user {
   background: var(--color-accent);
-  color: var(--color-text-dark);
+  color: #ffffff;
   border-radius: 20px 20px 4px 20px;
   align-self: flex-end;
   font-family: var(--font-ui);

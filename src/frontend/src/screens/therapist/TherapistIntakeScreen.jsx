@@ -514,7 +514,7 @@ const styles = {
     width: '100%',
     height: 52,
     background: 'var(--color-accent)',
-    color: 'var(--color-text-dark)',
+    color: '#ffffff',
     border: 'none',
     borderRadius: 'var(--radius-pill)',
     fontSize: 16,

@@ -218,7 +218,7 @@ const s = {
     borderRadius: 'var(--radius-pill)',
     fontSize: 16,
     fontWeight: 600,
-    color: 'var(--color-text-dark)',
+    color: '#ffffff',
     cursor: 'pointer',
     boxShadow: 'var(--shadow-button)',
   },

@@ -330,7 +330,7 @@ const s = {
     padding: '12px 28px',
     fontSize: 15,
     fontWeight: 600,
-    color: 'var(--color-text-dark)',
+    color: '#ffffff',
     cursor: 'pointer',
   },
   pastSection: {

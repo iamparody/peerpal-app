@@ -179,7 +179,7 @@ function PeerQueueTab() {
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '4px 10px', borderRadius: 10, border: '1px solid var(--color-border)',
             background: filter === f ? '#C2A48A' : 'none',
-            color: filter === f ? '#1A1A2E' : 'inherit',
+            color: filter === f ? '#ffffff' : 'inherit',
             fontSize: '0.75rem', fontWeight: filter === f ? 700 : 400, cursor: 'pointer',
           }}>
             {f === 'all' ? `All (${requests.length})` : `${f} (${counts[f] ?? 0})`}
@@ -821,7 +821,7 @@ function PeerPermsTab() {
                   {resolveError && <div style={{ fontSize: '0.78rem', color: 'var(--color-warning)' }}>{resolveError}</div>}
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => resolve(f.id)}
-                      style={{ flex: 1, padding: '5px 0', background: '#C2A48A', border: 'none', borderRadius: 6, fontWeight: 700, color: '#1A1A2E', cursor: 'pointer', fontSize: '0.82rem' }}>
+                      style={{ flex: 1, padding: '5px 0', background: '#C2A48A', border: 'none', borderRadius: 6, fontWeight: 700, color: '#ffffff', cursor: 'pointer', fontSize: '0.82rem' }}>
                       Confirm
                     </button>
                     <button onClick={() => { setResolving(null); setResolveError(''); }}

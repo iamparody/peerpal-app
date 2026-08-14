@@ -253,7 +253,7 @@ export default function AIChatScreen() {
             justifyContent: 'center',
             transition: 'background var(--duration-fast), transform var(--duration-fast)',
             flexShrink: 0,
-            color: 'var(--color-text-dark)',
+            color: '#ffffff',
           }}
           aria-label="Send message"
         >

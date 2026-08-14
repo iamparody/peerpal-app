@@ -66,7 +66,7 @@ export default function ResourcesScreen() {
                 borderRadius: 'var(--radius-full)',
                 border: contentType === type ? 'none' : '1px solid var(--color-border)',
                 background: contentType === type ? 'var(--color-accent)' : 'transparent',
-                color: contentType === type ? '#1a1209' : 'var(--color-text-muted)',
+                color: contentType === type ? '#ffffff' : 'var(--color-text-muted)',
                 fontWeight: contentType === type ? 600 : 400,
                 fontSize: 14,
                 cursor: 'pointer',
