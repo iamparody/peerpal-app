@@ -1,21 +1,43 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Handshake,
+  Heart,
+  ShieldCheck,
+  Stethoscope,
+  UserFocus,
+} from '@phosphor-icons/react';
 import client from '../api/client';
 
 const RULES = [
-  'Treat all members with respect',
-  'No harmful, abusive, or triggering content',
-  'No sharing personal identifying information',
-  'No unsolicited advice or medical recommendations',
-  'Violations result in removal from the group',
+  {
+    Icon: Heart,
+    text: 'Be kind. This is a safe space for people going through difficult things.',
+  },
+  {
+    Icon: UserFocus,
+    text: 'Your identity here is your alias. Do not share personal information about yourself or others.',
+  },
+  {
+    Icon: Stethoscope,
+    text: 'Respond from your own experience. Do not give medical advice or diagnoses.',
+  },
+  {
+    Icon: ShieldCheck,
+    text: 'If you see something concerning, report it. Do not engage with harmful content.',
+  },
+  {
+    Icon: Handshake,
+    text: 'You are here as a peer, not a counsellor. Offer support — not solutions.',
+  },
 ];
 
 export default function GroupAgreementScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [agreed, setAgreed] = useState(false);
+  const [agreed, setAgreed]   = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
   async function handleJoin() {
     if (!agreed) { setError('You must agree to the community rules to join.'); return; }
@@ -40,12 +62,17 @@ export default function GroupAgreementScreen() {
 
       <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="card">
-          <h3 style={{ marginBottom: 12 }}>Community Rules</h3>
-          <ul style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {RULES.map((rule, i) => (
-              <li key={i} style={{ color: 'var(--color-text)', fontSize: '0.95rem', lineHeight: 1.5 }}>{rule}</li>
+          <h3 style={{ marginBottom: 16 }}>Community Rules</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {RULES.map(({ Icon, text }, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <Icon size={20} weight="duotone" color="var(--color-accent)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: '0.92rem', lineHeight: 'var(--leading-normal)', margin: 0, color: 'var(--color-text-primary)' }}>
+                  {text}
+                </p>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
@@ -55,13 +82,15 @@ export default function GroupAgreementScreen() {
             onChange={(e) => setAgreed(e.target.checked)}
             style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2, accentColor: 'var(--color-accent)' }}
           />
-          <span style={{ fontSize: '0.9rem' }}>I agree to the community rules and understand that violations may result in removal</span>
+          <span style={{ fontSize: '0.9rem', lineHeight: 'var(--leading-normal)' }}>
+            I agree to the community rules and understand that violations may result in removal
+          </span>
         </label>
 
         {error && <div className="error-msg">{error}</div>}
 
         <button className="btn btn--primary" onClick={handleJoin} disabled={loading || !agreed}>
-          {loading ? 'Joining…' : 'I Agree and Join'}
+          {loading ? 'Joining…' : 'I agree and join'}
         </button>
 
         <button className="btn btn--muted" onClick={() => navigate(-1)}>Cancel</button>

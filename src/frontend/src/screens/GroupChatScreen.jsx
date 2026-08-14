@@ -1,121 +1,344 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
+import {
+  CalendarBlank,
+  ChatsCircle,
+  MegaphoneSimple,
+  Plus,
+} from '@phosphor-icons/react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
+import PageHeader from '../components/PageHeader';
+import { groupMeta } from '../utils/groupMeta';
 
 const REPORT_REASONS = [
   { value: 'harmful_content', label: 'Harmful content' },
-  { value: 'abuse', label: 'Abuse' },
-  { value: 'spam', label: 'Spam' },
-  { value: 'other', label: 'Other' },
+  { value: 'abuse',           label: 'Abuse' },
+  { value: 'spam',            label: 'Spam' },
+  { value: 'other',           label: 'Other' },
 ];
 
+// ── AliasAvatar ───────────────────────────────────────────────────────────────
+function AliasAvatar({ alias }) {
+  const idx = (alias?.charCodeAt(0) ?? 0) % 5 + 1;
+  return (
+    <div style={{
+      width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+      background: `var(--color-avatar-${idx})`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '0.65rem', fontWeight: 700, color: '#fff',
+    }}>
+      {(alias ?? '??').slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
+// ── Time helper ───────────────────────────────────────────────────────────────
+function timeAgo(ts) {
+  if (!ts) return '';
+  const mins = Math.floor((Date.now() - new Date(ts)) / 60000);
+  if (mins < 1)    return 'just now';
+  if (mins < 60)   return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)    return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ── Prompt composer sheet (admin only) ───────────────────────────────────────
+function PromptSheet({ groupId, onClose, onSuccess }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy]  = useState('');
+  const { showToast } = useToast();
+
+  async function submit() {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    try {
+      await client.post(`/api/groups/${groupId}/prompt`, { content: text.trim() });
+      showToast('Prompt posted.', 'success');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to post prompt.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <span className="label">New weekly prompt</span>
+        <textarea
+          className="textarea"
+          style={{ marginTop: 'var(--space-sm)', minHeight: 100 }}
+          placeholder="What question will guide this week's discussion?"
+          maxLength={500}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          autoFocus
+        />
+        <div className="char-counter">{text.length}/500</div>
+        <button className="btn btn--primary" onClick={submit} disabled={!text.trim() || busy}>
+          {busy ? 'Posting…' : 'Post prompt'}
+        </button>
+        <button className="btn btn--ghost" style={{ marginTop: 8 }} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Report sheet ──────────────────────────────────────────────────────────────
+function ReportSheet({ groupId, message, onClose }) {
+  const [reason, setReason]   = useState('');
+  const [busy, setBusy]       = useState(false);
+  const [success, setSuccess] = useState(false);
+  const { showToast } = useToast();
+
+  async function submit() {
+    if (!reason || busy) return;
+    setBusy(true);
+    try {
+      await client.post(`/api/groups/${groupId}/messages/${message.id}/report`, { reason });
+      setSuccess(true);
+      setTimeout(() => { onClose(); }, 1800);
+    } catch {
+      showToast('Failed to submit report.', 'error');
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        {success ? (
+          <div style={{ textAlign: 'center', padding: 'var(--space-md)' }}>
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>Report submitted</p>
+            <p style={{ fontSize: '0.85rem' }}>Thank you for keeping the community safe.</p>
+          </div>
+        ) : (
+          <>
+            <h3 style={{ marginBottom: 12 }}>Report response</h3>
+            <div style={{
+              background: 'var(--color-surface-secondary)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 'var(--space-sm) var(--space-md)',
+              marginBottom: 16,
+              fontSize: '0.85rem',
+              color: 'var(--color-text-secondary)',
+            }}>
+              "{message.content?.slice(0, 120)}{message.content?.length > 120 ? '…' : ''}"
+            </div>
+            <span className="label">Reason</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginBottom: 16 }}>
+              {REPORT_REASONS.map((r) => (
+                <label key={r.value} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input
+                    type="radio"
+                    name="reason"
+                    value={r.value}
+                    checked={reason === r.value}
+                    onChange={() => setReason(r.value)}
+                    style={{ accentColor: 'var(--color-accent)' }}
+                  />
+                  {r.label}
+                </label>
+              ))}
+            </div>
+            <button className="btn btn--danger" onClick={submit} disabled={!reason || busy}>
+              {busy ? 'Submitting…' : 'Submit report'}
+            </button>
+            <button className="btn btn--ghost" style={{ marginTop: 8 }} onClick={onClose}>Cancel</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Admin remove confirm (AlertDialog) ────────────────────────────────────────
+function RemoveDialog({ groupId, message, open, onOpenChange, onRemoved }) {
+  const [busy, setBusy] = useState(false);
+  const { showToast } = useToast();
+
+  async function confirm() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await client.delete(`/api/groups/${groupId}/responses/${message.id}`);
+      showToast('Response removed.', 'success');
+      onRemoved(message.id);
+      onOpenChange(false);
+    } catch {
+      showToast('Failed to remove response.', 'error');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+      <AlertDialog.Portal>
+        <AlertDialog.Overlay style={{
+          position: 'fixed', inset: 0, background: 'var(--color-overlay)', zIndex: 50,
+        }} />
+        <AlertDialog.Content style={{
+          position: 'fixed', left: '50%', top: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'var(--color-surface-card)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-lg)',
+          width: 'min(90vw, 340px)',
+          zIndex: 51,
+        }}>
+          <AlertDialog.Title style={{ fontWeight: 600, marginBottom: 8 }}>Remove response?</AlertDialog.Title>
+          <AlertDialog.Description style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 'var(--leading-normal)' }}>
+            This response will be removed from the group feed. This action cannot be undone.
+          </AlertDialog.Description>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <AlertDialog.Cancel asChild>
+              <button className="btn btn--ghost" style={{ flex: 1 }}>Cancel</button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action asChild>
+              <button className="btn btn--danger" style={{ flex: 1 }} onClick={confirm} disabled={busy}>
+                {busy ? 'Removing…' : 'Remove'}
+              </button>
+            </AlertDialog.Action>
+          </div>
+        </AlertDialog.Content>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
+  );
+}
+
+// ── Response row ──────────────────────────────────────────────────────────────
+function ResponseRow({ response, isAdmin, groupId, onReport, onRemoveConfirm }) {
+  const pressTimer = useRef(null);
+
+  function startPress() {
+    pressTimer.current = setTimeout(() => onReport(response), 500);
+  }
+  function cancelPress() { clearTimeout(pressTimer.current); }
+
+  return (
+    <div
+      onMouseDown={startPress} onMouseUp={cancelPress}
+      onTouchStart={startPress} onTouchEnd={cancelPress}
+      style={{
+        padding: 'var(--space-sm) var(--space-md)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--color-surface-secondary)',
+        border: '1px solid var(--color-border)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <AliasAvatar alias={response.alias} />
+        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+          {response.alias}
+        </span>
+        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginLeft: 'auto' }}>
+          {timeAgo(response.created_at)}
+        </span>
+        {isAdmin && (
+          <button
+            onClick={() => onRemoveConfirm(response)}
+            style={{
+              marginLeft: 4, background: 'none', border: 'none',
+              color: 'var(--color-danger)', fontSize: '0.75rem',
+              cursor: 'pointer', padding: '2px 4px', borderRadius: 4,
+            }}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      <p style={{ fontSize: '0.9rem', lineHeight: 'var(--leading-normal)', margin: 0, color: 'var(--color-text-primary)' }}>
+        {response.content}
+      </p>
+    </div>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 export default function GroupChatScreen() {
   const { id: groupId } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const [group, setGroup] = useState(null);
-  const [pinned, setPinned] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
-  const [reportTarget, setReportTarget] = useState(null);
-  const [reportReason, setReportReason] = useState('');
-  const [reporting, setReporting] = useState(false);
-  const [reportSuccess, setReportSuccess] = useState(false);
-  const bottomRef = useRef(null);
-  const longPressTimer = useRef(null);
+  const navigate        = useNavigate();
+  const { user }        = useAuth();
+  const queryClient     = useQueryClient();
+  const { showToast }   = useToast();
+  const isAdmin         = user?.role === 'admin';
 
-  const load = useCallback(async () => {
-    try {
-      const [groupRes, msgRes] = await Promise.all([
-        client.get(`/api/groups/${groupId}`),
-        client.get(`/api/groups/${groupId}/messages`),
-      ]);
-      setGroup(groupRes.data);
-      setPinned(msgRes.data.pinned ?? []);
-      setMessages(msgRes.data.messages ?? msgRes.data ?? []);
-    } catch {
-      setError('Failed to load chat.');
-    } finally {
-      setLoading(false);
-    }
-  }, [groupId]);
+  const [responseText,    setResponseText]    = useState('');
+  const [page,            setPage]            = useState(1);
+  const [allResponses,    setAllResponses]    = useState([]);
+  const [reportTarget,    setReportTarget]    = useState(null);
+  const [removeTarget,    setRemoveTarget]    = useState(null);
+  const [removeOpen,      setRemoveOpen]      = useState(false);
+  const [showPromptSheet, setShowPromptSheet] = useState(false);
 
-  useEffect(() => { load(); }, [load]);
+  // Fetch feed
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['group-feed', groupId, page],
+    queryFn: () => client.get(`/api/groups/${groupId}/feed?page=${page}`).then(r => r.data),
+    staleTime: 30_000,
+  });
 
+  // Accumulate responses across pages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  async function handleSend() {
-    if (!input.trim() || sending) return;
-    const text = input.trim();
-    const optimisticId = `pending-${Date.now()}`;
-    setInput('');
-    setSending(true);
-    setMessages((prev) => [...prev, {
-      id: optimisticId,
-      content: text,
-      sender_alias: user?.alias || 'You',
-      created_at: new Date().toISOString(),
-      pending: true,
-    }]);
-    try {
-      await client.post(`/api/groups/${groupId}/messages`, { content: text });
-      const { data: msgData } = await client.get(`/api/groups/${groupId}/messages`);
-      setMessages(msgData.messages ?? []);
-    } catch (err) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-      setError(err.response?.data?.error || 'Failed to send.');
-      setInput(text);
-    } finally {
-      setSending(false);
+    if (!data?.responses) return;
+    if (page === 1) {
+      setAllResponses(data.responses);
+    } else {
+      setAllResponses((prev) => {
+        const ids = new Set(prev.map(r => r.id));
+        return [...prev, ...data.responses.filter(r => !ids.has(r.id))];
+      });
     }
+  }, [data, page]);
+
+  // Submit response
+  const { mutate: submitResponse, isPending: submitting } = useMutation({
+    mutationFn: (content) => client.post(`/api/groups/${groupId}/respond`, { content }),
+    onSuccess: () => {
+      setResponseText('');
+      showToast('Your response has been received.', 'success');
+      setPage(1);
+      queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.error || 'Failed to submit response.', 'error');
+    },
+  });
+
+  function handleRemoved(msgId) {
+    setAllResponses((prev) => prev.filter(r => r.id !== msgId));
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  }
+  const group        = data?.group;
+  const announcement = data?.announcement;
+  const prompt       = data?.prompt;
+  const totalPages   = data?.pages ?? 1;
+  const meta         = group ? groupMeta(group.condition_category) : null;
 
-  function startLongPress(msg) {
-    longPressTimer.current = setTimeout(() => setReportTarget(msg), 500);
-  }
+  // Redirect non-members (API returns 403 if not a member)
+  useEffect(() => {
+    if (isError) navigate(`/groups/${groupId}`, { replace: true });
+  }, [isError, groupId, navigate]);
 
-  function cancelLongPress() {
-    clearTimeout(longPressTimer.current);
-  }
-
-  async function handleReport() {
-    if (!reportTarget || !reportReason) return;
-    setReporting(true);
-    try {
-      await client.post(`/api/groups/${groupId}/messages/${reportTarget.id}/report`, { reason: reportReason });
-      setReportSuccess(true);
-      setTimeout(() => { setReportTarget(null); setReportSuccess(false); setReportReason(''); }, 1800);
-    } catch {
-      setError('Failed to submit report.');
-      setReportTarget(null);
-    } finally {
-      setReporting(false);
-    }
-  }
-
-  if (loading) return (
+  // Loading skeleton
+  if (isLoading && page === 1) return (
     <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'var(--color-surface-card)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <div className="skeleton" style={{ width: 48, height: 48, borderRadius: 'var(--radius-sm)' }} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div className="skeleton" style={{ width: 120, height: 14, borderRadius: 4 }} />
-          <div className="skeleton" style={{ width: 80, height: 10, borderRadius: 4 }} />
-        </div>
+      <div style={{ padding: '12px 16px', background: 'var(--color-surface-card)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+        <div className="skeleton" style={{ height: 20, width: '40%', borderRadius: 4 }} />
       </div>
       <div style={{ flex: 1, padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-        {[60, 45, 70, 50, 65].map((w, i) => (
-          <div key={i} className="skeleton" style={{ height: 40, width: `${w}%`, borderRadius: 'var(--radius-md)', alignSelf: i % 2 === 0 ? 'flex-start' : 'flex-end' }} />
+        <div className="skeleton" style={{ height: 90, borderRadius: 'var(--radius-lg)' }} />
+        {[1,2,3,4].map((i) => (
+          <div key={i} className="skeleton" style={{ height: 72, borderRadius: 'var(--radius-sm)' }} />
         ))}
       </div>
     </div>
@@ -123,115 +346,189 @@ export default function GroupChatScreen() {
 
   return (
     <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'var(--color-surface-card)', borderBottom: '1px solid rgba(194,164,138,0.20)', flexShrink: 0 }}>
-        <button className="page-header__back" onClick={() => navigate(`/groups/${groupId}`)} aria-label="Back">‹</button>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{group?.name}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Alias only · Hold message to report</div>
-        </div>
+      <div style={{ flexShrink: 0 }}>
+        <PageHeader
+          title={group?.name ?? 'Group'}
+          onBack={() => navigate(`/groups/${groupId}`)}
+          right={isAdmin ? (
+            <button
+              onClick={() => setShowPromptSheet(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                background: 'none', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '5px 10px', cursor: 'pointer',
+                fontSize: '0.82rem', color: 'var(--color-text-primary)',
+              }}
+            >
+              <Plus size={14} weight="bold" /> Prompt
+            </button>
+          ) : null}
+        />
       </div>
 
-      {/* Pinned messages */}
-      {pinned.length > 0 && (
-        <div className="info-banner" style={{ borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', padding: '8px 16px' }}>
-          {pinned.map((p) => (
-            <div key={p.id} style={{ fontSize: '0.8rem' }}>
-              📌 <strong>{p.alias}</strong>: {p.content}
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Sticky region — announcement + prompt */}
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 10,
+          background: 'var(--color-bg-primary)',
+          padding: 'var(--space-sm) var(--space-md) 0',
+          borderBottom: '1px solid var(--color-divider)',
+          paddingBottom: 'var(--space-sm)',
+        }}>
+          {/* Announcement */}
+          {announcement && (
+            <div className="card" style={{ marginBottom: 'var(--space-xs)', padding: 'var(--space-sm) var(--space-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <MegaphoneSimple size={14} weight="duotone" color="var(--color-accent)" />
+                <span className="label" style={{ fontSize: '0.7rem' }}>From the team</span>
+              </div>
+              <p style={{ fontSize: '0.85rem', margin: 0, color: 'var(--color-text-primary)' }}>
+                {announcement.content}
+              </p>
             </div>
-          ))}
+          )}
+
+          {/* Active prompt */}
+          {prompt ? (
+            <div className="card" style={{ padding: 'var(--space-sm) var(--space-md)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span className="label" style={{ fontSize: '0.7rem' }}>This week's prompt</span>
+                <span style={{
+                  fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'var(--color-calm-bg)', color: 'var(--color-calm)',
+                }}>
+                  {prompt.response_count} {Number(prompt.response_count) === 1 ? 'response' : 'responses'}
+                </span>
+              </div>
+              <p style={{
+                fontFamily: 'var(--font-editorial)',
+                fontSize: '1rem',
+                lineHeight: 'var(--leading-relaxed)',
+                margin: 0,
+                color: 'var(--color-text-primary)',
+              }}>
+                {prompt.content}
+              </p>
+            </div>
+          ) : (
+            <div style={{ padding: 'var(--space-xs) 0' }}>
+              <div style={{
+                background: 'var(--color-surface-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                padding: 'var(--space-sm) var(--space-md)',
+                fontSize: '0.85rem',
+                color: 'var(--color-text-muted)',
+              }}>
+                No prompt this week yet. Check back soon.
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-      {error && <div className="error-msg" style={{ margin: '8px 16px' }}>{error}</div>}
-
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            onMouseDown={() => startLongPress(msg)}
-            onMouseUp={cancelLongPress}
-            onTouchStart={() => startLongPress(msg)}
-            onTouchEnd={cancelLongPress}
-            style={{ cursor: 'default' }}
-          >
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginBottom: 2 }}>
-              {msg.alias} · {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </div>
-            <div style={{
-              display: 'inline-block',
-              background: 'var(--color-surface-card)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '8px 12px',
-              boxShadow: 'var(--shadow)',
-              fontSize: '0.9rem',
-              fontStyle: msg.is_deleted ? 'italic' : 'normal',
-              color: msg.is_deleted ? 'rgba(245,237,228,0.45)' : '#F5EDE4',
-              maxWidth: '80%',
-              opacity: msg.pending ? 0.55 : 1,
-              transition: 'opacity 200ms ease',
-            }}>
-              {msg.content}
+        {/* Response composer (members, when there's a prompt) */}
+        {prompt && !isAdmin && (
+          <div style={{ padding: 'var(--space-sm) var(--space-md)', borderBottom: '1px solid var(--color-divider)' }}>
+            <textarea
+              className="textarea"
+              style={{ minHeight: 72 }}
+              placeholder="Share your response…"
+              maxLength={500}
+              value={responseText}
+              onChange={(e) => setResponseText(e.target.value)}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+              <span className="char-counter" style={{ margin: 0 }}>{responseText.length}/500</span>
+              <button
+                className="btn btn--primary btn--sm"
+                style={{ width: 'auto', padding: '0 20px' }}
+                onClick={() => submitResponse(responseText)}
+                disabled={!responseText.trim() || submitting}
+              >
+                {submitting ? 'Sharing…' : 'Share'}
+              </button>
             </div>
           </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
+        )}
 
-      {/* Input — admin only */}
-      {isAdmin ? (
-        <div style={{ padding: '12px 16px', background: 'var(--color-surface-card)', borderTop: '1px solid rgba(194,164,138,0.20)', display: 'flex', gap: 8, flexShrink: 0 }}>
-          <input
-            type="text"
-            className="input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Broadcast to group…"
-            disabled={sending}
-            style={{ flex: 1 }}
-          />
-          <button onClick={handleSend} disabled={!input.trim() || sending} className="btn btn--primary" style={{ width: 'auto', padding: '0 16px', flexShrink: 0 }}>➤</button>
+        {/* Responses */}
+        <div style={{ flex: 1, padding: 'var(--space-sm) var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          {!prompt ? (
+            <div style={{ padding: 'var(--space-xl) 0' }}>
+              <div style={{ textAlign: 'center' }}>
+                <CalendarBlank size={40} weight="duotone" color="var(--color-accent)" />
+                <p style={{ marginTop: 'var(--space-sm)', fontWeight: 500 }}>No prompt this week yet</p>
+                <p style={{ fontSize: '0.85rem' }}>A new prompt will be posted soon.</p>
+              </div>
+            </div>
+          ) : allResponses.length === 0 ? (
+            <div style={{ padding: 'var(--space-xl) 0', textAlign: 'center' }}>
+              <ChatsCircle size={40} weight="duotone" color="var(--color-accent)" />
+              <p style={{ marginTop: 'var(--space-sm)', fontWeight: 500 }}>No responses yet</p>
+              <p style={{ fontSize: '0.85rem' }}>Be the first to share your experience.</p>
+            </div>
+          ) : (
+            allResponses.map((r) => (
+              <ResponseRow
+                key={r.id}
+                response={r}
+                isAdmin={isAdmin}
+                groupId={groupId}
+                onReport={setReportTarget}
+                onRemoveConfirm={(msg) => { setRemoveTarget(msg); setRemoveOpen(true); }}
+              />
+            ))
+          )}
+
+          {/* Load more */}
+          {page < totalPages && (
+            <button
+              className="btn btn--ghost btn--sm"
+              style={{ alignSelf: 'center', marginTop: 'var(--space-sm)' }}
+              onClick={() => setPage((p) => p + 1)}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Loading…' : 'Load more responses'}
+            </button>
+          )}
         </div>
-      ) : (
-        <div style={{ padding: '14px 16px', background: 'var(--color-surface-card)', borderTop: '1px solid rgba(194,164,138,0.20)', textAlign: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)', flexShrink: 0 }}>
-          Only admins can post here · Use <strong>Peer Support</strong> to connect with others
-        </div>
-      )}
+      </div>
 
       {/* Report sheet */}
       {reportTarget && (
-        <div className="overlay" onClick={() => setReportTarget(null)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            {reportSuccess ? (
-              <div style={{ textAlign: 'center', padding: 16 }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-                <p>Your report has been submitted. Thank you.</p>
-              </div>
-            ) : (
-              <>
-                <h3 style={{ marginBottom: 16 }}>Report message</h3>
-                <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 16, fontSize: '0.85rem' }}>
-                  "{reportTarget.content?.slice(0, 100)}"
-                </div>
-                <label className="label">Reason</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginBottom: 16 }}>
-                  {REPORT_REASONS.map((r) => (
-                    <label key={r.value} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.9rem' }}>
-                      <input type="radio" name="reason" value={r.value} checked={reportReason === r.value} onChange={() => setReportReason(r.value)} style={{ accentColor: 'var(--color-primary)' }} />
-                      {r.label}
-                    </label>
-                  ))}
-                </div>
-                <button className="btn btn--danger" onClick={handleReport} disabled={!reportReason || reporting}>
-                  {reporting ? 'Submitting…' : 'Submit Report'}
-                </button>
-                <button className="btn btn--muted" style={{ marginTop: 8 }} onClick={() => setReportTarget(null)}>Cancel</button>
-              </>
-            )}
-          </div>
-        </div>
+        <ReportSheet
+          groupId={groupId}
+          message={reportTarget}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
+
+      {/* Admin remove dialog */}
+      {removeTarget && (
+        <RemoveDialog
+          groupId={groupId}
+          message={removeTarget}
+          open={removeOpen}
+          onOpenChange={setRemoveOpen}
+          onRemoved={handleRemoved}
+        />
+      )}
+
+      {/* Admin prompt composer sheet */}
+      {showPromptSheet && (
+        <PromptSheet
+          groupId={groupId}
+          onClose={() => setShowPromptSheet(false)}
+          onSuccess={() => {
+            setPage(1);
+            queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
+          }}
+        />
       )}
     </div>
   );

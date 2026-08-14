@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
 
-const TABS = ['Activity', 'PeerQueue', 'Emergency', 'Escalations', 'Referrals', 'Reports', 'Risk', 'Resources', 'Stats', 'PeerPerms'];
+const TABS = ['Activity', 'PeerQueue', 'Emergency', 'Escalations', 'Referrals', 'Reports', 'Held', 'Risk', 'Resources', 'Stats', 'PeerPerms'];
 
 function SectionSkeleton() {
   return (
@@ -432,6 +432,114 @@ function ReportsTab() {
           </div>
         ))
       }
+    </Section>
+  );
+}
+
+// ── Held Group Responses ──────────────────────────────────────────────────────
+function AliasAvatarSmall({ alias }) {
+  const idx = (alias?.charCodeAt(0) ?? 0) % 5 + 1;
+  return (
+    <div style={{
+      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+      background: `var(--color-avatar-${idx})`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '0.6rem', fontWeight: 700, color: '#fff',
+    }}>
+      {(alias ?? '??').slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
+function HeldTab() {
+  const [held, setHeld]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+  const [busy, setBusy]       = useState({});
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { data } = await client.get('/api/admin/groups/held');
+      setHeld(data.held ?? []);
+    } catch { setError('Failed to load held responses.'); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function publish(id) {
+    setBusy((b) => ({ ...b, [id]: 'publish' }));
+    try {
+      await client.post(`/api/admin/groups/held/${id}/publish`);
+      setHeld((prev) => prev.filter(h => h.id !== id));
+    } catch { setError('Failed to publish response.'); }
+    finally { setBusy((b) => ({ ...b, [id]: null })); }
+  }
+
+  async function remove(id) {
+    if (!window.confirm('Hard-delete this response? This cannot be undone.')) return;
+    setBusy((b) => ({ ...b, [id]: 'remove' }));
+    try {
+      await client.delete(`/api/admin/groups/held/${id}`);
+      setHeld((prev) => prev.filter(h => h.id !== id));
+    } catch { setError('Failed to remove response.'); }
+    finally { setBusy((b) => ({ ...b, [id]: null })); }
+  }
+
+  return (
+    <Section title="Held Group Responses" loading={loading} error={error}>
+      {held.length === 0 ? (
+        <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No held responses</p>
+      ) : held.map((h) => (
+        <div key={h.id} className="card" style={{ marginBottom: 'var(--space-sm)', gap: 'var(--space-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span className="label" style={{ fontSize: '0.72rem' }}>{h.group_name}</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{ago(h.created_at)}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <AliasAvatarSmall alias={h.alias} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{h.alias}</span>
+            {h.risk_flagged && (
+              <span style={{ fontSize: '0.68rem', background: 'var(--color-warning-bg)', color: 'var(--color-warning)', borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>
+                Flagged
+              </span>
+            )}
+          </div>
+          {h.prompt_content && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 4, fontStyle: 'italic' }}>
+              Prompt: "{h.prompt_content?.slice(0, 80)}{h.prompt_content?.length > 80 ? '…' : ''}"
+            </div>
+          )}
+          <div style={{
+            background: 'var(--color-surface-secondary)',
+            borderRadius: 'var(--radius-sm)',
+            padding: 'var(--space-sm) var(--space-md)',
+            fontSize: '0.88rem',
+            marginBottom: 8,
+          }}>
+            {h.content}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn--sm btn--success"
+              style={{ flex: 1 }}
+              onClick={() => publish(h.id)}
+              disabled={!!busy[h.id]}
+            >
+              {busy[h.id] === 'publish' ? 'Publishing…' : 'Publish'}
+            </button>
+            <button
+              className="btn btn--sm btn--danger"
+              style={{ flex: 1 }}
+              onClick={() => remove(h.id)}
+              disabled={!!busy[h.id]}
+            >
+              {busy[h.id] === 'remove' ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+        </div>
+      ))}
     </Section>
   );
 }
@@ -880,6 +988,7 @@ export default function AdminDashboard() {
         {tab === 'Escalations' && <EscalationsTab />}
         {tab === 'Referrals'   && <ReferralsTab />}
         {tab === 'Reports'     && <ReportsTab />}
+        {tab === 'Held'        && <HeldTab />}
         {tab === 'Risk'        && <RiskTab />}
         {tab === 'Resources'   && <ResourcesTab />}
         {tab === 'Stats'       && <StatsTab />}

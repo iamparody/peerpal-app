@@ -861,4 +861,62 @@ router.patch('/permission-flags/:id/resolve', async (req, res) => {
   return res.json({ resolved: true, action_taken });
 });
 
+// ─── GET /admin/groups/held ───────────────────────────────────────────────────
+// All held group responses (is_deleted=true, post_type=response) across all groups.
+router.get('/groups/held', async (req, res) => {
+  const page  = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = 20;
+  const offset = (page - 1) * limit;
+
+  const [dataResult, countResult] = await Promise.all([
+    query(
+      `SELECT gm.id, gm.content, gm.created_at, gm.risk_flagged,
+              u.alias,
+              g.id AS group_id, g.name AS group_name,
+              p.content AS prompt_content
+       FROM group_messages gm
+       JOIN users u ON u.id = gm.user_id
+       JOIN groups g ON g.id = gm.group_id
+       LEFT JOIN group_messages p ON p.id = gm.parent_id
+       WHERE gm.post_type = 'response' AND gm.is_deleted = true
+       ORDER BY gm.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*) FROM group_messages WHERE post_type = 'response' AND is_deleted = true`
+    ),
+  ]);
+
+  return res.status(200).json({
+    held: dataResult.rows,
+    total: parseInt(countResult.rows[0].count),
+    page,
+    pages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+  });
+});
+
+// ─── POST /admin/groups/held/:msgId/publish ───────────────────────────────────
+// Publish a held response (set is_deleted=false).
+router.post('/groups/held/:msgId/publish', async (req, res) => {
+  const { rowCount } = await query(
+    `UPDATE group_messages SET is_deleted = false
+     WHERE id = $1 AND post_type = 'response' AND is_deleted = true`,
+    [req.params.msgId]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Held response not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ published: true });
+});
+
+// ─── DELETE /admin/groups/held/:msgId ────────────────────────────────────────
+// Hard-delete a held response (confirmed harmful content).
+router.delete('/groups/held/:msgId', async (req, res) => {
+  const { rowCount } = await query(
+    `DELETE FROM group_messages WHERE id = $1 AND post_type = 'response'`,
+    [req.params.msgId]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Response not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ deleted: true });
+});
+
 module.exports = router;

@@ -27,19 +27,18 @@ export default function GroupsScreen() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['groups'],
     queryFn: () => client.get('/api/groups').then(r => r.data),
+    staleTime: 30_000,
   });
 
   const groups = data?.groups ?? (Array.isArray(data) ? data : []);
-  const error = isError ? "We couldn't connect. Check your internet and try again." : '';
+  const error  = isError ? "We couldn't connect. Check your internet and try again." : '';
 
-  if (isLoading) {
-    return (
-      <div className="screen">
-        <PageHeader title="Groups" />
-        <GroupsSkeleton />
-      </div>
-    );
-  }
+  if (isLoading) return (
+    <div className="screen">
+      <PageHeader title="Groups" />
+      <GroupsSkeleton />
+    </div>
+  );
 
   return (
     <div className="screen">
@@ -78,14 +77,27 @@ export default function GroupsScreen() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <h3 style={{ fontSize: 15, lineHeight: 1.2 }}>{g.name}</h3>
-                    {g.is_member && <span className="pill pill--active" style={{ fontSize: 10, padding: '2px 7px' }}>Joined</span>}
+                    {g.is_member && (
+                      <span className="pill pill--active" style={{ fontSize: 10, padding: '2px 7px' }}>Joined</span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                     {meta.label} · {g.member_count ?? 0} {Number(g.member_count) === 1 ? 'member' : 'members'}
                   </div>
                 </div>
 
-                <span style={{ color: 'var(--color-text-muted)', fontSize: 18, flexShrink: 0 }}>›</span>
+                {/* Join shortcut for non-members */}
+                {!g.is_member ? (
+                  <button
+                    className="btn btn--sm btn--secondary"
+                    style={{ flexShrink: 0 }}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/groups/${g.id}/agree`); }}
+                  >
+                    Join
+                  </button>
+                ) : (
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: 18, flexShrink: 0 }}>›</span>
+                )}
               </div>
             );
           })

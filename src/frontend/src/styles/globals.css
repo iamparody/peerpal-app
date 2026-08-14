@@ -23,6 +23,13 @@
   --color-border-focus: rgba(75,58,47,0.45);
   --color-divider: rgba(75,58,47,0.10);
 
+  /* AVATAR PALETTE — deterministic alias colours, derived from brand tones */
+  --color-avatar-1: #8FAF9A;
+  --color-avatar-2: #C2A48A;
+  --color-avatar-3: #7A9FB0;
+  --color-avatar-4: #B09AC2;
+  --color-avatar-5: #C49A6C;
+
   --color-calm: #8FAF9A;
   --color-calm-bg: rgba(143,175,154,0.15);
   --color-warning: #D9A441;
