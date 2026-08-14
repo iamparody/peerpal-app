@@ -351,7 +351,6 @@ export default function GroupChatScreen() {
       <div style={{ flexShrink: 0 }}>
         <PageHeader
           title={group?.name ?? 'Group'}
-          onBack={() => navigate(`/groups/${groupId}`)}
           onBack={() => navigate(-1)}
           right={isAdmin ? (
             <button

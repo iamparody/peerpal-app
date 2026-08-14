@@ -69,14 +69,17 @@ export default function GroupsScreen() {
                   background: meta.bg,
                   border: `1.5px solid ${meta.color}44`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 22,
                 }}>
-                  {meta.emoji}
+                  <meta.Icon size={22} weight="duotone" color={meta.color} aria-hidden="true" />
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, minWidth: 0 }}>
-                    <h3 style={{ fontSize: 15, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{g.name}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <h3 style={{
+                      fontSize: 15, lineHeight: 1.2,
+                      flex: '1 1 0', minWidth: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{g.name}</h3>
                     {g.is_member && (
                       <span className="pill pill--active" style={{ fontSize: 10, padding: '2px 7px', flexShrink: 0 }}>Joined</span>
                     )}
@@ -90,7 +93,7 @@ export default function GroupsScreen() {
                 {!g.is_member ? (
                   <button
                     className="btn btn--sm btn--secondary"
-                    style={{ flexShrink: 0 }}
+                    style={{ flexShrink: 0, width: 'auto' }}
                     onClick={(e) => { e.stopPropagation(); navigate(`/groups/${g.id}/agree`); }}
                   >
                     Join

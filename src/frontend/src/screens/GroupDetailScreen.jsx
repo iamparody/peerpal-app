@@ -84,9 +84,8 @@ export default function GroupDetailScreen() {
             background: meta.bg,
             border: `2px solid ${meta.color}44`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28,
           }}>
-            {meta.emoji}
+            <meta.Icon size={28} weight="duotone" color={meta.color} aria-hidden="true" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
