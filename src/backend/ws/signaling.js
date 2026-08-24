@@ -112,6 +112,15 @@ function createSignalingServer(httpServer) {
     });
   });
 
+  // Keepalive: ping every 25 s so Render's 30 s idle proxy timeout never fires.
+  const keepalive = setInterval(() => {
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.ping();
+    });
+  }, 25000);
+
+  wss.on('close', () => clearInterval(keepalive));
+
   return wss;
 }
 

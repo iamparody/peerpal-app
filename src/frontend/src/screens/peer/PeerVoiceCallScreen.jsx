@@ -277,7 +277,7 @@ export default function PeerVoiceCallScreen() {
           if (callWasActiveRef.current) return; // normal close after active call
           if (ev.code !== 1000 && ev.code !== 1005) {
             clearTimeout(connectTimeoutRef.current);
-            setError('Connection lost before the call started — your credits have been refunded.');
+            setError(`Connection lost before the call started (code ${ev.code}) — your credits have been refunded.`);
             if (requestIdRef.current) {
               client.patch(`/api/peer/request/${requestIdRef.current}/close`, { never_connected: true }).catch(() => {});
             }
