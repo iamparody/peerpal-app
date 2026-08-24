@@ -165,6 +165,7 @@ export default function PeerVoiceCallScreen() {
   const endTimeRef = useRef(null);
   const timerRef = useRef(null);
   const promptShownRef = useRef(false);
+  const callWasActiveRef = useRef(false);
 
   const endCall = useCallback(async (reason = 'manual') => {
     clearInterval(timerRef.current);
@@ -173,7 +174,8 @@ export default function PeerVoiceCallScreen() {
     wsRef.current?.close();
     const reqId = requestIdRef.current;
     if (reqId && reason === 'manual') {
-      try { await client.patch(`/api/peer/request/${reqId}/close`); } catch { /* best-effort */ }
+      const body = callWasActiveRef.current ? {} : { never_connected: true };
+      try { await client.patch(`/api/peer/request/${reqId}/close`, body); } catch { /* best-effort */ }
     }
     trackEvent('peer_session_completed', { channel: 'voice', reason });
     if (reason === 'time_limit') {
@@ -213,7 +215,7 @@ export default function PeerVoiceCallScreen() {
         isPeerRef.current = data.session?.responder_id === user?.id;
 
         const startedAt = data.session?.started_at ? new Date(data.session.started_at) : new Date();
-        startTimer(startedAt.getTime() + SESSION_SECONDS * 1000);
+        // Timer starts only when WebRTC actually connects (pc.ontrack), not at session creation
 
         const iceServers = data.ice_servers || [{ urls: 'stun:stun.l.google.com:19302' }];
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -228,7 +230,10 @@ export default function PeerVoiceCallScreen() {
             remoteAudioRef.current.srcObject = e.streams[0];
             remoteAudioRef.current.play().catch(() => {});
           }
+          callWasActiveRef.current = true;
           setCallState('active');
+          // Start 30-min countdown from session start (or now if start was recent)
+          startTimer(startedAt.getTime() + SESSION_SECONDS * 1000);
         };
 
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
@@ -261,6 +266,17 @@ export default function PeerVoiceCallScreen() {
         pc.onicecandidate = (e) => {
           if (e.candidate && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ice', candidate: e.candidate, session_id: sessionId }));
+          }
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (pcRef.current?.connectionState === 'failed') {
+            setError('Could not connect — likely a network issue. Your credits have been refunded.');
+            localStreamRef.current?.getTracks().forEach((t) => t.stop());
+            wsRef.current?.close();
+            if (requestIdRef.current) {
+              client.patch(`/api/peer/request/${requestIdRef.current}/close`, { never_connected: true }).catch(() => {});
+            }
           }
         };
       } catch (err) {

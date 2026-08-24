@@ -647,6 +647,8 @@ router.get('/request/:id/status', auth, async (req, res) => {
 
 // ─── PATCH /peer/request/:id/close ───────────────────────────────────────────
 router.patch('/request/:id/close', auth, async (req, res) => {
+  const { never_connected } = req.body || {};
+
   const { rows } = await query(
     `SELECT pr.id, pr.session_id, pr.user_id, pr.accepted_by, pr.channel_preference
      FROM peer_requests pr WHERE pr.id = $1`,
@@ -680,6 +682,16 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     `UPDATE peer_requests SET status = 'closed', updated_at = NOW() WHERE id = $1`,
     [req.params.id]
   );
+
+  // If WebRTC never connected, refund the requester and skip peer earning
+  if (never_connected && req.user.id === requesterId) {
+    const creditCost = channel_preference === 'voice' ? 2 : 1;
+    await refundCredit(
+      requesterId, creditCost, session_id, channel_preference,
+      `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} could not connect — ${creditCost} credit${creditCost > 1 ? 's' : ''} refunded.`
+    );
+    return res.status(200).json({ ended_at: sessionRows[0].ended_at, refunded: true });
+  }
 
   // Record duration on the requester's debit transaction
   if (sessionRows[0]?.started_at && sessionRows[0]?.ended_at) {
