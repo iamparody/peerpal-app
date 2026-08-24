@@ -94,13 +94,24 @@ function createSignalingServer(httpServer) {
   return wss;
 }
 
-// STUN configuration to expose to clients via the session endpoint
+// ICE server list sent to clients.
+// When TURN_USERNAME + TURN_CREDENTIAL are set (Metered.ca), all 4 relay entries are included
+// for maximum NAT traversal coverage across mobile carriers.
+const TURN_ENTRIES = (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL)
+  ? [
+      { urls: 'stun:stun.relay.metered.ca:80' },
+      { urls: 'turn:global.relay.metered.ca:80',                    username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL },
+      { urls: 'turn:global.relay.metered.ca:80?transport=tcp',      username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL },
+      { urls: 'turn:global.relay.metered.ca:443',                   username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL },
+      { urls: 'turns:global.relay.metered.ca:443?transport=tcp',    username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL },
+    ]
+  : (process.env.TURN_URL
+      ? [{ urls: process.env.TURN_URL, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL }]
+      : []);
+
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
-  // TURN server configured via env: TURN_URL, TURN_USERNAME, TURN_CREDENTIAL
-  ...(process.env.TURN_URL
-    ? [{ urls: process.env.TURN_URL, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL }]
-    : []),
+  ...TURN_ENTRIES,
 ];
 
 module.exports = { createSignalingServer, ICE_SERVERS };
