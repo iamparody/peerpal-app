@@ -1,8 +1,18 @@
 const express = require('express');
+const multer = require('multer');
+const { Readable } = require('stream');
+const Groq = require('groq-sdk');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
 const { classify } = require('../utils/riskClassifier');
 const { stripHtml } = require('../utils/sanitizer');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+let _groq = null;
+function getGroq() {
+  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return _groq;
+}
 
 const MAX_VENT_LEN = 2000;
 const router = express.Router();
@@ -66,6 +76,44 @@ router.post('/:id/promote', auth, async (req, res) => {
   );
 
   return res.status(201).json({ journal_id: rows[0].id });
+});
+
+// ─── POST /vents/transcribe ───────────────────────────────────────────────────
+// Accepts audio blob, returns transcript text. Audio is never persisted.
+router.post('/transcribe', auth, upload.single('audio'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'audio file required', code: 'MISSING_AUDIO' });
+
+  const ext = (req.file.originalname?.split('.').pop() || 'webm').toLowerCase();
+  const filename = `vent.${ext}`;
+
+  try {
+    // Groq Whisper expects a File-like object — wrap the buffer in a Readable with .name
+    const audioFile = new File([req.file.buffer], filename, { type: req.file.mimetype || 'audio/webm' });
+    const transcription = await getGroq().audio.transcriptions.create({
+      file: audioFile,
+      model: 'whisper-large-v3-turbo',
+      response_format: 'json',
+    });
+
+    const text = (transcription.text || '').trim().slice(0, 2000);
+
+    // Run risk classification on the transcript — same safety path as text vents
+    const riskResult = classify(text);
+    const risk_flagged = riskResult ? ['critical', 'high'].includes(riskResult.severity) : false;
+    if (risk_flagged) {
+      await query(
+        `INSERT INTO notifications (user_id, type, payload, channel)
+         SELECT id, 'emergency_alert', $1, 'in_app'
+         FROM users WHERE role = 'admin' AND is_active = true`,
+        [JSON.stringify({ source: 'voice_vent_flag', category: riskResult.category, keyword: riskResult.keyword })]
+      );
+    }
+
+    return res.status(200).json({ text });
+  } catch (err) {
+    console.error('[vents/transcribe] Groq error:', err.message);
+    return res.status(502).json({ error: 'Transcription failed', code: 'TRANSCRIBE_ERROR' });
+  }
 });
 
 module.exports = router;
