@@ -239,6 +239,17 @@ export default function PeerVoiceCallScreen() {
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
         wsRef.current = ws;
 
+        // ICE candidates that arrive before remote description is set are queued here
+        const iceCandidateQueue = [];
+        let remoteDescSet = false;
+
+        async function flushIceCandidates() {
+          while (iceCandidateQueue.length) {
+            const c = iceCandidateQueue.shift();
+            await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+          }
+        }
+
         ws.onopen = () => { ws.send(JSON.stringify({ type: 'join', session_id: sessionId })); };
 
         ws.onmessage = async (e) => {
@@ -250,13 +261,21 @@ export default function PeerVoiceCallScreen() {
             ws.send(JSON.stringify({ type: 'offer', sdp: offer, session_id: sessionId }));
           } else if (msg.type === 'offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            remoteDescSet = true;
+            await flushIceCandidates();
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             ws.send(JSON.stringify({ type: 'answer', sdp: answer, session_id: sessionId }));
           } else if (msg.type === 'answer') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            remoteDescSet = true;
+            await flushIceCandidates();
           } else if (msg.type === 'ice') {
-            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
+            if (remoteDescSet) {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
+            } else {
+              iceCandidateQueue.push(msg.candidate);
+            }
           } else if (msg.type === 'peer_left') {
             setCallState('ended');
             endCall('peer_left');
