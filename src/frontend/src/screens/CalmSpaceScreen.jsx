@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Robot, Quotes, Wind, MusicNotes, Warning, Microphone, Stop, Keyboard } from '@phosphor-icons/react';
+import { Robot, Quotes, Wind, MusicNotes, Warning, Microphone, Stop } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const MAX_VENT = 2000;
@@ -241,7 +241,7 @@ export default function CalmSpaceScreen() {
     return (
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <div className="page-header" style={{ flexShrink: 0 }}>
-          <button className="page-header__back" onClick={() => { if (!recording && !transcribing) { mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop()); resetVent(); } }} aria-label="Back">‹</button>
+          <button className="page-header__back" onClick={() => { if (!recording && !transcribing) { mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop()); setView('vent-choice'); } }} aria-label="Back">‹</button>
           <h2 className="page-header__title">Let it out</h2>
         </div>
 
@@ -297,24 +297,22 @@ export default function CalmSpaceScreen() {
                       padding: '12px 20px', background: 'none', border: '1px solid var(--color-border)',
                       borderRadius: 'var(--radius-md)', cursor: 'pointer',
                       fontSize: '0.88rem', color: 'var(--color-text-secondary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     }}
                   >
-                    <Keyboard size={16} weight="duotone" /> Type instead
+                    Type instead
                   </button>
                 </div>
               )}
 
               {!transcribeError && !recording && (
                 <button
-                  onClick={() => setView('vent-text')}
+                  onClick={() => setView('vent-choice')}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     fontSize: '0.8rem', color: 'var(--color-text-muted)', textDecoration: 'underline',
-                    display: 'flex', alignItems: 'center', gap: 5,
                   }}
                 >
-                  <Keyboard size={14} weight="duotone" /> Prefer typing?
+                  Prefer typing?
                 </button>
               )}
             </>
@@ -324,15 +322,57 @@ export default function CalmSpaceScreen() {
     );
   }
 
+  // Vent mode choice screen
+  if (view === 'vent-choice') {
+    return (
+      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+        <div className="page-header" style={{ flexShrink: 0 }}>
+          <button className="page-header__back" onClick={() => setView('menu')} aria-label="Back">‹</button>
+          <h2 className="page-header__title">Let it out</h2>
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px 48px', gap: 32 }}>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: '1rem', fontFamily: 'var(--font-editorial)', lineHeight: 1.5, marginBottom: 6 }}>
+              How do you want to let it out?
+            </p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Private — no one will see it.</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 320 }}>
+            <button
+              onClick={() => setView('vent-voice')}
+              style={{
+                padding: '20px', background: 'var(--color-surface-card)', border: 'none',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', width: '100%',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#F5EDE4', marginBottom: 4 }}>Voice</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(245,237,228,0.60)' }}>Record and speak freely</div>
+            </button>
+            <button
+              onClick={() => setView('vent-text')}
+              style={{
+                padding: '20px', background: 'var(--color-surface-card)', border: 'none',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', width: '100%',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#F5EDE4', marginBottom: 4 }}>Write</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(245,237,228,0.60)' }}>Type what's on your mind</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Text vent screen
   if (view === 'vent-text') {
     return (
-      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
         <div className="page-header" style={{ flexShrink: 0 }}>
-          <button className="page-header__back" onClick={() => setView('vent-voice')} aria-label="Back">‹</button>
+          <button className="page-header__back" onClick={() => setView('vent-choice')} aria-label="Back">‹</button>
           <h2 className="page-header__title">Let it out</h2>
         </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 32px', gap: 16 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <p style={{ fontSize: '0.95rem', fontFamily: 'var(--font-editorial)', lineHeight: 1.5, marginBottom: 4 }}>
               Just say what's on your mind.
@@ -346,30 +386,35 @@ export default function CalmSpaceScreen() {
             value={ventText}
             onChange={e => setVentText(e.target.value.slice(0, MAX_VENT))}
             placeholder="I'm feeling…"
-            rows={10}
             style={{
-              width: '100%', flex: 1,
+              width: '100%',
+              minHeight: 200,
               padding: '14px', borderRadius: 'var(--radius-md)',
               border: '1.5px solid var(--color-border)',
               background: 'var(--color-surface-card)',
               color: 'var(--color-text-primary)',
               fontSize: '0.9rem', lineHeight: 1.6,
-              resize: 'none', fontFamily: 'inherit',
+              resize: 'vertical', fontFamily: 'inherit',
               outline: 'none', boxSizing: 'border-box',
             }}
             aria-label="Vent text"
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{ventText.length}/{MAX_VENT}</span>
-            <button
-              className="btn btn--primary"
-              onClick={handleTextVentSave}
-              disabled={!ventText.trim() || ventLoading}
-              style={{ minWidth: 120 }}
-            >
-              {ventLoading ? 'Saving…' : 'Let it out'}
-            </button>
-          </div>
+        </div>
+        <div style={{
+          flexShrink: 0, padding: '12px 20px calc(16px + env(safe-area-inset-bottom))',
+          borderTop: '1px solid var(--color-divider)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'var(--color-bg-primary)',
+        }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{ventText.length}/{MAX_VENT}</span>
+          <button
+            className="btn btn--primary"
+            onClick={handleTextVentSave}
+            disabled={!ventText.trim() || ventLoading}
+            style={{ width: 'auto', minWidth: 120 }}
+          >
+            {ventLoading ? 'Saving…' : 'Let it out'}
+          </button>
         </div>
       </div>
     );
@@ -378,7 +423,7 @@ export default function CalmSpaceScreen() {
   // ── Menu (default) ──────────────────────────────────────────────────────────
   const TILES = [
     { id: 'talk',    label: 'Talk',            desc: 'Your AI companion is here now',     action: handleTalkToAI },
-    { id: 'vent',    label: 'Let it out',       desc: 'Private — no one will see it',      action: () => setView('vent-voice') },
+    { id: 'vent',    label: 'Let it out',       desc: 'Private — no one will see it',      action: () => setView('vent-choice') },
     { id: 'breathe', label: 'Breathe',          desc: 'Guided breathing and grounding',    action: () => navigate('/breathing') },
     { id: 'sounds',  label: 'Something quiet',  desc: 'Calming sounds and ambient audio',  action: () => navigate('/sounds') },
   ];
