@@ -130,8 +130,7 @@ function ReportModal({ sessionId, onClose }) {
 }
 
 const _apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-const _rawWs  = import.meta.env.VITE_WS_URL  || _apiUrl.replace(/^http/, 'ws');
-const WS_URL  = window.location.protocol === 'https:' ? _rawWs.replace(/^ws:\/\//, 'wss://') : _rawWs;
+const WS_URL  = _apiUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
 const SESSION_SECONDS = 30 * 60;
 
 function formatTime(seconds) {
