@@ -357,7 +357,7 @@ router.post('/request', auth, async (req, res) => {
   // so the cron job can fire them even if the server restarts before the timers fire.
   const { rows: reqRows } = await query(
     `INSERT INTO peer_requests (user_id, channel_preference, topic_slug, secondary_topic_slug, escalation_job_id, broaden_at, escalate_at)
-     VALUES ($1, $2, $3, $4, gen_random_uuid()::text, NOW() + INTERVAL '5 minutes', NOW() + INTERVAL '8 minutes') RETURNING id`,
+     VALUES ($1, $2, $3, $4, gen_random_uuid()::text, NOW() + INTERVAL '1 minute', NOW() + INTERVAL '130 seconds') RETURNING id`,
     [req.user.id, channel_preference, topic_slug || null, secondary_topic_slug || null]
   );
   const requestId = reqRows[0].id;
@@ -386,20 +386,20 @@ router.post('/request', auth, async (req, res) => {
   );
 
   // Start two-tier routing timers:
-  // T+5 min → widen to general_support peers (step 5)
-  // T+8 min → no peer available, refund + fallback (step 7)
+  // T+1 min  → widen to general_support peers (step 5)
+  // T+2m10s  → no peer available, refund + fallback (step 7)
   // In-process fast-path timers — these fire immediately when the server is live.
   // The routingJob cron provides a persistent fallback if the server restarts first.
   const broadenTimer = setTimeout(async () => {
     try { await broadenToGeneralTier(requestId, userId); }
     catch (e) { console.error('Broaden tier error:', e); }
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
 
   const noPeerTimer = setTimeout(async () => {
     routingTimers.delete(requestId);
     try { await noMorePeers(requestId, userId); }
     catch (e) { console.error('No-peer error:', e); }
-  }, 8 * 60 * 1000);
+  }, 130 * 1000);
 
   routingTimers.set(requestId, { broadenTimer, noPeerTimer });
 
