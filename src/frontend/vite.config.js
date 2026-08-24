@@ -25,10 +25,6 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        // Precache offline.html so hotlines are available with no connectivity
-        additionalManifestEntries: [
-          { url: '/offline.html', revision: 'v1' },
-        ],
         runtimeCaching: [
           {
             urlPattern: /\/breathing/,
