@@ -22,9 +22,11 @@ function detectContactInfo(text) {
 
 function createSignalingServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws/signal' });
+  console.log('[signal] server ready — ICE servers:', JSON.stringify(ICE_SERVERS.map(s => s.urls)));
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
     let sessionId = null;
+    console.log('[signal] new connection from', req.socket.remoteAddress);
 
     ws.on('message', (data) => {
       let msg;
@@ -34,31 +36,40 @@ function createSignalingServer(httpServer) {
       if (!sessionId) {
         if (msg.type !== 'join' || !msg.session_id) { ws.close(); return; }
         sessionId = msg.session_id;
+        const short = sessionId.slice(0, 8);
 
         if (!rooms.has(sessionId)) rooms.set(sessionId, []);
         const peers = rooms.get(sessionId);
 
-        if (peers.length >= 2) { ws.close(); return; }
+        if (peers.length >= 2) {
+          console.log(`[signal] room=${short} FULL — rejecting 3rd peer`);
+          ws.close();
+          return;
+        }
         peers.push(ws);
+        console.log(`[signal] room=${short} peer joined — count=${peers.length}`);
 
         // Tell already-connected peers a new participant arrived.
         // The voice screen uses this to know it should create the WebRTC offer.
         if (peers.length > 1) {
           const peerJoinedMsg = JSON.stringify({ type: 'peer_joined' });
+          let sent = 0;
           for (let i = 0; i < peers.length - 1; i++) {
-            if (peers[i].readyState === WebSocket.OPEN) peers[i].send(peerJoinedMsg);
+            if (peers[i].readyState === WebSocket.OPEN) { peers[i].send(peerJoinedMsg); sent++; }
           }
+          console.log(`[signal] room=${short} peer_joined sent to ${sent} peer(s)`);
         }
 
-        ws.on('close', () => {
+        ws.on('close', (code) => {
           const current = rooms.get(sessionId);
           if (!current) return;
           const remaining = current.filter((c) => c !== ws);
           if (remaining.length === 0) {
             rooms.delete(sessionId);
+            console.log(`[signal] room=${short} empty — deleted (close code=${code})`);
           } else {
             rooms.set(sessionId, remaining);
-            // Notify remaining participant that this peer disconnected
+            console.log(`[signal] room=${short} peer left — remaining=${remaining.length}`);
             const leaveMsg = JSON.stringify({ type: 'peer_left' });
             for (const peer of remaining) {
               if (peer.readyState === WebSocket.OPEN) peer.send(leaveMsg);
@@ -69,6 +80,8 @@ function createSignalingServer(httpServer) {
         ws.send(JSON.stringify({ type: 'joined', peer_count: peers.length }));
         return;
       }
+
+      const short = sessionId.slice(0, 8);
 
       // Screen chat messages for contact info — warn both parties, always relay.
       const peers = rooms.get(sessionId) || [];
@@ -82,12 +95,20 @@ function createSignalingServer(httpServer) {
         }
       }
 
+      if (['offer', 'answer', 'ice'].includes(msg.type)) {
+        console.log(`[signal] room=${short} relay ${msg.type}`);
+      }
+
       // Relay offer / answer / ICE candidates / chat to the other peer — no identity forwarded.
       for (const peer of peers) {
         if (peer !== ws && peer.readyState === WebSocket.OPEN) {
           peer.send(JSON.stringify(msg));
         }
       }
+    });
+
+    ws.on('error', (err) => {
+      console.log(`[signal] ws error room=${sessionId?.slice(0, 8) ?? 'unknown'}:`, err.message);
     });
   });
 

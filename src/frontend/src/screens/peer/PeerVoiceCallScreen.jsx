@@ -166,6 +166,7 @@ export default function PeerVoiceCallScreen() {
   const timerRef = useRef(null);
   const promptShownRef = useRef(false);
   const callWasActiveRef = useRef(false);
+  const connectTimeoutRef = useRef(null);
 
   const endCall = useCallback(async (reason = 'manual') => {
     clearInterval(timerRef.current);
@@ -230,6 +231,7 @@ export default function PeerVoiceCallScreen() {
             remoteAudioRef.current.srcObject = e.streams[0];
             remoteAudioRef.current.play().catch(() => {});
           }
+          clearTimeout(connectTimeoutRef.current);
           callWasActiveRef.current = true;
           setCallState('active');
           // Start 30-min countdown from session start (or now if start was recent)
@@ -250,7 +252,37 @@ export default function PeerVoiceCallScreen() {
           }
         }
 
+        // Fail-safe: if WebRTC never connects within 35 s, refund and show error
+        connectTimeoutRef.current = setTimeout(async () => {
+          const state = pcRef.current?.connectionState;
+          if (state !== 'connected' && state !== 'completed') {
+            setError('Could not establish a connection — your credits have been refunded. Try again or switch to a different network.');
+            localStreamRef.current?.getTracks().forEach((t) => t.stop());
+            pcRef.current?.close();
+            wsRef.current?.close();
+            if (requestIdRef.current) {
+              await client.patch(`/api/peer/request/${requestIdRef.current}/close`, { never_connected: true }).catch(() => {});
+            }
+          }
+        }, 35000);
+
         ws.onopen = () => { ws.send(JSON.stringify({ type: 'join', session_id: sessionId })); };
+
+        ws.onerror = () => {
+          clearTimeout(connectTimeoutRef.current);
+          setError('Signaling connection failed — please check your network and try again.');
+        };
+
+        ws.onclose = (ev) => {
+          if (callWasActiveRef.current) return; // normal close after active call
+          if (ev.code !== 1000 && ev.code !== 1005) {
+            clearTimeout(connectTimeoutRef.current);
+            setError('Connection lost before the call started — your credits have been refunded.');
+            if (requestIdRef.current) {
+              client.patch(`/api/peer/request/${requestIdRef.current}/close`, { never_connected: true }).catch(() => {});
+            }
+          }
+        };
 
         ws.onmessage = async (e) => {
           const msg = JSON.parse(e.data);
@@ -289,13 +321,23 @@ export default function PeerVoiceCallScreen() {
         };
 
         pc.onconnectionstatechange = () => {
-          if (pcRef.current?.connectionState === 'failed') {
+          const state = pcRef.current?.connectionState;
+          if (state === 'failed') {
+            clearTimeout(connectTimeoutRef.current);
             setError('Could not connect — likely a network issue. Your credits have been refunded.');
             localStreamRef.current?.getTracks().forEach((t) => t.stop());
             wsRef.current?.close();
             if (requestIdRef.current) {
               client.patch(`/api/peer/request/${requestIdRef.current}/close`, { never_connected: true }).catch(() => {});
             }
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          const state = pcRef.current?.iceConnectionState;
+          if (state === 'failed') {
+            clearTimeout(connectTimeoutRef.current);
+            pcRef.current?.restartIce?.();
           }
         };
       } catch (err) {
@@ -309,6 +351,7 @@ export default function PeerVoiceCallScreen() {
 
     init();
     return () => {
+      clearTimeout(connectTimeoutRef.current);
       clearInterval(timerRef.current);
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc?.close();
