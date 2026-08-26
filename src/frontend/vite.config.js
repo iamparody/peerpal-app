@@ -25,6 +25,10 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        // Pull Firebase messaging into the Workbox-generated SW so there is only
+        // ONE service worker at scope '/'. Without this, firebase-messaging-sw.js
+        // and the Workbox SW fight for the same scope and push never works reliably.
+        importScripts: ['firebase-messaging-sw.js'],
         runtimeCaching: [
           {
             urlPattern: /\/breathing/,

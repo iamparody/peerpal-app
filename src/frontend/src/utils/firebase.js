@@ -28,7 +28,9 @@ export async function registerFCMToken() {
     if (permission !== 'granted') return;
 
     const messaging = getMessaging(getApp());
-    const sw = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+    // Use the VitePWA-generated Workbox SW (which imports firebase-messaging-sw.js)
+    // instead of registering a second SW at the same scope — two SWs at '/' conflict.
+    const sw = await navigator.serviceWorker.ready;
     const token = await getToken(messaging, {
       vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: sw,

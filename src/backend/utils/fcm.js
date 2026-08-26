@@ -6,19 +6,28 @@ function initFCM() {
   if (initialized) return;
   let serviceAccount = null;
   if (process.env.FCM_SERVICE_ACCOUNT_JSON) {
-    try { serviceAccount = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON); }
-    catch (err) { console.error('FCM: invalid FCM_SERVICE_ACCOUNT_JSON:', err.message); }
+    try {
+      serviceAccount = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON);
+      // Render and similar platforms escape newlines in env vars as \\n; fix private key.
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
+    } catch (err) { console.error('[FCM] Invalid FCM_SERVICE_ACCOUNT_JSON:', err.message); }
   } else if (process.env.FCM_SERVICE_ACCOUNT_PATH) {
     try {
       const fs = require('fs');
       serviceAccount = JSON.parse(fs.readFileSync(process.env.FCM_SERVICE_ACCOUNT_PATH, 'utf8'));
-    } catch (err) { console.error('FCM: cannot read FCM_SERVICE_ACCOUNT_PATH:', err.message); }
+    } catch (err) { console.error('[FCM] Cannot read FCM_SERVICE_ACCOUNT_PATH:', err.message); }
+  } else {
+    console.warn('[FCM] No FCM credentials configured — push notifications disabled. Set FCM_SERVICE_ACCOUNT_JSON in env.');
+    return;
   }
   if (!serviceAccount) return;
   try {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
     initialized = true;
-  } catch (err) { console.error('FCM init failed:', err.message); }
+    console.log('[FCM] Firebase Admin SDK initialized — push notifications enabled.');
+  } catch (err) { console.error('[FCM] Init failed:', err.message); }
 }
 
 // Direct delivery — used by notificationWorker and as fallback.
@@ -32,7 +41,14 @@ async function sendPushNotification(fcm_token, title, body, data = {}) {
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
     });
   } catch (err) {
-    console.warn('FCM send failed:', err.message);
+    // Token expired / unregistered — clear it so we don't re-send to dead tokens
+    if (err.code === 'messaging/registration-token-not-registered' ||
+        err.code === 'messaging/invalid-registration-token') {
+      const { query } = require('../db');
+      await query('UPDATE users SET fcm_token = NULL WHERE fcm_token = $1', [fcm_token])
+        .catch(() => {});
+    }
+    console.warn('[FCM] Send failed:', err.code || err.message);
   }
 }
 

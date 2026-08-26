@@ -1,14 +1,16 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: 'AIzaSyCbqGbM3tEyL3fmcxTzC2le5zMsAQlkErY',
-  authDomain: 'mindbridge-3b02d.firebaseapp.com',
-  projectId: 'mindbridge-3b02d',
-  storageBucket: 'mindbridge-3b02d.firebasestorage.app',
-  messagingSenderId: '142389456351',
-  appId: '1:142389456351:web:ace00b86d0559e4d2c286a',
-});
+if (!firebase.apps.length) {
+  firebase.initializeApp({
+    apiKey: 'AIzaSyCbqGbM3tEyL3fmcxTzC2le5zMsAQlkErY',
+    authDomain: 'mindbridge-3b02d.firebaseapp.com',
+    projectId: 'mindbridge-3b02d',
+    storageBucket: 'mindbridge-3b02d.firebasestorage.app',
+    messagingSenderId: '142389456351',
+    appId: '1:142389456351:web:ace00b86d0559e4d2c286a',
+  });
+}
 
 const messaging = firebase.messaging();
 
