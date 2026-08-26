@@ -234,10 +234,20 @@ export default function PeerRequestScreen() {
         const { data } = await client.get('/api/peer/requests/open');
         setOpenRequests(data.requests ?? data ?? []);
       } catch { /* non-fatal */ }
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(poll);
   }, []);
+
+  // Auto-dismiss confidence overlay if the request was cancelled while the peer was deciding
+  useEffect(() => {
+    if (!confidenceRequest) return;
+    const stillOpen = openRequests.some(r => r.id === confidenceRequest.id);
+    if (!stillOpen) {
+      setConfidenceRequest(null);
+      setError('This request was just cancelled by the user.');
+    }
+  }, [openRequests, confidenceRequest]);
 
   // Live countdown for availability window
   useEffect(() => {
@@ -335,10 +345,13 @@ export default function PeerRequestScreen() {
         setQuizDone(false);
         return;
       }
-      const status = err.response?.status;
-      setError(status === 409
-        ? 'This request was already accepted by someone else.'
-        : err.response?.data?.error || 'Could not accept request. Please try again.');
+      if (code === 'REQUEST_UNAVAILABLE') {
+        // Remove the stale request from the list immediately
+        setOpenRequests(prev => prev.filter(r => r.id !== request.id));
+        setError('This request is no longer available — the user may have cancelled it.');
+        return;
+      }
+      setError(err.response?.data?.error || 'Could not accept request. Please try again.');
     }
   }
 

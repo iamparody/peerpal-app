@@ -189,7 +189,7 @@ function PeerRequestBanner() {
       } catch { /* non-fatal */ }
     }
     fetchOpen();
-    const interval = setInterval(fetchOpen, 10000);
+    const interval = setInterval(fetchOpen, 3000);
     return () => clearInterval(interval);
   }, [token]);
 
