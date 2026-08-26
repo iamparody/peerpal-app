@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
@@ -15,6 +15,7 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [alias, setAlias] = useState('');
   const [revealPhase, setRevealPhase] = useState(0);
+  const timerIds = useRef([]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -28,19 +29,24 @@ export default function RegisterScreen() {
       login(data.token, { id: data.userId, alias: data.alias, role: data.role, email_verified: false });
       setAlias(data.alias);
       setRevealPhase(1);
-      setTimeout(() => setRevealPhase(2), 300);
-      setTimeout(() => setRevealPhase(3), 600);
-      setTimeout(() => setRevealPhase(4), 600 + data.alias.length * 80 + 400);
-      setTimeout(() => setRevealPhase(5), 600 + data.alias.length * 80 + 1200);
-      setTimeout(() => navigate('/email-sent', { state: { email }, replace: true }), 600 + data.alias.length * 80 + 2500);
+      const delay = 600 + data.alias.length * 80;
+      timerIds.current = [
+        setTimeout(() => setRevealPhase(2), 300),
+        setTimeout(() => setRevealPhase(3), 600),
+        setTimeout(() => setRevealPhase(4), delay + 400),
+        setTimeout(() => setRevealPhase(5), delay + 1200),
+        setTimeout(() => navigate('/email-sent', { state: { email }, replace: true }), delay + 2500),
+      ];
     } catch (err) {
-      const msg = err.response?.data?.error;
+      const code = err.response?.data?.code;
       if (err.response?.status === 429) {
         setError('Too many attempts. Please wait a few minutes and try again.');
+      } else if (code === 'PENDING_VERIFICATION') {
+        setError('This email is registered but not yet verified. Check your inbox or go to login to resend the link.');
+      } else if (code === 'EMAIL_TAKEN') {
+        setError('An account with that email already exists.');
       } else {
-        setError(msg === 'Email already registered'
-          ? 'An account with that email already exists.'
-          : 'Something went wrong. Please try again.');
+        setError('Something went wrong. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -127,7 +133,10 @@ export default function RegisterScreen() {
             opacity: revealPhase >= 5 ? 1 : 0,
             transition: 'opacity 300ms ease',
           }}
-          onClick={() => navigate('/email-sent', { state: { email }, replace: true })}
+          onClick={() => {
+            timerIds.current.forEach(clearTimeout);
+            navigate('/email-sent', { state: { email }, replace: true });
+          }}
         >
           Continue
         </button>

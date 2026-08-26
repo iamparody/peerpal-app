@@ -1,42 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import client from '../../api/client';
 
-const COOLDOWN_SECONDS = 60;
+const REDIRECT_SECONDS = 5;
 
 export default function EmailSentScreen() {
   const location = useLocation();
   const navigate = useNavigate();
   const email = location.state?.email || '';
+  const navigateRef = useRef(navigate);
 
-  const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
-  const [resendStatus, setResendStatus] = useState('idle'); // idle | sending | sent | error
+  const [redirectIn, setRedirectIn] = useState(REDIRECT_SECONDS);
 
+  // Keep navigateRef current without re-running the timer effect
+  useEffect(() => { navigateRef.current = navigate; });
+
+  // Run once on mount — one redirect timer, one display tick, both cleaned up on unmount
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const id = setInterval(() => setCooldown((n) => Math.max(0, n - 1)), 1000);
-    return () => clearInterval(id);
-  }, [cooldown]);
-
-  async function handleResend() {
-    if (cooldown > 0 || resendStatus === 'sending') return;
-    setResendStatus('sending');
-    try {
-      await client.post('/api/auth/resend-verification');
-      setResendStatus('sent');
-      setCooldown(COOLDOWN_SECONDS);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        navigate('/login', { replace: true });
-        return;
-      }
-      if (err.response?.data?.code === 'ALREADY_VERIFIED') {
-        navigate('/dashboard', { replace: true });
-        return;
-      }
-      setResendStatus('error');
-    }
-  }
+    const redirect = setTimeout(() => navigateRef.current('/login', { replace: true }), REDIRECT_SECONDS * 1000);
+    const tick = setInterval(() => setRedirectIn((n) => Math.max(0, n - 1)), 1000);
+    return () => { clearTimeout(redirect); clearInterval(tick); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
@@ -63,7 +46,7 @@ export default function EmailSentScreen() {
 
       <p style={{
         fontSize: 'var(--text-body)', color: 'rgba(245,237,228,0.65)',
-        marginBottom: 'var(--space-2xl)', maxWidth: 300, lineHeight: 1.6,
+        marginBottom: 'var(--space-md)', maxWidth: 300, lineHeight: 1.6,
       }}>
         We sent a verification link to{' '}
         {email
@@ -73,28 +56,12 @@ export default function EmailSentScreen() {
         {' '}Click it to activate your account.
       </p>
 
-      <button
-        className="btn"
-        style={{
-          width: 'auto', padding: '0 var(--space-xl)', marginBottom: 'var(--space-sm)',
-          background: 'transparent',
-          border: '1.5px solid rgba(245,237,228,0.30)',
-          color: '#F5EDE4',
-        }}
-        onClick={handleResend}
-        disabled={cooldown > 0 || resendStatus === 'sending'}
-      >
-        {resendStatus === 'sending' ? 'Sending…'
-          : resendStatus === 'sent' ? 'Email sent!'
-          : cooldown > 0 ? `Resend in ${cooldown}s`
-          : 'Resend email'}
-      </button>
-
-      {resendStatus === 'error' && (
-        <p style={{ color: 'var(--color-danger)', fontSize: 13, marginBottom: 'var(--space-md)' }}>
-          Something went wrong. Please try again.
-        </p>
-      )}
+      <p style={{
+        fontSize: 13, color: 'rgba(245,237,228,0.45)',
+        marginBottom: 'var(--space-2xl)',
+      }}>
+        Redirecting to login in {redirectIn}s…
+      </p>
 
       <Link
         to="/emergency-public"

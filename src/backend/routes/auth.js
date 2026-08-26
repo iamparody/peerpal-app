@@ -36,8 +36,11 @@ router.post('/register', authLimiter, async (req, res) => {
 
     const emailLower = email.toLowerCase().trim();
 
-    const { rows: existing } = await query('SELECT 1 FROM users WHERE email = $1', [emailLower]);
+    const { rows: existing } = await query('SELECT email_verified FROM users WHERE email = $1', [emailLower]);
     if (existing.length > 0) {
+      if (!existing[0].email_verified) {
+        return res.status(409).json({ error: 'Account pending verification', code: 'PENDING_VERIFICATION' });
+      }
       return res.status(409).json({ error: 'Email already registered', code: 'EMAIL_TAKEN' });
     }
 

@@ -4,8 +4,22 @@ import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  // Already verified and logged in — send them into the app
+  useEffect(() => {
+    if (user?.email_verified) {
+      client.get('/api/onboarding/status')
+        .then(({ data: s }) => {
+          if (!s.consent) navigate('/onboarding/consent', { replace: true });
+          else if (!s.persona) navigate('/onboarding/persona', { replace: true });
+          else if (!s.first_mood) navigate('/onboarding/first-mood', { replace: true });
+          else navigate('/welcome', { replace: true });
+        })
+        .catch(() => navigate('/welcome', { replace: true }));
+    }
+  }, [user, navigate]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -14,6 +28,7 @@ export default function LoginScreen() {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [cooldownEnd, setCooldownEnd] = useState(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [verificationPending, setVerificationPending] = useState(false);
 
   // Countdown ticker for soft cooldown
   useEffect(() => {
@@ -40,7 +55,8 @@ export default function LoginScreen() {
       login(data.token, { id: data.userId, alias: data.alias, role: data.role, email_verified: data.email_verified });
 
       if (!data.email_verified) {
-        navigate('/email-sent', { state: { email }, replace: true });
+        setVerificationPending(true);
+        setLoading(false);
         return;
       }
 
@@ -88,7 +104,7 @@ export default function LoginScreen() {
             type="email"
             className="input"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setVerificationPending(false); }}
             placeholder="your@email.com"
             autoComplete="email"
           />
@@ -112,6 +128,25 @@ export default function LoginScreen() {
             }
           </button>
         </div>
+
+        {verificationPending && (
+          <div className="error-msg" style={{ textAlign: 'left' }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Verification still pending</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+              We've sent a new link to <strong>{email}</strong>. Check your inbox (and spam folder).
+            </div>
+            <div style={{ fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>
+              Signing in again will send another link. If you keep having trouble,{' '}
+              <a
+                href="mailto:support@peer-pal.com?subject=Verification email not received"
+                style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}
+              >
+                email our support team
+              </a>
+              .
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="error-msg">
