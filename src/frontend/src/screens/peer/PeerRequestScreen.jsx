@@ -199,6 +199,7 @@ export default function PeerRequestScreen() {
   const [availableUntil, setAvailableUntil] = useState(null); // ISO string or null
   const [availNow, setAvailNow] = useState('');    // live countdown string
   const [availToggling, setAvailToggling] = useState(false);
+  const [creditGate, setCreditGate] = useState(null); // { cost, channel } — shown when balance < cost
 
   // Leaderboard state
   const [stats, setStats] = useState(null);
@@ -359,6 +360,15 @@ export default function PeerRequestScreen() {
     setConfidenceRequest(null);
     // Fire-and-forget analytics — increment decline_count
     client.patch(`/api/peer/request/${request.id}/decline`).catch(() => {});
+  }
+
+  function handleTopicPick(slug, label) {
+    const cost = COST_INFO[channel].cost;
+    if (balance < cost) {
+      setCreditGate({ cost, channel });
+      return;
+    }
+    navigate('/peer/connecting', { state: { topic: slug, channel, topicLabel: label } });
   }
 
   if (loading) return (
@@ -539,7 +549,7 @@ export default function PeerRequestScreen() {
                 {/* "Just listen" — full width */}
                 {topics.filter(t => t.slug === 'general').map(t => (
                   <button key={t.slug} type="button"
-                    onClick={() => navigate('/peer/connecting', { state: { topic: t.slug, channel, topicLabel: t.label } })}
+                    onClick={() => handleTopicPick(t.slug, t.label)}
                     style={{
                       width: '100%', padding: '11px 14px', textAlign: 'left',
                       borderRadius: 'var(--radius-sm)',
@@ -561,7 +571,7 @@ export default function PeerRequestScreen() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
                         {catTopics.map(t => (
                           <button key={t.slug} type="button"
-                            onClick={() => navigate('/peer/connecting', { state: { topic: t.slug, channel, topicLabel: t.label } })}
+                            onClick={() => handleTopicPick(t.slug, t.label)}
                             style={{
                               padding: '9px 8px', textAlign: 'left',
                               borderRadius: 'var(--radius-sm)',
@@ -582,9 +592,8 @@ export default function PeerRequestScreen() {
             {error && <div className="error-msg">{error}</div>}
 
             {balance < COST_INFO[channel].cost && (
-              <p style={{ fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                Not enough credits —{' '}
-                <button onClick={() => navigate('/credits')} style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', fontSize: 'inherit', padding: 0 }}>top up</button>
+              <p style={{ fontSize: '0.78rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                {COST_INFO[channel].label} requires {COST_INFO[channel].cost} credit{COST_INFO[channel].cost > 1 ? 's' : ''} · you have {balance}
               </p>
             )}
           </div>
@@ -600,6 +609,60 @@ export default function PeerRequestScreen() {
           onAccept={() => confirmAccept(confidenceRequest)}
           onDecline={() => declineAccept(confidenceRequest)}
         />
+      )}
+
+      {/* Credit gate — bottom sheet shown when user taps a topic without enough credits */}
+      {creditGate && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setCreditGate(null); }}
+        >
+          <div style={{
+            width: '100%',
+            background: 'var(--color-surface-card)',
+            borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+            padding: '12px 20px 40px',
+            display: 'flex', flexDirection: 'column', gap: 16,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 13, flexShrink: 0,
+                background: 'rgba(220,60,60,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Coin size={24} weight="duotone" color="var(--color-danger)" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '1rem' }}>Not enough credits</div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 3, lineHeight: 1.45 }}>
+                  {COST_INFO[creditGate.channel].label} costs {creditGate.cost} credit{creditGate.cost > 1 ? 's' : ''}.
+                  You currently have <strong>{balance}</strong>.
+                </div>
+              </div>
+            </div>
+
+            <button
+              className="btn btn--primary"
+              onClick={() => { setCreditGate(null); navigate('/credits'); }}
+            >
+              Top up credits
+            </button>
+            <button
+              onClick={() => setCreditGate(null)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: '0.85rem', color: 'var(--color-text-muted)',
+                padding: '2px 0', textAlign: 'center',
+              }}
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
       )}
 
       {tab === 'leaderboard' && (
