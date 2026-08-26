@@ -195,6 +195,7 @@ export default function CreditsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState('');
   const [purchaseMessage, setPurchaseMessage] = useState('');
+  const [showAllTx, setShowAllTx] = useState(false);
 
   const { data: balanceData } = useQuery({
     queryKey: ['credits', 'balance'],
@@ -206,8 +207,11 @@ export default function CreditsScreen() {
   });
 
   const balance = balanceData?.balance ?? null;
-  const balanceLow = balance !== null && balance <= 2;
+  const balanceLow = balance !== null && balance > 0 && balance <= 2;
+  const balanceEmpty = balance === 0;
   const transactions = txData?.transactions ?? (Array.isArray(txData) ? txData : []);
+  const TX_PREVIEW = 4;
+  const visibleTx = showAllTx ? transactions : transactions.slice(0, TX_PREVIEW);
 
   async function handleConfirmPurchase(phone) {
     setModalError('');
@@ -263,24 +267,32 @@ export default function CreditsScreen() {
         )}
 
         {/* Balance */}
-        <div className="card" style={{ textAlign: 'center', padding: '28px 24px' }}>
-          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Current balance</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <Coin size={36} weight="duotone" color={balanceLow ? 'var(--color-danger)' : 'var(--color-accent)'} aria-hidden="true" />
-            <span style={{ fontSize: 52, fontWeight: 700, color: balanceLow ? 'var(--color-danger)' : 'var(--color-text-primary)', lineHeight: 1 }}>
-              {balance ?? '—'}
-            </span>
+        <div className="card" style={{ textAlign: 'center', padding: '24px 20px' }}>
+          <Coin
+            size={32} weight="duotone"
+            color={balanceEmpty ? 'var(--color-danger)' : balanceLow ? 'var(--color-warning)' : 'var(--color-accent)'}
+            aria-hidden="true"
+            style={{ marginBottom: 6 }}
+          />
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+            Current balance
           </div>
-          {balanceLow && balance !== null && (
-            <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 8 }}>
+          <div style={{
+            fontSize: 60, fontWeight: 800, lineHeight: 1,
+            color: balanceEmpty ? 'var(--color-danger)' : balanceLow ? 'var(--color-warning)' : 'var(--color-text-primary)',
+          }}>
+            {balance ?? '—'}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>credits</div>
+          {balanceEmpty ? (
+            <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12, lineHeight: 1.5 }}>
+              No credits remaining. Top up to resume sessions.
+            </p>
+          ) : balanceLow ? (
+            <p style={{ fontSize: 13, color: 'var(--color-warning)', marginTop: 12, lineHeight: 1.5 }}>
               Running low — top up to keep using sessions.
             </p>
-          )}
-          {balance === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 4 }}>
-              No credits remaining. Sessions are paused until you top up.
-            </p>
-          )}
+          ) : null}
         </div>
 
         {/* Top up */}
@@ -371,33 +383,47 @@ export default function CreditsScreen() {
           ) : transactions.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px 0' }}>No transactions yet.</p>
           ) : (
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              {transactions.map((tx, i) => {
-                const detail = txDetail(tx);
-                const isDebit = tx.type === 'debit';
-                return (
-                  <div key={tx.id} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '10px 14px', fontSize: 13,
-                    borderBottom: i < transactions.length - 1 ? '1px solid var(--color-divider)' : 'none',
-                  }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{txLabel(tx)}</span>
-                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                        {detail && <>{detail} · </>}
-                        {new Date(tx.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+            <>
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                {visibleTx.map((tx, i) => {
+                  const detail = txDetail(tx);
+                  const isDebit = tx.type === 'debit';
+                  return (
+                    <div key={tx.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 14px', fontSize: 13,
+                      borderBottom: i < visibleTx.length - 1 ? '1px solid var(--color-divider)' : 'none',
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1, marginRight: 12 }}>
+                        <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{txLabel(tx)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                          {detail && <>{detail} · </>}
+                          {new Date(tx.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontWeight: 700, fontSize: 15, flexShrink: 0,
+                        color: isDebit ? 'var(--color-danger)' : 'var(--color-calm)',
+                      }}>
+                        {isDebit ? '−' : '+'}{tx.amount_credits ?? tx.amount} cr
                       </span>
                     </div>
-                    <span style={{
-                      fontWeight: 700, fontSize: 15,
-                      color: isDebit ? 'var(--color-danger)' : 'var(--color-calm)',
-                    }}>
-                      {isDebit ? '-' : '+'}{tx.amount_credits ?? tx.amount} cr
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+              {transactions.length > TX_PREVIEW && (
+                <button
+                  onClick={() => setShowAllTx(s => !s)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, color: 'var(--color-accent)', fontWeight: 600,
+                    padding: '10px 0', width: '100%', textAlign: 'center',
+                  }}
+                >
+                  {showAllTx ? 'Show less' : `Show all ${transactions.length} transactions`}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
