@@ -284,11 +284,16 @@ router.get('/:id/feed', auth, async (req, res) => {
       `SELECT gm.id, gm.content, gm.created_at,
               (SELECT COUNT(*) FROM group_messages r
                WHERE r.parent_id = gm.id AND r.post_type = 'response' AND r.is_deleted = false
-              ) AS response_count
+              ) AS response_count,
+              EXISTS(
+                SELECT 1 FROM group_messages ur
+                WHERE ur.parent_id = gm.id AND ur.user_id = $2
+                  AND ur.post_type = 'response' AND ur.is_deleted = false
+              ) AS has_responded
        FROM group_messages gm
        WHERE gm.group_id = $1 AND gm.post_type = 'prompt' AND gm.is_deleted = false
        ORDER BY gm.created_at DESC LIMIT 1`,
-      [req.params.id]
+      [req.params.id, req.user.id]
     ),
   ]);
 
@@ -370,6 +375,20 @@ router.post('/:id/respond', auth, async (req, res) => {
     return res.status(400).json({ error: 'No active prompt to respond to', code: 'NO_PROMPT' });
   }
   const promptId = promptRows[0].id;
+
+  // One response per user per prompt
+  const { rows: existingRows } = await query(
+    `SELECT 1 FROM group_messages
+     WHERE parent_id = $1 AND user_id = $2 AND post_type = 'response' AND is_deleted = false
+     LIMIT 1`,
+    [promptId, req.user.id]
+  );
+  if (existingRows.length) {
+    return res.status(409).json({
+      error: 'You have already responded to this prompt',
+      code: 'ALREADY_RESPONDED',
+    });
+  }
 
   const hit      = classify(cleanContent);
   const severity = hit?.severity || null;

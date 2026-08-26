@@ -14,6 +14,7 @@ const { runVentPurgeJob } = require('./jobs/ventPurgeJob');
 const { runPermissionInactivityJob } = require('./jobs/permissionInactivityJob');
 const { runVersionDriftJob } = require('./jobs/versionDriftJob');
 const { runFlagAggregationJob } = require('./jobs/flagAggregationJob');
+const { runBanExpiryJob }       = require('./jobs/banExpiryJob');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -55,6 +56,9 @@ cron.schedule('0 2 * * *', () => runVersionDriftJob().catch(console.error));
 
 // Quality signal flag aggregation — 03:00 UTC (6am Nairobi EAT)
 cron.schedule('0 3 * * *', () => runFlagAggregationJob().catch(console.error));
+
+// Group ban expiry — every hour, lifts bans whose expires_at has passed
+cron.schedule('0 * * * *', () => runBanExpiryJob().catch(console.error));
 
 server.listen(PORT, () => {
   console.log(`PeerPal backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);

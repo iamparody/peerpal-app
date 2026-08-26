@@ -284,7 +284,8 @@ export default function GroupChatScreen() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['group-feed', groupId, page],
     queryFn: () => client.get(`/api/groups/${groupId}/feed?page=${page}`).then(r => r.data),
-    staleTime: 30_000,
+    staleTime: 8_000,
+    refetchInterval: 8_000,
   });
 
   // Accumulate responses across pages
@@ -310,6 +311,12 @@ export default function GroupChatScreen() {
       queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
     },
     onError: (err) => {
+      const code = err.response?.data?.code;
+      if (code === 'ALREADY_RESPONDED') {
+        showToast('You've already shared a response for this prompt.', 'info');
+        queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
+        return;
+      }
       showToast(err.response?.data?.error || 'Failed to submit response.', 'error');
     },
   });
@@ -434,25 +441,40 @@ export default function GroupChatScreen() {
         {/* Response composer (members, when there's a prompt) */}
         {prompt && !isAdmin && (
           <div style={{ padding: 'var(--space-sm) var(--space-md)', borderBottom: '1px solid var(--color-divider)' }}>
-            <textarea
-              className="textarea"
-              style={{ minHeight: 72 }}
-              placeholder="Share your response…"
-              maxLength={500}
-              value={responseText}
-              onChange={(e) => setResponseText(e.target.value)}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-              <span className="char-counter" style={{ margin: 0 }}>{responseText.length}/500</span>
-              <button
-                className="btn btn--primary btn--sm"
-                style={{ width: 'auto', padding: '0 20px' }}
-                onClick={() => submitResponse(responseText)}
-                disabled={!responseText.trim() || submitting}
-              >
-                {submitting ? 'Sharing…' : 'Share'}
-              </button>
-            </div>
+            {prompt.has_responded ? (
+              <div style={{
+                padding: 'var(--space-sm) var(--space-md)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--color-surface-secondary)',
+                fontSize: '0.85rem',
+                color: 'var(--color-text-muted)',
+                textAlign: 'center',
+              }}>
+                You've shared your response for this prompt. New prompt coming soon.
+              </div>
+            ) : (
+              <>
+                <textarea
+                  className="textarea"
+                  style={{ minHeight: 72 }}
+                  placeholder="Share your response…"
+                  maxLength={500}
+                  value={responseText}
+                  onChange={(e) => setResponseText(e.target.value)}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span className="char-counter" style={{ margin: 0 }}>{responseText.length}/500</span>
+                  <button
+                    className="btn btn--primary btn--sm"
+                    style={{ width: 'auto', padding: '0 20px' }}
+                    onClick={() => submitResponse(responseText)}
+                    disabled={!responseText.trim() || submitting}
+                  >
+                    {submitting ? 'Sharing…' : 'Share'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
