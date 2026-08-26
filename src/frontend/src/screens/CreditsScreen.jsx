@@ -267,14 +267,16 @@ export default function CreditsScreen() {
         )}
 
         {/* Balance */}
-        <div className="card" style={{ textAlign: 'center', padding: '24px 20px' }}>
+        <div className="card" style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 6, padding: '28px 20px', textAlign: 'center',
+        }}>
           <Coin
             size={32} weight="duotone"
             color={balanceEmpty ? 'var(--color-danger)' : balanceLow ? 'var(--color-warning)' : 'var(--color-accent)'}
             aria-hidden="true"
-            style={{ marginBottom: 6 }}
           />
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Current balance
           </div>
           <div style={{
@@ -283,7 +285,7 @@ export default function CreditsScreen() {
           }}>
             {balance ?? '—'}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>credits</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>credits</div>
           {balanceEmpty ? (
             <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12, lineHeight: 1.5 }}>
               No credits remaining. Top up to resume sessions.
