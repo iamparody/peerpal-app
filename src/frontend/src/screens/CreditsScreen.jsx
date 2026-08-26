@@ -236,7 +236,7 @@ export default function CreditsScreen() {
   }
 
   return (
-    <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+    <div className="screen screen--no-nav">
       {/* Phone modal */}
       {pendingPkg && (
         <PhoneModal
@@ -248,17 +248,19 @@ export default function CreditsScreen() {
         />
       )}
 
-      {/* Header */}
+      {/* Sticky header — sits at top while body scrolls */}
       <div style={{
+        position: 'sticky', top: 0, zIndex: 10,
         display: 'flex', alignItems: 'center', gap: 8,
-        padding: '12px 16px', background: 'var(--color-surface-card)',
-        borderBottom: '1px solid var(--color-border)', flexShrink: 0,
+        padding: '12px 16px', background: 'var(--color-bg-primary)',
+        borderBottom: '1px solid var(--color-border)',
       }}>
         <button className="page-header__back" onClick={() => navigate(-1)} aria-label="Back">‹</button>
         <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Credits</span>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+      {/* Page content — naturally scrolls with the body */}
+      <div style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)', paddingBottom: 40 }}>
         {purchaseMessage && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'rgba(143,175,154,0.15)', border: '1px solid var(--color-calm)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--color-calm)' }}>
             <CheckCircle size={18} weight="fill" aria-hidden="true" />
@@ -266,32 +268,32 @@ export default function CreditsScreen() {
           </div>
         )}
 
-        {/* Balance */}
+        {/* Balance card — compact flex column so coin/label/number stack cleanly */}
         <div className="card" style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 6, padding: '28px 20px', textAlign: 'center',
+          gap: 4, padding: '20px 20px 16px', textAlign: 'center',
         }}>
           <Coin
-            size={32} weight="duotone"
+            size={28} weight="duotone"
             color={balanceEmpty ? 'var(--color-danger)' : balanceLow ? 'var(--color-warning)' : 'var(--color-accent)'}
             aria-hidden="true"
           />
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>
             Current balance
           </div>
           <div style={{
-            fontSize: 60, fontWeight: 800, lineHeight: 1,
+            fontSize: 52, fontWeight: 800, lineHeight: 1.1,
             color: balanceEmpty ? 'var(--color-danger)' : balanceLow ? 'var(--color-warning)' : 'var(--color-text-primary)',
           }}>
             {balance ?? '—'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>credits</div>
           {balanceEmpty ? (
-            <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 12, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 8, lineHeight: 1.5 }}>
               No credits remaining. Top up to resume sessions.
             </p>
           ) : balanceLow ? (
-            <p style={{ fontSize: 13, color: 'var(--color-warning)', marginTop: 12, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: 'var(--color-warning)', marginTop: 8, lineHeight: 1.5 }}>
               Running low — top up to keep using sessions.
             </p>
           ) : null}
@@ -371,7 +373,7 @@ export default function CreditsScreen() {
           </p>
         </div>
 
-        {/* Transaction history */}
+        {/* Transaction history — shows up to 4 entries, paginated */}
         <div>
           <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 'var(--space-sm)' }}>
             History

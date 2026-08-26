@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Phase 31.9 COMPLETE — Frontend Training Flow, Topic Picker & Admin Competency Analytics live. Phase 31 fully complete.**
+**Session 31 COMPLETE — PWA push notification fix, cancel-while-waiting refund, credits screen layout + pagination, credit gate UX, GroupChatScreen build fix.**
 
 ---
 
@@ -29,6 +29,57 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 31.7 Frontend Training Flow — COMPLETE (session 30)
 - 31.8 Requester Topic Picker — COMPLETE (session 30)
 - 31.9 Admin Competency Analytics — COMPLETE (session 30)
+
+---
+
+### Session 31 — 2026-08-26
+
+**Bug fixes and UX polish across PWA, peer module, and credits.**
+
+**1. PWA push notifications — dual service worker conflict FIXED**
+
+Root cause: `vite-plugin-pwa` registers its Workbox SW at scope `/`; `firebase-messaging-sw.js` was also registered at `/`. Only one SW can be active per scope — whichever installed last silently won, breaking either offline caching or push delivery.
+
+- **`src/frontend/vite.config.js`** — added `workbox.importScripts: ['firebase-messaging-sw.js']` so VitePWA's generated SW also imports Firebase messaging; ONE combined SW now handles both.
+- **`src/frontend/src/utils/firebase.js`** — replaced `navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })` with `navigator.serviceWorker.ready` (reuses the existing Workbox SW).
+- **`src/frontend/public/firebase-messaging-sw.js`** — added `firebase.apps.length` guard to prevent double-init when imported via `importScripts`.
+- **`src/backend/utils/fcm.js`** — fixed `\\n` double-escape on Render: `private_key.replace(/\\n/g, '\n')`. Added startup log `[FCM] Firebase Admin SDK initialized`. Auto-clears expired/unregistered FCM tokens on send failure (`messaging/registration-token-not-registered`).
+
+**2. Vercel build failure — GroupChatScreen apostrophe FIXED**
+
+- **`src/frontend/src/screens/GroupChatScreen.jsx`** line 316: unescaped apostrophe in `'You've...'` broke the Rolldown parser. Changed outer quotes to double quotes.
+
+**3. Cancel peer request while waiting — refund + banner FIXED**
+
+`PATCH /peer/request/:id/close` returned early when `session_id = NULL` without cancelling the DB row or refunding credits. Device B banner stayed visible indefinitely.
+
+- **`src/backend/routes/peer.js`** — added `!session_id` branch before the session UPDATE block: clears routing timers from `routingTimers` Map, sets status to `'cancelled'` atomically (`WHERE status IN ('open','locked')`), calls `refundCredit` (1cr chat / 2cr voice) with user notification.
+
+**4. Credits screen — balance card layout + transaction pagination FIXED**
+
+Two separate issues:
+- `<Coin>` SVG renders inline by default; `marginBottom: 6` had no effect — "Current balance" label and 60px balance number collapsed behind the coin icon.
+- Transaction history had no pagination — long list with no cap or toggle.
+
+- **`src/frontend/src/screens/CreditsScreen.jsx`** — balance card switched to `display: flex; flex-direction: column; gap: 6` so coin → label → number → "credits" unit stack properly. Added `showAllTx` state with a 4-entry preview and "Show all N transactions" / "Show less" toggle. Fixed exclusive status messages (`balanceLow` excludes 0, `balanceEmpty` is its own state).
+
+**5. Credit gate bottom-sheet — graceful pre-flight before peer request**
+
+Topic buttons in `PeerRequestScreen` navigated directly to `PeerConnectingScreen`, bypassing any credit check.
+
+- **`src/frontend/src/screens/peer/PeerRequestScreen.jsx`** — `handleTopicPick(slug, label)` checks `balance < cost` before navigating; if insufficient, sets `creditGate` state. Bottom-sheet modal slides up from bottom with coin icon, "Not enough credits" copy, "Top up credits" CTA (navigates to `/credits`), and "Maybe later" dismiss. All topic buttons wired through `handleTopicPick`.
+
+**Commits pushed:**
+- `b67629d` — Push notification SW conflict fix + FCM backend improvements
+- `26309ec` — Syntax fix: apostrophe in GroupChatScreen
+- `ce42979` — Cancel while waiting: refund + status cancelled
+- `fd1ce66` — Credits screen: balance layout + history pagination (first pass)
+- `660cb35` — Credit gate bottom-sheet on peer request screen
+- `a573be7` — Fix balance card layout: flex column (current HEAD)
+
+**Pending verification (requires user action):**
+- Set new `FCM_SERVICE_ACCOUNT_JSON` in Render after revoking the old service account key from Firebase Console. Backend logs should show `[FCM] Firebase Admin SDK initialized — push notifications enabled.` on restart.
+- Peer availability toggle → confirm push notifications arrive on device when a request is broadcast.
 
 ---
 
@@ -1276,3 +1327,4 @@ to their support system — a direct safety risk.
 | 2026-05-21 | 14 | Phase 21 UI Performance & Design System: TanStack Query on all 7 screens; optimistic updates (mood invalidate, journal delete, AI session end); MoodDotGrid calendar; Toast/PageHeader/EmptyState/Badge components; PageHeader migrated into 5 screens; TherapistIntakeScreen SVG icons + Specify language; CalmingSoundsScreen Web Audio API engine (ambientAudio.js); FCM path fallback fix |
 | 2026-07-28 | 26 | Phase 31 spec written: Peer Competency & Routing System — capability-based access control. Full 9-sub-phase spec added to CHECKLIST.md covering domain model, schema (8 new tables), training/scenario engine, skill/permission issuance, policy engine, routing integration, quality signals, frontend training flow + topic picker, and system analytics. Safety invariants defined. |
 | 2026-07-28 | 27 | Phase 30.4 complete: WebSocket contact-info screening — regex patterns (Kenyan phone, international, email) in signaling.js; contact_warning emitted to both peers; amber dismissible banner in PeerTextChatScreen.jsx. Phase 31.0 complete (pending clinical sign-off): taxonomy-v1.md (18 skills, 12 permissions, 13 topics), prerequisite-graph.md (DAG with rationale), governance.md (change control, supervision SLA, safety invariants, clinical sign-off checklist), 5 baseline scenarios + 3 specialty scenarios written as branching narratives in docs/peer-screening/. PEER_SCREENING_LIVE feature flag defined in governance. Phase 31.1 complete: 10 migrations applied (049–058) — skills, skill_scenarios, peer_skills, permissions, peer_permissions, topics, skill_attempts, session_reflections, permission_flags, peer_requests topic columns. All tables RLS-enabled with deny-anon policies. DB constraints enforce revocation_requires_reviewer on both peer_permissions and permission_flags. |
+| 2026-08-26 | 31 | Bug fixes: dual SW conflict for PWA push notifications fixed (Workbox + Firebase merged into one SW); GroupChatScreen apostrophe build failure fixed; cancel-while-waiting now refunds credits and cancels DB row; credits screen balance card fixed (flex column layout) + transaction pagination added; credit gate bottom-sheet added to PeerRequestScreen for graceful insufficient-credits UX. 6 commits pushed to main. |

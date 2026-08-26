@@ -1738,3 +1738,30 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - Each metric has a tooltip explaining what it measures and what action it should prompt
 - Unmet demand by topic is queryable across any date range
 - Data is available within 24 hours of events occurring (nightly aggregation is acceptable)
+
+---
+
+## Session 31 — Bug Fixes & UX Polish (2026-08-26)
+
+### 31.A — PWA Push Notification Fix (dual service worker conflict)
+- [x] `vite.config.js` — add `workbox.importScripts: ['firebase-messaging-sw.js']` so VitePWA's generated SW also loads Firebase messaging (one SW, not two)
+- [x] `src/utils/firebase.js` — replace `navigator.serviceWorker.register('/firebase-messaging-sw.js')` with `navigator.serviceWorker.ready` (reuse existing Workbox SW)
+- [x] `public/firebase-messaging-sw.js` — add `firebase.apps.length` guard to prevent double-init when imported via importScripts
+- [x] `src/backend/utils/fcm.js` — fix `\\n` double-escape on Render: `private_key.replace(/\\n/g, '\n')`)
+- [x] `src/backend/utils/fcm.js` — add startup log `[FCM] Firebase Admin SDK initialized`; auto-clear expired/unregistered FCM tokens on send failure
+
+### 31.B — GroupChatScreen Build Failure Fix
+- [x] `src/frontend/src/screens/GroupChatScreen.jsx` line 316 — fix unescaped apostrophe `'You've...'` → `"You've..."` (broke Rolldown parser, blocked all Vercel deploys)
+
+### 31.C — Cancel Peer Request While Waiting (refund + banner)
+- [x] `src/backend/routes/peer.js` `PATCH /peer/request/:id/close` — add `!session_id` branch: clear routing timers from `routingTimers` Map, `UPDATE peer_requests SET status='cancelled' WHERE status IN ('open','locked')`, call `refundCredit` (1cr chat / 2cr voice) with user-facing notification; return `{ cancelled: true }`
+
+### 31.D — Credits Screen Balance Layout + Pagination
+- [x] `src/frontend/src/screens/CreditsScreen.jsx` — switch balance card to `display: flex; flex-direction: column; alignItems: center; gap: 6` so coin → label → number → "credits" unit stack vertically without SVG overlap
+- [x] `src/frontend/src/screens/CreditsScreen.jsx` — add `showAllTx` state; preview 4 transactions; "Show all N transactions" / "Show less" toggle button
+- [x] `src/frontend/src/screens/CreditsScreen.jsx` — fix exclusive status messages: `balanceLow` excludes 0; `balanceEmpty` is a distinct state
+
+### 31.E — Credit Gate Bottom-Sheet on Peer Request Screen
+- [x] `src/frontend/src/screens/peer/PeerRequestScreen.jsx` — add `creditGate` state; `handleTopicPick(slug, label)` checks `balance < cost` before navigating
+- [x] `src/frontend/src/screens/peer/PeerRequestScreen.jsx` — replace all topic button `onClick` direct navigations with `handleTopicPick`
+- [x] `src/frontend/src/screens/peer/PeerRequestScreen.jsx` — render bottom-sheet modal with coin icon, "Not enough credits" heading, cost + current balance, "Top up credits" CTA → `/credits`, "Maybe later" dismiss
