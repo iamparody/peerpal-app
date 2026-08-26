@@ -63,9 +63,20 @@ export default function EmailSentScreen() {
         Redirecting to login in {redirectIn}s…
       </p>
 
+      <button
+        onClick={() => { navigate('/login', { replace: true }); }}
+        style={{
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          fontSize: 14, color: 'rgba(245,237,228,0.70)', textDecoration: 'underline',
+          marginBottom: 'var(--space-md)', padding: 0,
+        }}
+      >
+        Already verified? Return to login
+      </button>
+
       <Link
         to="/emergency-public"
-        style={{ fontSize: 13, color: 'rgba(245,237,228,0.50)', textDecoration: 'none', marginTop: 'var(--space-lg)' }}
+        style={{ fontSize: 13, color: 'rgba(245,237,228,0.50)', textDecoration: 'none' }}
       >
         Need help right now?
       </Link>
