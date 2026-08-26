@@ -662,6 +662,34 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     return res.status(403).json({ error: 'Not a participant in this session', code: 'FORBIDDEN' });
   }
 
+  // ── User cancelled while still waiting (no session created yet) ────────────
+  if (!session_id) {
+    // Stop the in-process routing timers so broaden/no-peer don't fire after cancel
+    const rTimers = routingTimers.get(req.params.id);
+    if (rTimers) {
+      clearTimeout(rTimers.broadenTimer);
+      clearTimeout(rTimers.noPeerTimer);
+      routingTimers.delete(req.params.id);
+    }
+
+    // Atomically cancel — idempotent if already cancelled/escalated
+    const { rowCount } = await query(
+      `UPDATE peer_requests SET status = 'cancelled', updated_at = NOW()
+       WHERE id = $1 AND status IN ('open', 'locked')`,
+      [req.params.id]
+    );
+
+    if (rowCount) {
+      const creditCost = channel_preference === 'voice' ? 2 : 1;
+      await refundCredit(
+        requesterId, creditCost, null, channel_preference,
+        `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} request was cancelled — ${creditCost} credit${creditCost > 1 ? 's' : ''} refunded.`
+      );
+    }
+
+    return res.status(200).json({ cancelled: true });
+  }
+
   // Clear session timers — manual close beats auto-close
   const timers = sessionTimers.get(session_id);
   if (timers) { clearTimeout(timers.warning); clearTimeout(timers.close); sessionTimers.delete(session_id); }
