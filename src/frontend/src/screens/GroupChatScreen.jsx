@@ -313,7 +313,7 @@ export default function GroupChatScreen() {
     onError: (err) => {
       const code = err.response?.data?.code;
       if (code === 'ALREADY_RESPONDED') {
-        showToast('You've already shared a response for this prompt.', 'info');
+        showToast("You've already shared a response for this prompt.", 'info');
         queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
         return;
       }
