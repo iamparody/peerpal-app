@@ -36,6 +36,7 @@ export default function EditPersonaScreen() {
     queryFn: () => client.get('/api/profile').then(r => r.data),
   });
 
+  const [personaNameInput, setPersonaNameInput] = useState('');
   const [tone,      setTone]      = useState('warm');
   const [style,     setStyle]     = useState('brief');
   const [formality, setFormality] = useState('neutral');
@@ -48,6 +49,7 @@ export default function EditPersonaScreen() {
 
   useEffect(() => {
     if (profile?.persona && !seeded) {
+      setPersonaNameInput(profile.persona.persona_name || '');
       setTone(profile.persona.tone || 'warm');
       setStyle(profile.persona.response_style || 'brief');
       setFormality(profile.persona.formality || 'neutral');
@@ -58,10 +60,15 @@ export default function EditPersonaScreen() {
   }, [profile, seeded]);
 
   async function handleSave() {
+    if (!personaNameInput.trim()) {
+      setError('Companion name cannot be empty.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       await client.patch('/api/ai/persona', {
+        persona_name: personaNameInput.trim(),
         tone,
         response_style: style,
         formality,
@@ -95,7 +102,7 @@ export default function EditPersonaScreen() {
       <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
         <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-calm)' }}>Saved</p>
-        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginTop: 8 }}>{personaName} has been updated.</p>
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginTop: 8 }}>{personaNameInput || personaName} has been updated.</p>
       </div>
     );
   }
@@ -110,11 +117,33 @@ export default function EditPersonaScreen() {
         >←</button>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--color-text-primary)' }}>Edit Companion</h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>{personaName} · name is permanent</p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>Update your companion's name and preferences</p>
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+
+        {/* Companion name */}
+        <div>
+          <label className="label">Companion name</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              className="input"
+              value={personaNameInput}
+              onChange={(e) => setPersonaNameInput(e.target.value.slice(0, 20))}
+              placeholder="e.g. Sage, Luna, Kai"
+              maxLength={20}
+              style={{ paddingRight: 48 }}
+            />
+            <span style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 11, color: 'var(--color-text-muted)', pointerEvents: 'none',
+            }}>
+              {personaNameInput.length}/20
+            </span>
+          </div>
+        </div>
 
         {/* Tone */}
         <div>

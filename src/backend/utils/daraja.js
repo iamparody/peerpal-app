@@ -3,8 +3,8 @@ const https = require('https');
 // Credit packages — keyed by id, used by POST /api/credits/purchase
 const PACKAGES = {
   standard: { price_ksh: 100, credits: 7,  name: 'Just for now'    },
-  plus:     { price_ksh: 250, credits: 15, name: "I'm committed"    },
-  premium:  { price_ksh: 500, credits: 40, name: 'All of me'        },
+  plus:     { price_ksh: 250, credits: 20, name: "I'm committed"    },
+  premium:  { price_ksh: 500, credits: 50, name: 'All of me'        },
 };
 
 // Daraja credentials from env — populated when credentials are approved

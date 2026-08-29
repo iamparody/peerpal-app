@@ -25,7 +25,7 @@ const PACKAGES = [
     name: "I'm committed",
     tagline: "You're showing up for yourself",
     price: 250,
-    credits: 15,
+    credits: 20,
     Icon: Heart,
     highlight: true,
     iconColor: '#8FAF9A',
@@ -40,7 +40,7 @@ const PACKAGES = [
     name: 'All of me',
     tagline: 'Full support, nothing held back',
     price: 500,
-    credits: 40,
+    credits: 50,
     Icon: Mountains,
     highlight: false,
     iconColor: '#C2A48A',
@@ -368,9 +368,38 @@ export default function CreditsScreen() {
             </button>
           ))}
 
-          <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 4, lineHeight: 1.6 }}>
-            1 credit = 30 min peer session · unused credits refunded automatically
-          </p>
+          {/* How credits work */}
+          <div style={{ marginTop: 8, padding: '16px', background: 'rgba(194,164,138,0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(194,164,138,0.14)' }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+              How credits work
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Free every week</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                  1 AI session each week — no credits needed<br />
+                  Crisis support, breathing exercises &amp; articles — always free
+                </p>
+              </div>
+              <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Using credits</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
+                  1 credit — AI chat session<br />
+                  1 credit — Peer support (text, 30 min)<br />
+                  2 credits — Peer voice call (30 min)<br />
+                  1 credit — Therapist referral
+                </p>
+              </div>
+              <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Your credits</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                  2 welcome credits on sign-up<br />
+                  Credits don't expire<br />
+                  Unused credits refunded if no peer is available
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Transaction history — shows up to 4 entries, paginated */}

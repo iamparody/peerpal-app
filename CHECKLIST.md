@@ -1765,3 +1765,43 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] `src/frontend/src/screens/peer/PeerRequestScreen.jsx` — add `creditGate` state; `handleTopicPick(slug, label)` checks `balance < cost` before navigating
 - [x] `src/frontend/src/screens/peer/PeerRequestScreen.jsx` — replace all topic button `onClick` direct navigations with `handleTopicPick`
 - [x] `src/frontend/src/screens/peer/PeerRequestScreen.jsx` — render bottom-sheet modal with coin icon, "Not enough credits" heading, cost + current balance, "Top up credits" CTA → `/credits`, "Maybe later" dismiss
+
+---
+
+## Session 32 — AI Monetisation, Context & Persona Updates (2026-08-29)
+
+### 32.A — Migration 050: sessions.is_free_session
+- [x] Write `src/backend/migrations/050_sessions_is_free.sql` — `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_free_session BOOLEAN NOT NULL DEFAULT false`
+- [ ] Apply migration via `npm run migrate` in `src/backend/` (requires DATABASE_DIRECT_URL in .env) — **USER ACTION REQUIRED**
+
+### 32.B — Credit Packages 7 / 20 / 50
+- [x] `src/backend/utils/daraja.js` — `plus.credits: 15 → 20`, `premium.credits: 40 → 50`
+- [x] `src/frontend/src/screens/CreditsScreen.jsx` — `PACKAGES`: `plus.credits 15 → 20`, `premium.credits 40 → 50`
+
+### 32.C — AI Session Credit Gate (1 cr/session, 1 free/week)
+- [x] `src/backend/routes/ai.js` `POST /session/start` — add weekly free session check: `COUNT(*) FROM sessions WHERE user_id=$1 AND type='ai' AND date_trunc('week', started_at AT TIME ZONE 'UTC') = date_trunc('week', NOW() AT TIME ZONE 'UTC')`
+- [x] `src/backend/routes/ai.js` `POST /session/start` — if `isFree=false`: `SELECT balance FROM credits WHERE user_id=$1`; return 402 `INSUFFICIENT_CREDITS` if balance < 1
+- [x] `src/backend/routes/ai.js` `POST /session/start` — update `INSERT INTO sessions` to include `is_free_session` column
+- [x] `src/backend/routes/ai.js` `POST /session/start` — add `deductCredit` require; call `deductCredit(userId, 1, sessionId, 'ai')` when `isFree=false`; if blocked: `DELETE FROM sessions WHERE id=$1`, log, return 402
+- [x] `src/backend/routes/ai.js` `POST /session/start` — add `is_free` to response body
+- [x] `src/frontend/src/screens/AIChatScreen.jsx` — add `isFreeSession` state; set from `data.is_free` in `startSession` success path
+- [x] `src/frontend/src/screens/AIChatScreen.jsx` — detect `status===402` / `code==='INSUFFICIENT_CREDITS'` in catch; set `startError='NO_CREDITS'`
+- [x] `src/frontend/src/screens/AIChatScreen.jsx` — render dedicated no-credits screen for `startError==='NO_CREDITS'` (warm copy, "Get Credits" → `/credits`, "Back" → `/dashboard`)
+- [x] `src/frontend/src/screens/AIChatScreen.jsx` — render "Weekly free session — no credits used" banner in chat header when `isFreeSession===true`
+
+### 32.D — "How Credits Work" Explainer Block
+- [x] `src/frontend/src/screens/CreditsScreen.jsx` — replace one-liner with structured section: free weekly session, per-service credit costs, welcome credits, refund policy
+
+### 32.E — AI Context: birth_year + condition_category
+- [x] `src/backend/routes/ai.js` `POST /session/start` — extend users query: `SELECT persona_created, alias, birth_year, condition_category FROM users WHERE id=$1`
+- [x] `src/backend/routes/ai.js` `buildSystemPrompt` — add `userAge` and `conditionCategory` parameters
+- [x] `src/backend/routes/ai.js` `buildSystemPrompt` — add Layer 0.5 (between safety layer and persona layer): age calibration note if `userAge` set; condition background note if `conditionCategory` set; do not reference condition unless user raises it
+- [x] `src/backend/routes/ai.js` `POST /session/start` — compute `userAge` from `birth_year` (`currentYear - birth_year`); pass `userAge` and `condition_category` into `buildSystemPrompt`
+
+### 32.F — Companion Name Unlock
+- [x] `src/backend/routes/ai.js` `PATCH /ai/persona` — add `persona_name` to destructured fields; validate non-empty string, max 20 chars; add `persona_name = $N` to UPDATE query
+- [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — add `personaNameInput` state; seed from `profile.persona.persona_name` in `useEffect`
+- [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — add name input field above Tone section: text input, `maxLength=20`, live character counter `N/20`
+- [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — include `persona_name: personaNameInput.trim()` in `handleSave` PATCH body; validate non-empty before allowing save
+- [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — remove "name is permanent" subtitle; replace with neutral description
+- [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — update saved confirmation text to use `personaNameInput` (the just-saved name)

@@ -31,6 +31,7 @@ export default function AIChatScreen() {
   const qc = useQueryClient();
   const [sessionId, setSessionId] = useState(null);
   const [personaName, setPersonaName] = useState('Your companion');
+  const [isFreeSession, setIsFreeSession] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,9 +52,16 @@ export default function AIChatScreen() {
       const { data } = await client.post('/api/ai/session/start', body);
       setSessionId(data.session_id);
       setPersonaName(data.persona_name || 'Your companion');
+      setIsFreeSession(data.is_free === true);
       setMessages([{ role: 'assistant', content: data.greeting || `Hello. I'm ${data.persona_name || 'your companion'}. How are you feeling today?` }]);
     } catch (err) {
-      setStartError(err.response?.data?.error || 'I\'m having trouble responding right now. Try again in a moment.');
+      const status = err.response?.status;
+      const code = err.response?.data?.code;
+      if (status === 402 || code === 'INSUFFICIENT_CREDITS') {
+        setStartError('NO_CREDITS');
+      } else {
+        setStartError(err.response?.data?.error || "I'm having trouble connecting right now. Try again in a moment.");
+      }
     } finally {
       setStarting(false);
     }
@@ -109,6 +117,24 @@ export default function AIChatScreen() {
         </div>
         <AIChatSkeleton />
         <div style={{ height: 72, background: 'var(--color-bg-deep)', borderTop: '1px solid var(--color-border)', flexShrink: 0 }} />
+      </div>
+    );
+  }
+
+  if (startError === 'NO_CREDITS') {
+    return (
+      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 'var(--space-xl) var(--space-lg)', textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 'var(--space-md)' }}>💙</div>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Free session used this week</h2>
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 'var(--space-lg)', maxWidth: 280 }}>
+          You get 1 free AI session each week. Get 7 credits for KSh 100 to continue talking.
+        </p>
+        <button className="btn btn--primary" style={{ width: '100%', maxWidth: 280 }} onClick={() => navigate('/credits')}>
+          Get Credits
+        </button>
+        <button className="btn btn--muted" style={{ marginTop: 'var(--space-sm)', width: '100%', maxWidth: 280 }} onClick={() => navigate('/dashboard')}>
+          Back
+        </button>
       </div>
     );
   }
@@ -197,6 +223,21 @@ export default function AIChatScreen() {
           End
         </button>
       </div>
+
+      {/* Free session indicator */}
+      {isFreeSession === true && (
+        <div style={{
+          padding: '6px 16px',
+          background: 'rgba(143,175,154,0.12)',
+          borderBottom: '1px solid rgba(143,175,154,0.2)',
+          fontSize: 12,
+          color: 'var(--color-calm)',
+          textAlign: 'center',
+          flexShrink: 0,
+        }}>
+          Weekly free session — no credits used
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 12 }}>

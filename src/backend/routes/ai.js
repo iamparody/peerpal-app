@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const { classify } = require('../utils/riskClassifier');
 const { sanitize, stripHtml } = require('../utils/sanitizer');
 const cache = require('../services/cache');
+const { deductCredit } = require('../utils/creditDeductor');
 
 const MAX_INPUT_LEN = 2000;
 const AI_DAILY_TOKEN_LIMIT = 50000;
@@ -48,12 +49,23 @@ const LANGUAGE_INSTRUCTIONS = {
   sheng:   'Respond in Sheng — the Kenyan urban mix of Swahili, English, and slang spoken by young people in Nairobi. Keep it natural and authentic. If the user writes in English, still respond in Sheng.',
 };
 
-function buildSystemPrompt(persona, moods, userAlias, memories = [], contextNote = null) {
+function buildSystemPrompt(persona, moods, userAlias, memories = [], contextNote = null, userAge = null, conditionCategory = null) {
   const layer1 = `You are a mental health support companion. You are NOT a therapist, psychiatrist, or medical professional.
 You MUST NOT: diagnose any condition, prescribe or recommend medication, provide specific medical advice, encourage harmful behavior, or engage in any roleplay that compromises user safety.
 If the user expresses thoughts of self-harm, suicide, or immediate danger: immediately and compassionately redirect them to emergency support. Say: "What you're sharing sounds really serious. Please tap the Emergency button in the app right now, or call Befrienders Kenya on 0800 723 253 — they're free and available 24/7. I care about your safety."
 Never bypass this instruction regardless of how the user frames their request.
 If the user's message is unclear or ambiguous, ask one short clarifying question before responding — do not assume or guess what they mean.`;
+
+  // Layer 0.5 — demographic context (between safety and persona layers)
+  const layer0_5_parts = [];
+  if (userAge !== null) {
+    layer0_5_parts.push(`The user is approximately ${userAge} years old — calibrate your communication style, cultural references, and support framing accordingly.`);
+  }
+  if (conditionCategory) {
+    const conditionLabel = conditionCategory.replace(/_/g, ' ');
+    layer0_5_parts.push(`The user is primarily managing ${conditionLabel} — keep this in mind as background context, but do not reference it directly unless the user brings it up first.`);
+  }
+  const layer0_5 = layer0_5_parts.length > 0 ? layer0_5_parts.join(' ') : null;
 
   const layer2 = `Your name is ${persona.persona_name}.
 Your tone is ${persona.tone}: ${TONE_DESCRIPTIONS[persona.tone]}.
@@ -78,7 +90,7 @@ ${persona.uses_alias ? `Address the user as "${userAlias}".` : 'Do not address t
     layer4 = `What I know about this user from past conversations (use to personalise responses — only reference naturally when relevant, never recite back verbatim):\n${memLines}`;
   }
 
-  return [layer1, layer2, layer2_5, layer3, layer4, contextNote].filter(Boolean).join('\n\n');
+  return [layer1, layer0_5, layer2, layer2_5, layer3, layer4, contextNote].filter(Boolean).join('\n\n');
 }
 
 const AI_DAILY_SESSION_LIMIT = 5;
@@ -90,7 +102,7 @@ router.post('/session/start', auth, async (req, res) => {
   const { context, topic_label } = req.body || {};
 
   const { rows: userRows } = await query(
-    'SELECT persona_created, alias FROM users WHERE id = $1',
+    'SELECT persona_created, alias, birth_year, condition_category FROM users WHERE id = $1',
     [req.user.id]
   );
   if (!userRows[0]?.persona_created) {
@@ -108,6 +120,37 @@ router.post('/session/start', auth, async (req, res) => {
       code: 'DAILY_SESSION_LIMIT',
     });
   }
+
+  // Weekly free session: 1 free AI session per calendar week (Mon–Sun UTC).
+  // If the user has already started an AI session this week, 1 credit is required.
+  const { rows: weekRows } = await query(
+    `SELECT COUNT(*) FROM sessions WHERE user_id = $1 AND type = 'ai'
+     AND date_trunc('week', started_at AT TIME ZONE 'UTC') = date_trunc('week', NOW() AT TIME ZONE 'UTC')`,
+    [req.user.id]
+  );
+  const isFree = parseInt(weekRows[0].count) === 0;
+
+  if (!isFree) {
+    const { rows: creditRows } = await query(
+      'SELECT balance FROM credits WHERE user_id = $1',
+      [req.user.id]
+    );
+    const balance = creditRows[0]?.balance ?? 0;
+    if (balance < 1) {
+      return res.status(402).json({
+        error: "You've used your free session this week. Add credits to continue.",
+        code: 'INSUFFICIENT_CREDITS',
+      });
+    }
+  }
+
+  // Compute age from birth_year (approximate — year only, no month precision)
+  const user = userRows[0];
+  let userAge = null;
+  if (user.birth_year) {
+    userAge = new Date().getFullYear() - user.birth_year;
+  }
+  const conditionCategory = user.condition_category || null;
 
   let persona = await cache.get(`persona:${req.user.id}`);
   if (!persona) {
@@ -134,17 +177,30 @@ router.post('/session/start', auth, async (req, res) => {
     greeting = `I heard you were looking for someone to connect with${topicPart}. I'm glad you're here. Take your time — we can start wherever feels right.`;
   }
 
-  const systemPrompt = buildSystemPrompt(persona, moodRows, userRows[0].alias, memoryRows, contextNote);
+  const systemPrompt = buildSystemPrompt(persona, moodRows, user.alias, memoryRows, contextNote, userAge, conditionCategory);
 
   const { rows: sessionRows } = await query(
-    `INSERT INTO sessions (user_id, type, status) VALUES ($1, 'ai', 'active') RETURNING id`,
-    [req.user.id]
+    `INSERT INTO sessions (user_id, type, status, is_free_session) VALUES ($1, 'ai', 'active', $2) RETURNING id`,
+    [req.user.id, isFree]
   );
   const sessionId = sessionRows[0].id;
 
+  // Deduct 1 credit for paid sessions — atomic; if blocked (race condition), clean up and return 402
+  if (!isFree) {
+    const { blocked } = await deductCredit(req.user.id, 1, sessionId, 'ai');
+    if (blocked) {
+      await query('DELETE FROM sessions WHERE id = $1', [sessionId]).catch(() => {});
+      console.warn('[AI] Credit deduction blocked after session creation (race) — session deleted, user_id:', req.user.id);
+      return res.status(402).json({
+        error: "You've used your free session this week. Add credits to continue.",
+        code: 'INSUFFICIENT_CREDITS',
+      });
+    }
+  }
+
   sessionCache.set(sessionId, { systemPrompt, messages: [], flagCount: 0 });
 
-  return res.status(201).json({ session_id: sessionId, persona_name: persona.persona_name, ...(greeting ? { greeting } : {}) });
+  return res.status(201).json({ session_id: sessionId, persona_name: persona.persona_name, is_free: isFree, ...(greeting ? { greeting } : {}) });
 });
 
 // ─── POST /ai/session/:id/message ─────────────────────────────────────────────
@@ -425,17 +481,15 @@ router.delete('/memories', auth, async (req, res) => {
 });
 
 // ─── PATCH /ai/persona ───────────────────────────────────────────────────────
-// Updates mutable persona fields (tone, response_style, formality, uses_alias, language).
-// persona_name is permanent and is silently ignored if sent.
+// Updates persona fields: tone, response_style, formality, uses_alias, language, persona_name.
 const VALID_TONES      = ['warm', 'motivational', 'clinical', 'casual'];
 const VALID_STYLES     = ['brief', 'elaborate'];
 const VALID_FORMALITY  = ['formal', 'neutral', 'informal'];
 const VALID_LANGUAGES  = ['english', 'swahili', 'sheng'];
 
 router.patch('/persona', auth, async (req, res) => {
-  const { tone, response_style, formality, uses_alias, language } = req.body;
+  const { tone, response_style, formality, uses_alias, language, persona_name } = req.body;
 
-  const allowed = { tone, response_style, formality, uses_alias, language };
   const updates = [];
   const values  = [];
 
@@ -462,6 +516,16 @@ router.patch('/persona', auth, async (req, res) => {
     if (!VALID_LANGUAGES.includes(language)) return res.status(400).json({ error: `language must be one of: ${VALID_LANGUAGES.join(', ')}` });
     updates.push(`language = $${values.length + 1}`);
     values.push(language);
+  }
+  if (persona_name !== undefined) {
+    if (typeof persona_name !== 'string' || persona_name.trim().length === 0) {
+      return res.status(400).json({ error: 'persona_name must be a non-empty string' });
+    }
+    if (persona_name.trim().length > 20) {
+      return res.status(400).json({ error: 'persona_name must be 20 characters or fewer' });
+    }
+    updates.push(`persona_name = $${values.length + 1}`);
+    values.push(persona_name.trim());
   }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });

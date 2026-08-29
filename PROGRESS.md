@@ -3,7 +3,7 @@
 ---
 
 ## Current Phase
-**Session 31 COMPLETE — PWA push notification fix, cancel-while-waiting refund, credits screen layout + pagination, credit gate UX, GroupChatScreen build fix.**
+**Session 32 COMPLETE — AI credit gate (1 free/week, 1cr/session), credit package rebalance (7/20/50), AI context enrichment (birth_year + condition_category), companion name unlock, credits explainer.**
 
 ---
 
@@ -29,6 +29,66 @@ Build blocked on clinical content sign-off. Logged in CHECKLIST.md Phase 24.
 - 31.7 Frontend Training Flow — COMPLETE (session 30)
 - 31.8 Requester Topic Picker — COMPLETE (session 30)
 - 31.9 Admin Competency Analytics — COMPLETE (session 30)
+
+---
+
+### Session 32 — 2026-08-29
+
+**AI monetisation, credit rebalance, context enrichment, companion name, credits explainer.**
+
+**1. Migration 050 — sessions.is_free_session**
+
+- **`src/backend/migrations/050_sessions_is_free.sql`** — CREATED: `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_free_session BOOLEAN NOT NULL DEFAULT false`
+- USER ACTION REQUIRED: run `npm run migrate` in `src/backend/` (needs `DATABASE_DIRECT_URL` in `.env`)
+
+**2. Credit packages rebalanced — 7 / 20 / 50**
+
+Old ladder (Standard 7/Plus 15/Premium 40) had Plus at KSh 16.7/cr — worse than Standard. Fixed value ladder: Standard KSh 14.29/cr → Plus KSh 12.50/cr → Premium KSh 10.00/cr.
+
+- **`src/backend/utils/daraja.js`** — `plus.credits: 15 → 20`, `premium.credits: 40 → 50`
+- **`src/frontend/src/screens/CreditsScreen.jsx`** — same amounts updated in PACKAGES constant
+
+**3. AI Session Credit Gate**
+
+- 1 free AI session per calendar week (Monday 00:00 UTC)
+- 1 credit per subsequent session
+- Graceful 402 + `INSUFFICIENT_CREDITS` code when free used and balance = 0
+- Race-condition fallback: if `deductCredit` returns `blocked` after session INSERT, session is deleted and 402 returned with a warn log
+
+- **`src/backend/routes/ai.js`** — `POST /session/start`:
+  - Weekly free check via `date_trunc('week', ...)` COUNT query
+  - Pre-flight credit balance check before session creation when `isFree=false`
+  - `is_free_session` included in session INSERT
+  - `deductCredit(userId, 1, sessionId, 'ai')` called after session INSERT; blocked → DELETE + 402
+  - `is_free` field added to 201 response
+- **`src/frontend/src/screens/AIChatScreen.jsx`**:
+  - `isFreeSession` state set from `data.is_free`
+  - 402 / `INSUFFICIENT_CREDITS` catch path sets `startError='NO_CREDITS'`
+  - Dedicated no-credits screen: warm copy, "Get Credits" → `/credits`, "Back" → `/dashboard`
+  - Free session banner between header and messages when `isFreeSession === true`
+
+**4. AI Context Enrichment — Layer 0.5**
+
+`birth_year` and `condition_category` were stored in DB but never passed to AI.
+
+- **`src/backend/routes/ai.js`** — users SELECT query extended to include `birth_year, condition_category`
+- **`buildSystemPrompt`** — new `userAge` + `conditionCategory` params; Layer 0.5 injected between safety and persona layers: age calibration note + condition background note (never referenced unless user raises it)
+
+**5. Companion Name Unlock**
+
+`PATCH /ai/persona` previously silently ignored `persona_name`; `EditPersonaScreen` showed "name is permanent."
+
+- **`src/backend/routes/ai.js`** `PATCH /ai/persona` — `persona_name` added to accepted fields; validated (non-empty, ≤ 20 chars); included in UPDATE query
+- **`src/frontend/src/screens/EditPersonaScreen.jsx`**:
+  - `personaNameInput` state seeded from `profile.persona.persona_name`
+  - Text input with maxLength=20, live N/20 counter above Tone section
+  - Validation: empty name blocks save
+  - "name is permanent" subtitle replaced with "Update your companion's name and preferences"
+  - Saved confirmation uses `personaNameInput`
+
+**6. Credits Explainer Block**
+
+- **`src/frontend/src/screens/CreditsScreen.jsx`** — one-liner replaced with structured "How credits work" block: free weekly AI session; per-service costs (AI 1cr, peer text 1cr, peer voice 2cr, referral 1cr); welcome credits; refund policy; crisis/breathing/articles always free
 
 ---
 
