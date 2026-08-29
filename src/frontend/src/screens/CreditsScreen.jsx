@@ -104,51 +104,60 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 200,
         background: 'rgba(0,0,0,0.55)',
-        display: 'flex', alignItems: 'flex-end',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
         width: '100%',
-        maxHeight: '82dvh',
+        maxWidth: 480,
         background: 'var(--color-surface-card)',
         borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
         display: 'flex', flexDirection: 'column',
-        overflowY: 'auto',
       }}>
         {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
+          <div style={{ width: 32, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
         </div>
 
-        <div style={{ padding: '16px 20px 36px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: '1rem', fontFamily: 'var(--font-editorial)' }}>{pkg.name}</div>
+              <div style={{ fontWeight: 700, fontSize: '1rem' }}>{pkg.name}</div>
               <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 {pkg.credits} credits · KSh {pkg.price}
               </div>
             </div>
             <button
               onClick={onClose}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4, marginTop: -2 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
               aria-label="Close"
             >
               <X size={20} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Phone input */}
             <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8, color: 'var(--color-text-secondary)' }}>
                 Safaricom number
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                border: '1.5px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+                background: 'var(--color-bg-deep)',
+              }}>
                 <span style={{
-                  padding: '11px 12px', fontSize: 15, fontWeight: 600,
-                  color: '#F5EDE4', background: 'rgba(255,255,255,0.08)',
-                  borderRight: '1px solid var(--color-border)', flexShrink: 0, letterSpacing: 0.5,
+                  padding: '12px 14px', fontSize: 15, fontWeight: 600,
+                  color: 'var(--color-text-secondary)',
+                  borderRight: '1px solid var(--color-border)',
+                  flexShrink: 0,
                 }}>
                   +254
                 </span>
@@ -160,18 +169,22 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
                   inputMode="numeric"
                   autoFocus
                   style={{
-                    flex: 1, border: 'none', outline: 'none', padding: '11px 12px',
-                    fontSize: 15, background: 'transparent', color: '#F5EDE4',
+                    flex: 1, border: 'none', outline: 'none',
+                    padding: '12px 14px', fontSize: 15,
+                    background: 'transparent', color: 'var(--color-text-primary)',
                     letterSpacing: 0.5,
                   }}
                 />
               </div>
-              {phoneErr && <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{phoneErr}</p>}
-              {error && <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 4 }}>{error}</p>}
+              {(phoneErr || error) && (
+                <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>
+                  {phoneErr || error}
+                </p>
+              )}
             </div>
 
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-              You'll get an M-Pesa prompt. Enter your PIN to confirm.
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: 0 }}>
+              You'll receive an M-Pesa prompt on this number. Enter your PIN to complete the payment.
             </p>
 
             <button
@@ -179,7 +192,7 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
               className="btn btn--primary"
               disabled={submitting || digits.length !== 9}
             >
-              {submitting ? 'Sending prompt…' : 'Send M-Pesa Prompt'}
+              {submitting ? 'Sending prompt…' : 'Pay KSh ' + pkg.price}
             </button>
           </form>
         </div>
