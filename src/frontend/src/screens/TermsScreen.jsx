@@ -62,7 +62,7 @@ export default function TermsScreen({ embedded = false }) {
             'One account per person. Creating multiple accounts is prohibited.',
             'Your alias is system-assigned and non-transferable. You may not share your account with others.',
             'You are responsible for keeping your login credentials secure. We are not liable for unauthorised access resulting from your failure to protect your credentials.',
-            'Notify us immediately at antonykkiriinya@gmail.com if you believe your account has been compromised.',
+            'Notify us immediately through the app if you believe your account has been compromised.',
           ]} />
         </SECTION>
 
@@ -83,7 +83,7 @@ export default function TermsScreen({ embedded = false }) {
           <UL items={[
             'Credits are purchased in advance and consumed during peer support sessions.',
             'Credits are non-refundable once used in a session.',
-            'Unused credits: refund requests for unused credits are considered at our discretion. Contact antonykkiriinya@gmail.com.',
+            'Unused credits: refund requests for unused credits are considered at our discretion. Contact us through the app.',
             'All payment processing is handled by Paystack. Their Terms of Service apply to all transactions. We do not process or store card details.',
             'We reserve the right to adjust credit pricing with 30 days\' notice to existing users.',
           ]} />
@@ -118,11 +118,11 @@ export default function TermsScreen({ embedded = false }) {
 
         <SECTION title="11. Governing Law and Disputes">
           <P>These Terms are governed by the laws of the Republic of Kenya. Disputes shall be resolved in the courts of Kenya.</P>
-          <P>For informal resolution, contact us first at antonykkiriinya@gmail.com.</P>
+          <P>For informal resolution, contact us through the app first.</P>
         </SECTION>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(245,237,228,0.10)', textAlign: 'center', fontSize: 12, color: 'rgba(245,237,228,0.35)' }}>
-          <div>© 2025 PeerPal. All rights reserved.</div>
+          <div>© {new Date().getFullYear()} PeerPal. All rights reserved.</div>
           <div style={{ marginTop: 4 }}>PeerPal is not a medical service.</div>
         </div>
       </div>

@@ -171,7 +171,12 @@ router.post('/login', loginCooldownMiddleware, async (req, res) => {
     [email.toLowerCase().trim()]
   );
 
-  if (!rows.length || !rows[0].is_active) {
+  if (!rows.length) {
+    recordFailedLogin(req.ip);
+    return res.status(401).json({ error: 'No account associated with that email', code: 'NO_ACCOUNT' });
+  }
+
+  if (!rows[0].is_active) {
     recordFailedLogin(req.ip);
     return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
   }

@@ -40,7 +40,7 @@ export default function PrivacyPolicyScreen({ embedded = false }) {
 
         <SECTION title="1. Who We Are">
           <P>PeerPal is a peer support and digital wellness platform operated by [Your Name / Company Name], Kenya.</P>
-          <P>For data protection queries, contact us at: <span style={{ color: 'var(--color-accent)' }}>antonykkiriinya@gmail.com</span></P>
+          <P>For data protection queries, contact us through the app.</P>
         </SECTION>
 
         <SECTION title="2. Data We Collect">
@@ -85,7 +85,7 @@ export default function PrivacyPolicyScreen({ embedded = false }) {
             'Withdraw consent — you may withdraw consent at any time by deleting your account.',
             'Lodge a complaint — with the Office of the Data Protection Commissioner (ODPC) at www.odpc.go.ke.',
           ]} />
-          <P>To exercise rights other than erasure (which is self-service in the app), email us at antonykkiriinya@gmail.com.</P>
+          <P>To exercise rights other than erasure (which is self-service in the app), contact us through the app.</P>
         </SECTION>
 
         <SECTION title="6. Third-Party Services">
@@ -114,12 +114,11 @@ export default function PrivacyPolicyScreen({ embedded = false }) {
         </SECTION>
 
         <SECTION title="9. Contact">
-          <P>Email: <span style={{ color: 'var(--color-accent)' }}>antonykkiriinya@gmail.com</span></P>
-          <P>For urgent data breach concerns, we aim to acknowledge within 24 hours.</P>
+          <P>For urgent data breach concerns, we aim to acknowledge within 24 hours. Contact us through the app.</P>
         </SECTION>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(245,237,228,0.10)', textAlign: 'center', fontSize: 12, color: 'rgba(245,237,228,0.35)' }}>
-          <div>© 2025 PeerPal. All rights reserved.</div>
+          <div>© {new Date().getFullYear()} PeerPal. All rights reserved.</div>
           <div style={{ marginTop: 4 }}>PeerPal is not a medical service.</div>
         </div>
       </div>

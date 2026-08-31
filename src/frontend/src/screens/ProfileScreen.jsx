@@ -443,7 +443,7 @@ export default function ProfileScreen() {
             <Link to="/data-compliance" style={{ fontSize: 12, color: 'var(--color-text-muted)', textDecoration: 'none' }}>Data Compliance</Link>
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            © 2025 PeerPal. All rights reserved.
+            © {new Date().getFullYear()} PeerPal. All rights reserved.
           </p>
           <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
             PeerPal is not a medical service.

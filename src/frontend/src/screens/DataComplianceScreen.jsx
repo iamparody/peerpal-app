@@ -88,13 +88,11 @@ export default function DataComplianceScreen() {
             'Notify the ODPC as required under the DPA.',
             'Document the nature, scope, and remediation of the breach.',
           ]} />
-          <P>To report a suspected breach: <span style={{ color: 'var(--color-accent)' }}>antonykkiriinya@gmail.com</span></P>
+          <P>To report a suspected breach, contact us through the app.</P>
         </SECTION>
 
         <SECTION title="Data Protection Officer">
-          <P>Our designated Data Protection Officer is contactable at:</P>
-          <P style={{ color: 'var(--color-accent)' }}>antonykkiriinya@gmail.com</P>
-          <P>The DPO handles access requests, correction requests, and complaints regarding personal data processing.</P>
+          <P>Our designated Data Protection Officer is contactable through the app. The DPO handles access requests, correction requests, and complaints regarding personal data processing.</P>
         </SECTION>
 
         <SECTION title="Your Rights">
@@ -113,7 +111,7 @@ export default function DataComplianceScreen() {
         </div>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid rgba(245,237,228,0.10)', textAlign: 'center', fontSize: 12, color: 'rgba(245,237,228,0.35)' }}>
-          <div>© 2025 PeerPal. All rights reserved.</div>
+          <div>© {new Date().getFullYear()} PeerPal. All rights reserved.</div>
           <div style={{ marginTop: 4 }}>PeerPal is not a medical service.</div>
         </div>
       </div>

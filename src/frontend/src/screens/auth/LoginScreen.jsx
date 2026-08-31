@@ -76,10 +76,14 @@ export default function LoginScreen() {
         }
         setError("Having trouble? Take a breath — you can keep trying.");
       } else {
-        const msg = err.response?.data?.error;
-        setError(msg === 'Invalid credentials' || err.response?.status === 401
-          ? 'Incorrect email or password.'
-          : 'Something went wrong. Please try again.');
+        const code = err.response?.data?.code;
+        if (code === 'NO_ACCOUNT') {
+          setError('No account associated with that email.');
+        } else if (err.response?.status === 401) {
+          setError('Incorrect password. Please try again.');
+        } else {
+          setError('Something went wrong. Please try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -136,14 +140,7 @@ export default function LoginScreen() {
               We've sent a new link to <strong>{email}</strong>. Check your inbox (and spam folder).
             </div>
             <div style={{ fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>
-              Signing in again will send another link. If you keep having trouble,{' '}
-              <a
-                href="mailto:support@peer-pal.com?subject=Verification email not received"
-                style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}
-              >
-                email our support team
-              </a>
-              .
+              Signing in again will resend the link. If you keep having trouble, check your spam folder.
             </div>
           </div>
         )}

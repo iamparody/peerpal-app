@@ -140,13 +140,7 @@ function VerificationBanner() {
       </button>
       {resendStatus === 'sent' && (
         <span style={{ fontSize: 12, opacity: 0.9 }}>
-          Not arriving?{' '}
-          <a
-            href="mailto:support@peer-pal.com?subject=Verification email not received"
-            style={{ color: '#fff', textDecoration: 'underline' }}
-          >
-            Contact support
-          </a>
+          Not arriving? Check your spam folder.
         </span>
       )}
       <button
