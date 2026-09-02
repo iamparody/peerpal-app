@@ -11,10 +11,11 @@ import ContentTab      from './tabs/ContentTab';
 import StatsTab        from './tabs/StatsTab';
 import TherapistsTab   from './tabs/TherapistsTab';
 import PatternsTab     from './tabs/PatternsTab';
+import GroupsTab       from './tabs/GroupsTab';
 import {
   House, Siren, Handshake, Stethoscope,
   Flag, Warning, BookOpen, ChartBar, UserCircle,
-  CaretLeft, CaretRight, List, ChartLineUp,
+  CaretLeft, CaretRight, List, ChartLineUp, UsersThree,
 } from '@phosphor-icons/react';
 
 const TABS = [
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'referrals',   label: 'Referrals',   Icon: Stethoscope },
   { id: 'reports',     label: 'Reports',     Icon: Flag,        badgeKey: 'reports' },
   { id: 'risk',        label: 'Risk Flags',  Icon: Warning,     badgeKey: 'risk' },
+  { id: 'groups',      label: 'Groups',      Icon: UsersThree },
   { id: 'content',     label: 'Content',     Icon: BookOpen },
   { id: 'therapists',  label: 'Therapists',  Icon: UserCircle },
   { id: 'stats',       label: 'Stats',       Icon: ChartBar },
@@ -55,6 +57,7 @@ function AdminShell() {
       case 'referrals':   return <ReferralsTab />;
       case 'reports':     return <ReportsTab     onCountChange={setBadge('reports')} />;
       case 'risk':        return <RiskTab        onCountChange={setBadge('risk')} />;
+      case 'groups':      return <GroupsTab />;
       case 'content':     return <ContentTab />;
       case 'therapists':  return <TherapistsTab />;
       case 'stats':       return <StatsTab />;

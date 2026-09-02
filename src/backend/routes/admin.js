@@ -861,6 +861,90 @@ router.patch('/permission-flags/:id/resolve', async (req, res) => {
   return res.json({ resolved: true, action_taken });
 });
 
+// ─── GET /admin/groups ───────────────────────────────────────────────────────
+router.get('/groups', async (req, res) => {
+  const { rows } = await query(
+    `SELECT g.id, g.name, g.condition_category, g.is_active, g.created_at,
+            COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count,
+            (SELECT MAX(gm2.created_at) FROM group_messages gm2
+             WHERE gm2.group_id = g.id AND gm2.is_deleted = false) AS last_post_at
+     FROM groups g
+     LEFT JOIN group_memberships gm ON gm.group_id = g.id
+     GROUP BY g.id
+     ORDER BY g.name ASC`
+  );
+  return res.status(200).json({ groups: rows });
+});
+
+// ─── GET /admin/groups/:id/feed ───────────────────────────────────────────────
+// Group state for admin panel — no membership check. Returns live content + held responses.
+router.get('/groups/:id/feed', async (req, res) => {
+  const [groupResult, announcementResult, promptResult, pollResult, heldResult] = await Promise.all([
+    query(
+      `SELECT g.id, g.name, g.condition_category, g.description,
+              COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count
+       FROM groups g
+       LEFT JOIN group_memberships gm ON gm.group_id = g.id
+       WHERE g.id = $1
+       GROUP BY g.id`,
+      [req.params.id]
+    ),
+    query(
+      `SELECT id, content, created_at
+       FROM group_messages
+       WHERE group_id = $1 AND post_type = 'announcement' AND is_deleted = false
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.params.id]
+    ),
+    query(
+      `SELECT gm.id, gm.content, gm.created_at,
+              (SELECT COUNT(*)::int FROM group_messages r
+               WHERE r.parent_id = gm.id AND r.post_type = 'response' AND r.is_deleted = false
+              ) AS response_count
+       FROM group_messages gm
+       WHERE gm.group_id = $1 AND gm.post_type = 'prompt' AND gm.is_deleted = false
+       ORDER BY gm.created_at DESC LIMIT 1`,
+      [req.params.id]
+    ),
+    query(
+      `SELECT gp.id, gp.question, gp.min_votes_to_show,
+              (SELECT COUNT(*)::int FROM group_poll_votes WHERE poll_id = gp.id) AS total_votes,
+              json_agg(
+                json_build_object('id', gpo.id, 'label', gpo.label,
+                  'votes', (SELECT COUNT(*)::int FROM group_poll_votes WHERE option_id = gpo.id)
+                ) ORDER BY gpo.position
+              ) AS options
+       FROM group_polls gp
+       JOIN group_poll_options gpo ON gpo.poll_id = gp.id
+       WHERE gp.group_id = $1 AND gp.is_active = true
+       GROUP BY gp.id
+       ORDER BY gp.created_at DESC LIMIT 1`,
+      [req.params.id]
+    ),
+    query(
+      `SELECT gm.id, gm.content, gm.created_at, gm.risk_flagged, u.alias
+       FROM group_messages gm
+       JOIN users u ON u.id = gm.user_id
+       WHERE gm.group_id = $1 AND gm.post_type = 'response' AND gm.is_deleted = true
+       ORDER BY gm.created_at DESC
+       LIMIT 30`,
+      [req.params.id]
+    ),
+  ]);
+
+  if (!groupResult.rows.length) {
+    return res.status(404).json({ error: 'Group not found', code: 'NOT_FOUND' });
+  }
+
+  return res.status(200).json({
+    group: groupResult.rows[0],
+    announcement: announcementResult.rows[0] || null,
+    prompt: promptResult.rows[0] || null,
+    poll: pollResult.rows[0] || null,
+    held: heldResult.rows,
+  });
+});
+
 // ─── GET /admin/groups/held ───────────────────────────────────────────────────
 // All held group responses (is_deleted=true, post_type=response) across all groups.
 router.get('/groups/held', async (req, res) => {
