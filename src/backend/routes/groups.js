@@ -121,94 +121,6 @@ router.post('/:id/leave', auth, async (req, res) => {
   return res.status(200).json({ left: true });
 });
 
-// ─── GET /groups/:id/messages ─────────────────────────────────────────────────
-router.get('/:id/messages', auth, async (req, res) => {
-  if (!(await getActiveMembership(req.params.id, req.user.id))) {
-    return res.status(403).json({ error: 'Not a member of this group', code: 'NOT_MEMBER' });
-  }
-
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 30));
-  const offset = (page - 1) * limit;
-
-  // Pinned messages — all of them, shown fixed at top
-  const { rows: pinned } = await query(
-    `SELECT gm.id, u.alias,
-            CASE WHEN gm.is_deleted THEN '[deleted]' ELSE gm.content END AS content,
-            gm.is_pinned, gm.is_deleted, gm.created_at
-     FROM group_messages gm
-     JOIN users u ON u.id = gm.user_id
-     WHERE gm.group_id = $1 AND gm.is_pinned = true
-     ORDER BY gm.created_at DESC`,
-    [req.params.id]
-  );
-
-  // Non-pinned paginated messages
-  const { rows: messages } = await query(
-    `SELECT gm.id, u.alias,
-            CASE WHEN gm.is_deleted THEN '[deleted]' ELSE gm.content END AS content,
-            gm.is_pinned, gm.is_deleted, gm.created_at
-     FROM group_messages gm
-     JOIN users u ON u.id = gm.user_id
-     WHERE gm.group_id = $1 AND gm.is_pinned = false
-     ORDER BY gm.created_at DESC
-     LIMIT $2 OFFSET $3`,
-    [req.params.id, limit, offset]
-  );
-  const { rows: countRows } = await query(
-    'SELECT COUNT(*) FROM group_messages WHERE group_id = $1 AND is_pinned = false',
-    [req.params.id]
-  );
-  const total = parseInt(countRows[0].count);
-
-  return res.status(200).json({ messages, pinned, total, page, pages: Math.ceil(total / limit) });
-});
-
-// ─── POST /groups/:id/messages ────────────────────────────────────────────────
-router.post('/:id/messages', auth, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Only admins can post in groups', code: 'ADMIN_ONLY' });
-  }
-
-  if (!(await getActiveMembership(req.params.id, req.user.id))) {
-    return res.status(403).json({ error: 'Not a member of this group', code: 'NOT_MEMBER' });
-  }
-
-  const { content } = req.body;
-  if (!content || typeof content !== 'string' || content.trim().length === 0) {
-    return res.status(400).json({ error: 'content is required', code: 'MISSING_CONTENT' });
-  }
-  const cleanContent = stripHtml(content);
-  if (cleanContent.length === 0) {
-    return res.status(400).json({ error: 'content is required', code: 'MISSING_CONTENT' });
-  }
-  if (cleanContent.length > MAX_MSG_LEN) {
-    return res.status(400).json({ error: `Message must be ${MAX_MSG_LEN} characters or fewer`, code: 'CONTENT_TOO_LONG' });
-  }
-
-  const { rows } = await query(
-    'INSERT INTO group_messages (group_id, user_id, content) VALUES ($1, $2, $3) RETURNING id',
-    [req.params.id, req.user.id, cleanContent]
-  );
-  const messageId = rows[0].id;
-
-  // Notify all active members with notif_group_messages=true except poster
-  const payload = JSON.stringify({ group_id: req.params.id, message_id: messageId });
-  await query(
-    `INSERT INTO notifications (user_id, type, payload, channel)
-     SELECT u.id, 'group_message', $1, 'in_app'
-       FROM group_memberships gm
-       JOIN users u ON u.id = gm.user_id
-      WHERE gm.group_id = $2
-        AND gm.status = 'active'
-        AND gm.user_id != $3
-        AND u.notif_group_messages = true`,
-    [payload, req.params.id, req.user.id]
-  );
-
-  return res.status(201).json({ message_id: messageId });
-});
-
 // ─── POST /groups/:id/messages/:msgId/report ──────────────────────────────────
 router.post('/:id/messages/:msgId/report', auth, async (req, res) => {
   const { reason, details } = req.body;
@@ -264,7 +176,7 @@ router.get('/:id/feed', auth, async (req, res) => {
   const limit = 20;
   const offset = (page - 1) * limit;
 
-  const [groupResult, announcementResult, promptResult] = await Promise.all([
+  const [groupResult, announcementResult, promptResult, pollResult] = await Promise.all([
     query(
       `SELECT g.id, g.name, g.condition_category, g.description,
               COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count
@@ -275,24 +187,56 @@ router.get('/:id/feed', auth, async (req, res) => {
       [req.params.id]
     ),
     query(
-      `SELECT id, content, created_at FROM group_messages
-       WHERE group_id = $1 AND post_type = 'announcement' AND is_deleted = false
-       ORDER BY created_at DESC LIMIT 1`,
-      [req.params.id]
+      `SELECT gm.id, gm.content, gm.created_at,
+              COALESCE(
+                (SELECT json_object_agg(r.emoji, r.cnt)
+                 FROM (SELECT emoji, COUNT(*)::int AS cnt FROM group_reactions
+                       WHERE message_id = gm.id GROUP BY emoji) r),
+                '{}'::json
+              ) AS reactions,
+              (SELECT emoji FROM group_reactions WHERE message_id = gm.id AND user_id = $2 LIMIT 1) AS my_reaction
+       FROM group_messages gm
+       WHERE gm.group_id = $1 AND gm.post_type = 'announcement' AND gm.is_deleted = false
+       ORDER BY gm.created_at DESC LIMIT 1`,
+      [req.params.id, req.user.id]
     ),
     query(
       `SELECT gm.id, gm.content, gm.created_at,
-              (SELECT COUNT(*) FROM group_messages r
+              (SELECT COUNT(*)::int FROM group_messages r
                WHERE r.parent_id = gm.id AND r.post_type = 'response' AND r.is_deleted = false
               ) AS response_count,
               EXISTS(
                 SELECT 1 FROM group_messages ur
                 WHERE ur.parent_id = gm.id AND ur.user_id = $2
                   AND ur.post_type = 'response' AND ur.is_deleted = false
-              ) AS has_responded
+              ) AS has_responded,
+              COALESCE(
+                (SELECT json_object_agg(r.emoji, r.cnt)
+                 FROM (SELECT emoji, COUNT(*)::int AS cnt FROM group_reactions
+                       WHERE message_id = gm.id GROUP BY emoji) r),
+                '{}'::json
+              ) AS reactions,
+              (SELECT emoji FROM group_reactions WHERE message_id = gm.id AND user_id = $2 LIMIT 1) AS my_reaction
        FROM group_messages gm
        WHERE gm.group_id = $1 AND gm.post_type = 'prompt' AND gm.is_deleted = false
        ORDER BY gm.created_at DESC LIMIT 1`,
+      [req.params.id, req.user.id]
+    ),
+    query(
+      `SELECT gp.id, gp.question, gp.min_votes_to_show,
+              json_agg(
+                json_build_object('id', gpo.id, 'label', gpo.label, 'position', gpo.position,
+                  'votes', (SELECT COUNT(*)::int FROM group_poll_votes WHERE option_id = gpo.id)
+                ) ORDER BY gpo.position
+              ) AS options,
+              (SELECT COUNT(*)::int FROM group_poll_votes WHERE poll_id = gp.id) AS total_votes,
+              EXISTS(SELECT 1 FROM group_poll_votes WHERE poll_id = gp.id AND user_id = $2) AS has_voted,
+              (SELECT option_id FROM group_poll_votes WHERE poll_id = gp.id AND user_id = $2) AS my_vote_option_id
+       FROM group_polls gp
+       JOIN group_poll_options gpo ON gpo.poll_id = gp.id
+       WHERE gp.group_id = $1 AND gp.is_active = true
+       GROUP BY gp.id
+       ORDER BY gp.created_at DESC LIMIT 1`,
       [req.params.id, req.user.id]
     ),
   ]);
@@ -304,6 +248,7 @@ router.get('/:id/feed', auth, async (req, res) => {
   const group        = groupResult.rows[0];
   const announcement = announcementResult.rows[0] || null;
   const prompt       = promptResult.rows[0] || null;
+  const poll         = pollResult.rows[0] || null;
 
   let responses = [];
   let pages = 0;
@@ -333,6 +278,7 @@ router.get('/:id/feed', auth, async (req, res) => {
     group: { ...group, is_member: true },
     announcement,
     prompt,
+    poll,
     responses,
     page,
     pages,
@@ -516,6 +462,132 @@ router.delete('/:id/responses/:msgId', auth, async (req, res) => {
     return res.status(404).json({ error: 'Response not found', code: 'NOT_FOUND' });
   }
   return res.status(200).json({ removed: true });
+});
+
+// ─── POST /groups/:id/react ───────────────────────────────────────────────────
+// Toggle emoji reaction on an announcement or prompt. Same emoji = remove; different = switch.
+const VALID_EMOJIS = ['heart', 'hug', 'strong', 'spark', 'relate'];
+
+router.post('/:id/react', auth, async (req, res) => {
+  if (!(await getActiveMembership(req.params.id, req.user.id))) {
+    return res.status(403).json({ error: 'Not a member of this group', code: 'NOT_MEMBER' });
+  }
+
+  const { message_id, emoji } = req.body;
+  if (!message_id) return res.status(400).json({ error: 'message_id is required', code: 'MISSING_FIELD' });
+  if (!VALID_EMOJIS.includes(emoji)) {
+    return res.status(400).json({ error: `emoji must be one of: ${VALID_EMOJIS.join(', ')}`, code: 'INVALID_EMOJI' });
+  }
+
+  // Only reactions on admin-posted content (not on member responses)
+  const { rows: msgRows } = await query(
+    `SELECT id FROM group_messages
+     WHERE id = $1 AND group_id = $2 AND post_type IN ('announcement', 'prompt') AND is_deleted = false`,
+    [message_id, req.params.id]
+  );
+  if (!msgRows.length) return res.status(404).json({ error: 'Message not found', code: 'NOT_FOUND' });
+
+  const { rows: existing } = await query(
+    'SELECT id, emoji FROM group_reactions WHERE message_id = $1 AND user_id = $2',
+    [message_id, req.user.id]
+  );
+
+  if (existing.length && existing[0].emoji === emoji) {
+    await query('DELETE FROM group_reactions WHERE id = $1', [existing[0].id]);
+    return res.status(200).json({ action: 'removed', emoji });
+  } else if (existing.length) {
+    await query('UPDATE group_reactions SET emoji = $1 WHERE id = $2', [emoji, existing[0].id]);
+    return res.status(200).json({ action: 'changed', emoji });
+  } else {
+    await query(
+      'INSERT INTO group_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3)',
+      [message_id, req.user.id, emoji]
+    );
+    return res.status(201).json({ action: 'added', emoji });
+  }
+});
+
+// ─── POST /groups/:id/polls ───────────────────────────────────────────────────
+// Admin only. Deactivates any existing active poll before creating the new one.
+router.post('/:id/polls', auth, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin only', code: 'FORBIDDEN' });
+  }
+
+  const { question, options, min_votes_to_show = 5 } = req.body;
+
+  if (!question || typeof question !== 'string' || question.trim().length === 0) {
+    return res.status(400).json({ error: 'question is required', code: 'MISSING_FIELD' });
+  }
+  if (!Array.isArray(options) || options.length < 2 || options.length > 5) {
+    return res.status(400).json({ error: 'options must be an array of 2–5 items', code: 'INVALID_OPTIONS' });
+  }
+  const cleanOptions = options.map(o => (typeof o === 'string' ? stripHtml(o).trim() : '')).filter(Boolean);
+  if (cleanOptions.length < 2) {
+    return res.status(400).json({ error: 'At least 2 non-empty options are required', code: 'INVALID_OPTIONS' });
+  }
+
+  const { rows: groupRows } = await query(
+    'SELECT id FROM groups WHERE id = $1 AND is_active = true', [req.params.id]
+  );
+  if (!groupRows.length) return res.status(404).json({ error: 'Group not found', code: 'NOT_FOUND' });
+
+  await query(
+    'UPDATE group_polls SET is_active = false WHERE group_id = $1 AND is_active = true',
+    [req.params.id]
+  );
+
+  const { rows } = await query(
+    `INSERT INTO group_polls (group_id, posted_by, question, min_votes_to_show)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [req.params.id, req.user.id, stripHtml(question).trim(), Math.max(1, parseInt(min_votes_to_show) || 5)]
+  );
+  const pollId = rows[0].id;
+
+  for (let i = 0; i < cleanOptions.length; i++) {
+    await query(
+      'INSERT INTO group_poll_options (poll_id, label, position) VALUES ($1, $2, $3)',
+      [pollId, cleanOptions[i], i + 1]
+    );
+  }
+
+  return res.status(201).json({ poll_id: pollId });
+});
+
+// ─── POST /groups/:id/polls/:pollId/vote ─────────────────────────────────────
+// One vote per user per poll; cannot be changed.
+router.post('/:id/polls/:pollId/vote', auth, async (req, res) => {
+  if (!(await getActiveMembership(req.params.id, req.user.id))) {
+    return res.status(403).json({ error: 'Not a member of this group', code: 'NOT_MEMBER' });
+  }
+
+  const { option_id } = req.body;
+  if (!option_id) return res.status(400).json({ error: 'option_id is required', code: 'MISSING_FIELD' });
+
+  const { rows: pollRows } = await query(
+    'SELECT id FROM group_polls WHERE id = $1 AND group_id = $2 AND is_active = true',
+    [req.params.pollId, req.params.id]
+  );
+  if (!pollRows.length) return res.status(404).json({ error: 'Poll not found or not active', code: 'NOT_FOUND' });
+
+  const { rows: optRows } = await query(
+    'SELECT id FROM group_poll_options WHERE id = $1 AND poll_id = $2',
+    [option_id, req.params.pollId]
+  );
+  if (!optRows.length) return res.status(400).json({ error: 'Invalid option', code: 'INVALID_OPTION' });
+
+  const { rows: existing } = await query(
+    'SELECT id FROM group_poll_votes WHERE poll_id = $1 AND user_id = $2',
+    [req.params.pollId, req.user.id]
+  );
+  if (existing.length) return res.status(409).json({ error: 'Already voted', code: 'ALREADY_VOTED' });
+
+  await query(
+    'INSERT INTO group_poll_votes (poll_id, option_id, user_id) VALUES ($1, $2, $3)',
+    [req.params.pollId, option_id, req.user.id]
+  );
+
+  return res.status(201).json({ voted: true });
 });
 
 module.exports = router;

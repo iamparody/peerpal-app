@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import {
   CalendarBlank,
+  ChartBar,
   ChatsCircle,
   MegaphoneSimple,
   Plus,
@@ -19,6 +20,14 @@ const REPORT_REASONS = [
   { value: 'abuse',           label: 'Abuse' },
   { value: 'spam',            label: 'Spam' },
   { value: 'other',           label: 'Other' },
+];
+
+const EMOJIS = [
+  { key: 'heart',  symbol: '💙' },
+  { key: 'hug',    symbol: '🫂' },
+  { key: 'strong', symbol: '💪' },
+  { key: 'spark',  symbol: '✨' },
+  { key: 'relate', symbol: '🤝' },
 ];
 
 // ── AliasAvatar ───────────────────────────────────────────────────────────────
@@ -47,11 +56,253 @@ function timeAgo(ts) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ── Prompt composer sheet (admin only) ───────────────────────────────────────
+// ── ReactionBar ───────────────────────────────────────────────────────────────
+function ReactionBar({ messageId, groupId, reactions: initReactions = {}, myReaction: initMine }) {
+  const [reactions, setReactions] = useState(initReactions);
+  const [mine, setMine]           = useState(initMine ?? null);
+
+  // Sync when the message itself changes (different post loaded)
+  useEffect(() => {
+    setReactions(initReactions);
+    setMine(initMine ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageId]);
+
+  async function toggle(key) {
+    const prevR = reactions;
+    const prevM = mine;
+
+    const next = { ...reactions };
+    if (mine === key) {
+      next[key] = Math.max(0, (next[key] || 1) - 1);
+      if (!next[key]) delete next[key];
+      setMine(null);
+    } else {
+      if (mine) {
+        next[mine] = Math.max(0, (next[mine] || 1) - 1);
+        if (!next[mine]) delete next[mine];
+      }
+      next[key] = (next[key] || 0) + 1;
+      setMine(key);
+    }
+    setReactions(next);
+
+    try {
+      await client.post(`/api/groups/${groupId}/react`, { message_id: messageId, emoji: key });
+    } catch {
+      setReactions(prevR);
+      setMine(prevM);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+      {EMOJIS.map(({ key, symbol }) => {
+        const count  = reactions[key] || 0;
+        const active = mine === key;
+        return (
+          <button
+            key={key}
+            onClick={() => toggle(key)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: active ? 'var(--color-calm-bg)' : 'var(--color-surface-secondary)',
+              border: `1px solid ${active ? 'var(--color-calm)' : 'var(--color-border)'}`,
+              borderRadius: 'var(--radius-full)',
+              padding: '3px 10px', cursor: 'pointer',
+              fontSize: '0.85rem',
+              color: active ? 'var(--color-calm)' : 'var(--color-text-secondary)',
+              transition: 'background 0.15s, border-color 0.15s',
+            }}
+          >
+            {symbol}{count > 0 ? <span style={{ fontSize: '0.75rem', fontWeight: 600, marginLeft: 2 }}>{count}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── PollCard ──────────────────────────────────────────────────────────────────
+function PollCard({ poll: initPoll, groupId, onVoted }) {
+  const [poll, setPoll]       = useState(initPoll);
+  const [selected, setSelected] = useState(initPoll.my_vote_option_id ?? null);
+  const [voting, setVoting]   = useState(false);
+  const { showToast }         = useToast();
+
+  const showResults = poll.has_voted || poll.total_votes >= poll.min_votes_to_show;
+
+  async function handleVote() {
+    if (!selected || voting || poll.has_voted) return;
+    setVoting(true);
+    try {
+      await client.post(`/api/groups/${groupId}/polls/${poll.id}/vote`, { option_id: selected });
+      setPoll(prev => ({
+        ...prev,
+        has_voted: true,
+        my_vote_option_id: selected,
+        total_votes: prev.total_votes + 1,
+        options: prev.options.map(o =>
+          o.id === selected ? { ...o, votes: o.votes + 1 } : o
+        ),
+      }));
+      onVoted?.();
+    } catch (err) {
+      const code = err.response?.data?.code;
+      if (code === 'ALREADY_VOTED') {
+        setPoll(prev => ({ ...prev, has_voted: true }));
+      } else {
+        showToast('Failed to submit vote.', 'error');
+      }
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 'var(--space-sm) var(--space-md)', margin: '0 var(--space-md) var(--space-sm)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <ChartBar size={14} weight="duotone" color="var(--color-accent)" />
+        <span className="label" style={{ fontSize: '0.7rem' }}>Poll</span>
+        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginLeft: 'auto' }}>
+          {poll.total_votes} {poll.total_votes === 1 ? 'vote' : 'votes'}
+          {!showResults && poll.total_votes < poll.min_votes_to_show && (
+            <> · results after {poll.min_votes_to_show}</>
+          )}
+        </span>
+      </div>
+
+      <p style={{ fontFamily: 'var(--font-editorial)', fontSize: '0.95rem', lineHeight: 'var(--leading-relaxed)', margin: '0 0 12px' }}>
+        {poll.question}
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {poll.options.map((opt) => {
+          const pct      = poll.total_votes > 0 ? Math.round((opt.votes / poll.total_votes) * 100) : 0;
+          const isMyVote = poll.my_vote_option_id === opt.id;
+
+          if (!poll.has_voted) {
+            const isSelected = selected === opt.id;
+            return (
+              <label
+                key={opt.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: `1px solid ${isSelected ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                  background: isSelected ? 'var(--color-calm-bg)' : 'var(--color-surface-secondary)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                <input
+                  type="radio"
+                  name={`poll-${poll.id}`}
+                  value={opt.id}
+                  checked={isSelected}
+                  onChange={() => setSelected(opt.id)}
+                  style={{ accentColor: 'var(--color-calm)' }}
+                />
+                <span style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>{opt.label}</span>
+              </label>
+            );
+          }
+
+          if (showResults) {
+            return (
+              <div key={opt.id} style={{ position: 'relative', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                <div style={{
+                  position: 'absolute', left: 0, top: 0, bottom: 0,
+                  width: `${pct}%`,
+                  background: isMyVote ? 'var(--color-calm-bg)' : 'var(--color-surface-secondary)',
+                  transition: 'width 0.4s ease',
+                }} />
+                <div style={{
+                  position: 'relative',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '10px 12px',
+                  border: `1px solid ${isMyVote ? 'var(--color-calm)' : 'var(--color-border)'}`,
+                  borderRadius: 'var(--radius-sm)',
+                }}>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)', fontWeight: isMyVote ? 600 : 400 }}>
+                    {opt.label}{isMyVote ? ' ✓' : ''}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{pct}%</span>
+                </div>
+              </div>
+            );
+          }
+
+          // Voted but threshold not yet met
+          return (
+            <div key={opt.id} style={{
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${isMyVote ? 'var(--color-calm)' : 'var(--color-border)'}`,
+              background: isMyVote ? 'var(--color-calm-bg)' : 'var(--color-surface-secondary)',
+              fontSize: '0.9rem', fontWeight: isMyVote ? 600 : 400,
+              color: 'var(--color-text-primary)',
+            }}>
+              {opt.label}{isMyVote ? ' ✓' : ''}
+            </div>
+          );
+        })}
+      </div>
+
+      {!poll.has_voted && (
+        <button
+          className="btn btn--primary btn--sm"
+          style={{ marginTop: 12, width: 'auto', padding: '0 20px' }}
+          onClick={handleVote}
+          disabled={!selected || voting}
+        >
+          {voting ? 'Submitting…' : 'Submit vote'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── PostTypeSheet (admin) ─────────────────────────────────────────────────────
+function PostTypeSheet({ onClose, onPrompt, onAnnounce, onPoll }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <span className="label">What would you like to post?</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+          <button
+            className="btn btn--secondary"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            onClick={onAnnounce}
+          >
+            <MegaphoneSimple size={16} /> Announcement
+          </button>
+          <button
+            className="btn btn--secondary"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            onClick={onPrompt}
+          >
+            <CalendarBlank size={16} /> Weekly Prompt
+          </button>
+          <button
+            className="btn btn--secondary"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            onClick={onPoll}
+          >
+            <ChartBar size={16} /> Poll
+          </button>
+        </div>
+        <button className="btn btn--ghost" style={{ marginTop: 8 }} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ── PromptSheet (admin) ───────────────────────────────────────────────────────
 function PromptSheet({ groupId, onClose, onSuccess }) {
   const [text, setText] = useState('');
-  const [busy, setBusy]  = useState('');
-  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const { showToast }   = useToast();
 
   async function submit() {
     if (!text.trim() || busy) return;
@@ -91,12 +342,143 @@ function PromptSheet({ groupId, onClose, onSuccess }) {
   );
 }
 
-// ── Report sheet ──────────────────────────────────────────────────────────────
+// ── AnnounceSheet (admin) ─────────────────────────────────────────────────────
+function AnnounceSheet({ groupId, onClose, onSuccess }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { showToast }   = useToast();
+
+  async function submit() {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    try {
+      await client.post(`/api/groups/${groupId}/announce`, { content: text.trim() });
+      showToast('Announcement posted.', 'success');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to post announcement.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <span className="label">New announcement</span>
+        <textarea
+          className="textarea"
+          style={{ marginTop: 'var(--space-sm)', minHeight: 100 }}
+          placeholder="Share an update with the group…"
+          maxLength={1000}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          autoFocus
+        />
+        <div className="char-counter">{text.length}/1000</div>
+        <button className="btn btn--primary" onClick={submit} disabled={!text.trim() || busy}>
+          {busy ? 'Posting…' : 'Post announcement'}
+        </button>
+        <button className="btn btn--ghost" style={{ marginTop: 8 }} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ── PollSheet (admin) ─────────────────────────────────────────────────────────
+function PollSheet({ groupId, onClose, onSuccess }) {
+  const [question, setQuestion] = useState('');
+  const [options, setOptions]   = useState(['', '']);
+  const [busy, setBusy]         = useState(false);
+  const { showToast }           = useToast();
+
+  function updateOption(i, val) {
+    setOptions(prev => prev.map((o, idx) => (idx === i ? val : o)));
+  }
+  function addOption() {
+    if (options.length < 5) setOptions(prev => [...prev, '']);
+  }
+  function removeOption(i) {
+    if (options.length <= 2) return;
+    setOptions(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  const validOptions = options.filter(o => o.trim());
+  const canSubmit    = question.trim() && validOptions.length >= 2;
+
+  async function submit() {
+    if (!canSubmit || busy) return;
+    setBusy(true);
+    try {
+      await client.post(`/api/groups/${groupId}/polls`, {
+        question: question.trim(),
+        options: validOptions,
+      });
+      showToast('Poll posted.', 'success');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to post poll.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <span className="label">New poll</span>
+        <input
+          className="input"
+          style={{ marginTop: 'var(--space-sm)' }}
+          placeholder="Ask a question…"
+          maxLength={200}
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          autoFocus
+        />
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {options.map((opt, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                className="input"
+                style={{ flex: 1 }}
+                placeholder={`Option ${i + 1}`}
+                maxLength={100}
+                value={opt}
+                onChange={(e) => updateOption(i, e.target.value)}
+              />
+              {options.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => removeOption(i)}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 20, padding: '0 4px', lineHeight: 1 }}
+                >×</button>
+              )}
+            </div>
+          ))}
+          {options.length < 5 && (
+            <button className="btn btn--ghost btn--sm" onClick={addOption} style={{ alignSelf: 'flex-start' }}>
+              + Add option
+            </button>
+          )}
+        </div>
+        <button className="btn btn--primary" style={{ marginTop: 16 }} onClick={submit} disabled={!canSubmit || busy}>
+          {busy ? 'Posting…' : 'Post poll'}
+        </button>
+        <button className="btn btn--ghost" style={{ marginTop: 8 }} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ── ReportSheet ───────────────────────────────────────────────────────────────
 function ReportSheet({ groupId, message, onClose }) {
   const [reason, setReason]   = useState('');
   const [busy, setBusy]       = useState(false);
   const [success, setSuccess] = useState(false);
-  const { showToast } = useToast();
+  const { showToast }         = useToast();
 
   async function submit() {
     if (!reason || busy) return;
@@ -128,8 +510,7 @@ function ReportSheet({ groupId, message, onClose }) {
               background: 'var(--color-surface-secondary)',
               borderRadius: 'var(--radius-sm)',
               padding: 'var(--space-sm) var(--space-md)',
-              marginBottom: 16,
-              fontSize: '0.85rem',
+              marginBottom: 16, fontSize: '0.85rem',
               color: 'var(--color-text-secondary)',
             }}>
               "{message.content?.slice(0, 120)}{message.content?.length > 120 ? '…' : ''}"
@@ -161,10 +542,10 @@ function ReportSheet({ groupId, message, onClose }) {
   );
 }
 
-// ── Admin remove confirm (AlertDialog) ────────────────────────────────────────
+// ── RemoveDialog (admin) ──────────────────────────────────────────────────────
 function RemoveDialog({ groupId, message, open, onOpenChange, onRemoved }) {
   const [busy, setBusy] = useState(false);
-  const { showToast } = useToast();
+  const { showToast }   = useToast();
 
   async function confirm() {
     if (busy) return;
@@ -183,17 +564,14 @@ function RemoveDialog({ groupId, message, open, onOpenChange, onRemoved }) {
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay style={{
-          position: 'fixed', inset: 0, background: 'var(--color-overlay)', zIndex: 50,
-        }} />
+        <AlertDialog.Overlay style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay)', zIndex: 50 }} />
         <AlertDialog.Content style={{
           position: 'fixed', left: '50%', top: '50%',
           transform: 'translate(-50%, -50%)',
           background: 'var(--color-surface-card)',
           borderRadius: 'var(--radius-lg)',
           padding: 'var(--space-lg)',
-          width: 'min(90vw, 340px)',
-          zIndex: 51,
+          width: 'min(90vw, 340px)', zIndex: 51,
         }}>
           <AlertDialog.Title style={{ fontWeight: 600, marginBottom: 8 }}>Remove response?</AlertDialog.Title>
           <AlertDialog.Description style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 'var(--leading-normal)' }}>
@@ -215,13 +593,11 @@ function RemoveDialog({ groupId, message, open, onOpenChange, onRemoved }) {
   );
 }
 
-// ── Response row ──────────────────────────────────────────────────────────────
+// ── ResponseRow ───────────────────────────────────────────────────────────────
 function ResponseRow({ response, isAdmin, groupId, onReport, onRemoveConfirm }) {
   const pressTimer = useRef(null);
 
-  function startPress() {
-    pressTimer.current = setTimeout(() => onReport(response), 500);
-  }
+  function startPress() { pressTimer.current = setTimeout(() => onReport(response), 500); }
   function cancelPress() { clearTimeout(pressTimer.current); }
 
   return (
@@ -246,11 +622,7 @@ function ResponseRow({ response, isAdmin, groupId, onReport, onRemoveConfirm }) 
         {isAdmin && (
           <button
             onClick={() => onRemoveConfirm(response)}
-            style={{
-              marginLeft: 4, background: 'none', border: 'none',
-              color: 'var(--color-danger)', fontSize: '0.75rem',
-              cursor: 'pointer', padding: '2px 4px', borderRadius: 4,
-            }}
+            style={{ marginLeft: 4, background: 'none', border: 'none', color: 'var(--color-danger)', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
           >
             Remove
           </button>
@@ -272,15 +644,17 @@ export default function GroupChatScreen() {
   const { showToast }   = useToast();
   const isAdmin         = user?.role === 'admin';
 
-  const [responseText,    setResponseText]    = useState('');
-  const [page,            setPage]            = useState(1);
-  const [allResponses,    setAllResponses]    = useState([]);
-  const [reportTarget,    setReportTarget]    = useState(null);
-  const [removeTarget,    setRemoveTarget]    = useState(null);
-  const [removeOpen,      setRemoveOpen]      = useState(false);
-  const [showPromptSheet, setShowPromptSheet] = useState(false);
+  const [responseText,     setResponseText]     = useState('');
+  const [page,             setPage]             = useState(1);
+  const [allResponses,     setAllResponses]     = useState([]);
+  const [reportTarget,     setReportTarget]     = useState(null);
+  const [removeTarget,     setRemoveTarget]     = useState(null);
+  const [removeOpen,       setRemoveOpen]       = useState(false);
+  const [showPostType,     setShowPostType]     = useState(false);
+  const [showPromptSheet,  setShowPromptSheet]  = useState(false);
+  const [showAnnounceSheet, setShowAnnounceSheet] = useState(false);
+  const [showPollSheet,    setShowPollSheet]    = useState(false);
 
-  // Fetch feed
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['group-feed', groupId, page],
     queryFn: () => client.get(`/api/groups/${groupId}/feed?page=${page}`).then(r => r.data),
@@ -288,7 +662,6 @@ export default function GroupChatScreen() {
     refetchInterval: 8_000,
   });
 
-  // Accumulate responses across pages
   useEffect(() => {
     if (!data?.responses) return;
     if (page === 1) {
@@ -301,7 +674,6 @@ export default function GroupChatScreen() {
     }
   }, [data, page]);
 
-  // Submit response
   const { mutate: submitResponse, isPending: submitting } = useMutation({
     mutationFn: (content) => client.post(`/api/groups/${groupId}/respond`, { content }),
     onSuccess: () => {
@@ -325,18 +697,22 @@ export default function GroupChatScreen() {
     setAllResponses((prev) => prev.filter(r => r.id !== msgId));
   }
 
-  const group        = data?.group;
-  const announcement = data?.announcement;
-  const prompt       = data?.prompt;
-  const totalPages   = data?.pages ?? 1;
-  const meta         = group ? groupMeta(group.condition_category) : null;
+  function invalidateFeed() {
+    setPage(1);
+    queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
+  }
 
-  // Redirect non-members (API returns 403 if not a member)
+  const group      = data?.group;
+  const announcement = data?.announcement;
+  const prompt     = data?.prompt;
+  const poll       = data?.poll;
+  const totalPages = data?.pages ?? 1;
+  const meta       = group ? groupMeta(group.condition_category) : null;
+
   useEffect(() => {
     if (isError) navigate(`/groups/${groupId}`, { replace: true });
   }, [isError, groupId, navigate]);
 
-  // Loading skeleton
   if (isLoading && page === 1) return (
     <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
       <div style={{ padding: '12px 16px', background: 'var(--color-surface-card)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
@@ -361,7 +737,7 @@ export default function GroupChatScreen() {
           onBack={() => navigate(-1)}
           right={isAdmin ? (
             <button
-              onClick={() => setShowPromptSheet(true)}
+              onClick={() => setShowPostType(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4,
                 background: 'none', border: '1px solid var(--color-border)',
@@ -370,7 +746,7 @@ export default function GroupChatScreen() {
                 fontSize: '0.82rem', color: 'var(--color-text-primary)',
               }}
             >
-              <Plus size={14} weight="bold" /> Prompt
+              <Plus size={14} weight="bold" /> Post
             </button>
           ) : null}
         />
@@ -387,7 +763,6 @@ export default function GroupChatScreen() {
           borderBottom: '1px solid var(--color-divider)',
           paddingBottom: 'var(--space-sm)',
         }}>
-          {/* Announcement */}
           {announcement && (
             <div className="card" style={{ marginBottom: 'var(--space-xs)', padding: 'var(--space-sm) var(--space-md)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -397,10 +772,15 @@ export default function GroupChatScreen() {
               <p style={{ fontSize: '0.85rem', margin: 0, color: 'var(--color-text-primary)' }}>
                 {announcement.content}
               </p>
+              <ReactionBar
+                messageId={announcement.id}
+                groupId={groupId}
+                reactions={announcement.reactions || {}}
+                myReaction={announcement.my_reaction}
+              />
             </div>
           )}
 
-          {/* Active prompt */}
           {prompt ? (
             <div className="card" style={{ padding: 'var(--space-sm) var(--space-md)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -413,15 +793,15 @@ export default function GroupChatScreen() {
                   {prompt.response_count} {Number(prompt.response_count) === 1 ? 'response' : 'responses'}
                 </span>
               </div>
-              <p style={{
-                fontFamily: 'var(--font-editorial)',
-                fontSize: '1rem',
-                lineHeight: 'var(--leading-relaxed)',
-                margin: 0,
-                color: 'var(--color-text-primary)',
-              }}>
+              <p style={{ fontFamily: 'var(--font-editorial)', fontSize: '1rem', lineHeight: 'var(--leading-relaxed)', margin: 0, color: 'var(--color-text-primary)' }}>
                 {prompt.content}
               </p>
+              <ReactionBar
+                messageId={prompt.id}
+                groupId={groupId}
+                reactions={prompt.reactions || {}}
+                myReaction={prompt.my_reaction}
+              />
             </div>
           ) : (
             <div style={{ padding: 'var(--space-xs) 0' }}>
@@ -429,14 +809,20 @@ export default function GroupChatScreen() {
                 background: 'var(--color-surface-secondary)',
                 borderRadius: 'var(--radius-sm)',
                 padding: 'var(--space-sm) var(--space-md)',
-                fontSize: '0.85rem',
-                color: 'var(--color-text-muted)',
+                fontSize: '0.85rem', color: 'var(--color-text-muted)',
               }}>
                 No prompt this week yet. Check back soon.
               </div>
             </div>
           )}
         </div>
+
+        {/* Active poll */}
+        {poll && (
+          <div style={{ paddingTop: 'var(--space-sm)' }}>
+            <PollCard poll={poll} groupId={groupId} onVoted={invalidateFeed} />
+          </div>
+        )}
 
         {/* Response composer (members, when there's a prompt) */}
         {prompt && !isAdmin && (
@@ -446,9 +832,7 @@ export default function GroupChatScreen() {
                 padding: 'var(--space-sm) var(--space-md)',
                 borderRadius: 'var(--radius-sm)',
                 background: 'var(--color-surface-secondary)',
-                fontSize: '0.85rem',
-                color: 'var(--color-text-muted)',
-                textAlign: 'center',
+                fontSize: '0.85rem', color: 'var(--color-text-muted)', textAlign: 'center',
               }}>
                 You've shared your response for this prompt. New prompt coming soon.
               </div>
@@ -481,12 +865,10 @@ export default function GroupChatScreen() {
         {/* Responses */}
         <div style={{ flex: 1, padding: 'var(--space-sm) var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
           {!prompt ? (
-            <div style={{ padding: 'var(--space-xl) 0' }}>
-              <div style={{ textAlign: 'center' }}>
-                <CalendarBlank size={40} weight="duotone" color="var(--color-accent)" />
-                <p style={{ marginTop: 'var(--space-sm)', fontWeight: 500 }}>No prompt this week yet</p>
-                <p style={{ fontSize: '0.85rem' }}>A new prompt will be posted soon.</p>
-              </div>
+            <div style={{ padding: 'var(--space-xl) 0', textAlign: 'center' }}>
+              <CalendarBlank size={40} weight="duotone" color="var(--color-accent)" />
+              <p style={{ marginTop: 'var(--space-sm)', fontWeight: 500 }}>No prompt this week yet</p>
+              <p style={{ fontSize: '0.85rem' }}>A new prompt will be posted soon.</p>
             </div>
           ) : allResponses.length === 0 ? (
             <div style={{ padding: 'var(--space-xl) 0', textAlign: 'center' }}>
@@ -507,7 +889,6 @@ export default function GroupChatScreen() {
             ))
           )}
 
-          {/* Load more */}
           {page < totalPages && (
             <button
               className="btn btn--ghost btn--sm"
@@ -521,16 +902,10 @@ export default function GroupChatScreen() {
         </div>
       </div>
 
-      {/* Report sheet */}
+      {/* Overlays */}
       {reportTarget && (
-        <ReportSheet
-          groupId={groupId}
-          message={reportTarget}
-          onClose={() => setReportTarget(null)}
-        />
+        <ReportSheet groupId={groupId} message={reportTarget} onClose={() => setReportTarget(null)} />
       )}
-
-      {/* Admin remove dialog */}
       {removeTarget && (
         <RemoveDialog
           groupId={groupId}
@@ -540,17 +915,22 @@ export default function GroupChatScreen() {
           onRemoved={handleRemoved}
         />
       )}
-
-      {/* Admin prompt composer sheet */}
-      {showPromptSheet && (
-        <PromptSheet
-          groupId={groupId}
-          onClose={() => setShowPromptSheet(false)}
-          onSuccess={() => {
-            setPage(1);
-            queryClient.invalidateQueries({ queryKey: ['group-feed', groupId] });
-          }}
+      {showPostType && (
+        <PostTypeSheet
+          onClose={() => setShowPostType(false)}
+          onPrompt={() => { setShowPostType(false); setShowPromptSheet(true); }}
+          onAnnounce={() => { setShowPostType(false); setShowAnnounceSheet(true); }}
+          onPoll={() => { setShowPostType(false); setShowPollSheet(true); }}
         />
+      )}
+      {showPromptSheet && (
+        <PromptSheet groupId={groupId} onClose={() => setShowPromptSheet(false)} onSuccess={invalidateFeed} />
+      )}
+      {showAnnounceSheet && (
+        <AnnounceSheet groupId={groupId} onClose={() => setShowAnnounceSheet(false)} onSuccess={invalidateFeed} />
+      )}
+      {showPollSheet && (
+        <PollSheet groupId={groupId} onClose={() => setShowPollSheet(false)} onSuccess={invalidateFeed} />
       )}
     </div>
   );
