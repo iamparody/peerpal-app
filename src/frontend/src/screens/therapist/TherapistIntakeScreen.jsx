@@ -174,16 +174,7 @@ function Step1({ value, onChange, onNext }) {
   const remaining = 300 - value.length;
   return (
     <div style={styles.step}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <p style={{ ...styles.eyebrow, marginBottom: 0 }}>Finding the right person for you</p>
-        <span style={{
-          fontSize: 11, fontWeight: 600, color: 'var(--color-accent)',
-          background: 'rgba(194,164,138,0.15)', borderRadius: 20,
-          padding: '3px 10px', letterSpacing: '0.03em',
-        }}>
-          1 credit
-        </span>
-      </div>
+      <p style={styles.eyebrow}>Finding the right person for you</p>
       <h1 style={styles.question}>What's been on your mind lately?</h1>
       <p style={styles.hint}>
         Share as much or as little as you like. This helps us understand what you're carrying.
@@ -200,11 +191,13 @@ function Step1({ value, onChange, onNext }) {
         {remaining} characters remaining
       </p>
       <button
-        style={{ ...styles.cta, opacity: value.trim().length < 10 ? 0.4 : 1 }}
+        style={{ ...styles.cta, opacity: value.trim().length < 10 ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
         disabled={value.trim().length < 10}
         onClick={onNext}
       >
-        Continue
+        <span>Continue</span>
+        <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.35)', borderRadius: 1 }} />
+        <span style={{ fontSize: 13, fontWeight: 400, opacity: 0.8 }}>1 credit</span>
       </button>
     </div>
   );
@@ -339,9 +332,6 @@ function Step3({ language, specifyText, sessionFormat, preferredTime, onLanguage
       <button style={styles.cta} onClick={onSubmit} disabled={saving}>
         {saving ? 'One moment…' : 'Show me who can help'}
       </button>
-      <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12 }}>
-        Uses 1 credit
-      </p>
     </div>
   );
 }
