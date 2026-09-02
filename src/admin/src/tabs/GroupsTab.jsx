@@ -36,6 +36,9 @@ export default function GroupsTab() {
           <p className="page-subtitle">Post content to community groups and moderate responses</p>
         </div>
         <div className="filter-row">
+          <button className="btn btn--primary btn--sm" onClick={() => setPanel({ isNew: true })}>
+            + New Group
+          </button>
           <button className="refresh-btn" onClick={load} title="Refresh">↻</button>
         </div>
       </div>
@@ -99,7 +102,13 @@ export default function GroupsTab() {
         </div>
       </div>
 
-      {panel && (
+      {panel?.isNew && (
+        <NewGroupPanel
+          onClose={() => setPanel(null)}
+          onCreated={() => { setPanel(null); load(); }}
+        />
+      )}
+      {panel && !panel.isNew && (
         <GroupPanel
           group={panel}
           onClose={() => setPanel(null)}
@@ -107,6 +116,91 @@ export default function GroupsTab() {
         />
       )}
     </div>
+  );
+}
+
+const GROUP_CATEGORIES = [
+  'anxiety','depression','ocd','adhd','grief','loneliness','stress','general_support',
+];
+
+function NewGroupPanel({ onClose, onCreated }) {
+  const [name,     setName]     = useState('');
+  const [category, setCategory] = useState(GROUP_CATEGORIES[0]);
+  const [desc,     setDesc]     = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState('');
+
+  async function handleCreate() {
+    if (!name.trim()) { setError('Name is required.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await client.post('/api/admin/groups', {
+        name: name.trim(),
+        condition_category: category,
+        description: desc.trim() || undefined,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create group.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="panel-overlay" onClick={onClose} />
+      <div className="slide-panel">
+        <div className="slide-panel__header">
+          <span className="slide-panel__title">New Group</span>
+          <button className="btn btn--ghost btn--sm" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="slide-panel__body">
+          <div className="form-group">
+            <label className="form-label">Group name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Anxiety Support Circle"
+              maxLength={100}
+              autoFocus
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {GROUP_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Description (optional)</label>
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              rows={3}
+              placeholder="What is this group for?"
+              maxLength={500}
+            />
+          </div>
+
+          {error && <p className="error-text">{error}</p>}
+        </div>
+
+        <div className="slide-panel__footer">
+          <button className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn--primary" onClick={handleCreate} disabled={saving}>
+            {saving ? 'Creating…' : 'Create Group'}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

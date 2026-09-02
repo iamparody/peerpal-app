@@ -861,6 +861,29 @@ router.patch('/permission-flags/:id/resolve', async (req, res) => {
   return res.json({ resolved: true, action_taken });
 });
 
+// ─── POST /admin/groups ──────────────────────────────────────────────────────
+router.post('/groups', async (req, res) => {
+  const VALID_CATEGORIES = ['anxiety','depression','ocd','adhd','grief','loneliness','stress','general_support'];
+  const { name, condition_category, description } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'name is required', code: 'MISSING_FIELD' });
+  }
+  if (!VALID_CATEGORIES.includes(condition_category)) {
+    return res.status(400).json({
+      error: `condition_category must be one of: ${VALID_CATEGORIES.join(', ')}`,
+      code: 'INVALID_CATEGORY',
+    });
+  }
+
+  const { rows } = await query(
+    `INSERT INTO groups (name, condition_category, description, created_by)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [name.trim(), condition_category, description?.trim() || null, req.user.id]
+  );
+  return res.status(201).json({ group_id: rows[0].id });
+});
+
 // ─── GET /admin/groups ───────────────────────────────────────────────────────
 router.get('/groups', async (req, res) => {
   const { rows } = await query(
