@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import client from '../../api/client';
 
 // Purpose-built inline SVG icons — not borrowed from a library
@@ -174,7 +174,16 @@ function Step1({ value, onChange, onNext }) {
   const remaining = 300 - value.length;
   return (
     <div style={styles.step}>
-      <p style={styles.eyebrow}>Finding the right person for you</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <p style={{ ...styles.eyebrow, marginBottom: 0 }}>Finding the right person for you</p>
+        <span style={{
+          fontSize: 11, fontWeight: 600, color: 'var(--color-accent)',
+          background: 'rgba(194,164,138,0.15)', borderRadius: 20,
+          padding: '3px 10px', letterSpacing: '0.03em',
+        }}>
+          1 credit
+        </span>
+      </div>
       <h1 style={styles.question}>What's been on your mind lately?</h1>
       <p style={styles.hint}>
         Share as much or as little as you like. This helps us understand what you're carrying.
@@ -314,11 +323,25 @@ function Step3({ language, specifyText, sessionFormat, preferredTime, onLanguage
         </div>
       </div>
 
-      {error && <p style={styles.error}>{error}</p>}
+      {error && (
+        error.toLowerCase().includes('credit') ? (
+          <p style={styles.error}>
+            {error}{' '}
+            <Link to="/credits" style={{ color: 'var(--color-accent)', fontWeight: 600 }}>
+              Top up →
+            </Link>
+          </p>
+        ) : (
+          <p style={styles.error}>{error}</p>
+        )
+      )}
 
       <button style={styles.cta} onClick={onSubmit} disabled={saving}>
         {saving ? 'One moment…' : 'Show me who can help'}
       </button>
+      <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12 }}>
+        Uses 1 credit
+      </p>
     </div>
   );
 }
