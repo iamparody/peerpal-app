@@ -11,11 +11,12 @@ import ContentTab      from './tabs/ContentTab';
 import StatsTab        from './tabs/StatsTab';
 import TherapistsTab   from './tabs/TherapistsTab';
 import PatternsTab     from './tabs/PatternsTab';
-import GroupsTab       from './tabs/GroupsTab';
+import GroupsTab          from './tabs/GroupsTab';
+import PermissionFlagsTab from './tabs/PermissionFlagsTab';
 import {
   House, Siren, Handshake, Stethoscope,
   Flag, Warning, BookOpen, ChartBar, UserCircle,
-  CaretLeft, CaretRight, List, ChartLineUp, UsersThree,
+  CaretLeft, CaretRight, List, ChartLineUp, UsersThree, ShieldWarning,
 } from '@phosphor-icons/react';
 
 const TABS = [
@@ -24,7 +25,8 @@ const TABS = [
   { id: 'escalations', label: 'Escalations', Icon: Handshake,   badgeKey: 'escalations' },
   { id: 'referrals',   label: 'Referrals',   Icon: Stethoscope },
   { id: 'reports',     label: 'Reports',     Icon: Flag,        badgeKey: 'reports' },
-  { id: 'risk',        label: 'Risk Flags',  Icon: Warning,     badgeKey: 'risk' },
+  { id: 'risk',        label: 'Risk Flags',  Icon: Warning,        badgeKey: 'risk' },
+  { id: 'flags',       label: 'Peer Flags',  Icon: ShieldWarning,  badgeKey: 'flags' },
   { id: 'groups',      label: 'Groups',      Icon: UsersThree },
   { id: 'content',     label: 'Content',     Icon: BookOpen },
   { id: 'therapists',  label: 'Therapists',  Icon: UserCircle },
@@ -37,7 +39,7 @@ function AdminShell() {
   const [activeTab,      setActiveTab]      = useState('overview');
   const [collapsed,      setCollapsed]      = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [badges, setBadges] = useState({ emergency: 0, escalations: 0, reports: 0, risk: 0 });
+  const [badges, setBadges] = useState({ emergency: 0, escalations: 0, reports: 0, risk: 0, flags: 0 });
 
   const setBadge = useCallback(
     (key) => (count) => setBadges((prev) => ({ ...prev, [key]: count })),
@@ -56,7 +58,8 @@ function AdminShell() {
       case 'escalations': return <EscalationsTab onCountChange={setBadge('escalations')} />;
       case 'referrals':   return <ReferralsTab />;
       case 'reports':     return <ReportsTab     onCountChange={setBadge('reports')} />;
-      case 'risk':        return <RiskTab        onCountChange={setBadge('risk')} />;
+      case 'risk':        return <RiskTab           onCountChange={setBadge('risk')} />;
+      case 'flags':       return <PermissionFlagsTab onCountChange={setBadge('flags')} />;
       case 'groups':      return <GroupsTab />;
       case 'content':     return <ContentTab />;
       case 'therapists':  return <TherapistsTab />;
