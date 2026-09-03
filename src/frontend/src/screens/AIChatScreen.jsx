@@ -127,10 +127,10 @@ export default function AIChatScreen() {
         <div style={{ fontSize: 40, marginBottom: 'var(--space-md)' }}>💙</div>
         <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Free session used this week</h2>
         <p style={{ fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 'var(--space-lg)', maxWidth: 280 }}>
-          You get 1 free AI session each week. Get 7 credits for KSh 100 to continue talking.
+          You get 1 free AI session every 7 days. Get a bundle to unlock more AI conversations.
         </p>
         <button className="btn btn--primary" style={{ width: '100%', maxWidth: 280 }} onClick={() => navigate('/credits')}>
-          Get Credits
+          See bundles
         </button>
         <button className="btn btn--muted" style={{ marginTop: 'var(--space-sm)', width: '100%', maxWidth: 280 }} onClick={() => navigate('/dashboard')}>
           Back

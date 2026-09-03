@@ -1813,18 +1813,19 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 > Decision locked 2026-09-03. Implement in order.
 
 ### 33.A — Credit packages
-- [ ] `src/backend/utils/daraja.js` — update PACKAGES: standard → KSh 150/10 credits, plus → KSh 300/25 credits, premium → KSh 500/50 credits
+- [x] `src/backend/utils/daraja.js` — update PACKAGES: standard → KSh 150/10 credits, plus → KSh 300/25 credits, premium → KSh 500/50 credits
 
 ### 33.B — AI conversation tracking
-- [ ] Write migration: add `ai_conversations_used` and `ai_conversations_cap` to `credits` table (or separate `ai_allowance` table)
-- [ ] `src/backend/routes/ai.js` — replace 1-credit-per-session gate with: check `ai_conversations_used < ai_conversations_cap`; increment on session start; free tier = 1/week (reset via cron or last_reset timestamp)
-- [ ] Bundle caps per package: standard = 4, plus = 10, premium = 20; free tier = 1/week
+- [x] Write migration 069: add `ai_conversations_used` and `ai_conversations_cap` to `credits` table; add `free_ai_used_at` to `users` table
+- [x] `src/backend/routes/ai.js` — replace credit gate with AI conversation cap check; increment on session start; free tier via rolling 7-day `free_ai_used_at` timestamp
+- [x] `src/backend/routes/credits.js` — mpesa-callback awards AI conversation cap on confirmed purchase; balance endpoint exposes `ai_conversations_used` and `ai_conversations_cap`
+- [x] Bundle caps per package: standard = 4, plus = 10, premium = 20; purchases stack
 
 ### 33.C — Free tier gate
-- [ ] `src/backend/routes/ai.js` — users with no active bundle get 1 AI conversation/week; track via `free_ai_used_at` timestamp on users table
-- [ ] Frontend: gate message when free conversation used — "You've used your free session this week. Upgrade to continue."
+- [x] `src/backend/routes/ai.js` — rolling 7-day free gate via `free_ai_used_at` on users; `AI_CAP_REACHED` 402 when bundle exhausted
+- [x] `src/frontend/src/screens/AIChatScreen.jsx` — updated gate message and CTA copy
 
 ### 33.D — Pricing UI
-- [ ] `src/frontend/src/screens/CreditsScreen.jsx` — update package cards to show new prices, peer credits, and AI conversation count per tier
-- [ ] Add headline above packages: "Everyone can get help. Everyone who can, helps keep it available."
-- [ ] Remove any reference to old 7/20/50 credit counts
+- [x] `src/frontend/src/screens/CreditsScreen.jsx` — updated package cards with new prices, peer credits, and AI session counts per tier
+- [x] "Everyone can get help." headline added above packages
+- [x] Old 7/20/50 credit counts removed; "How credits work" updated for new model

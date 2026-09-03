@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const { classify } = require('../utils/riskClassifier');
 const { sanitize, stripHtml } = require('../utils/sanitizer');
 const cache = require('../services/cache');
-const { deductCredit } = require('../utils/creditDeductor');
+
 
 const MAX_INPUT_LEN = 2000;
 const AI_DAILY_TOKEN_LIMIT = 50000;
@@ -102,8 +102,6 @@ ${persona.uses_alias ? `You may occasionally use the user's alias "${userAlias}"
   return [layer1, layer0_5, layer2, layer2_5, layer3, layer4, contextNote].filter(Boolean).join('\n\n');
 }
 
-const AI_DAILY_SESSION_LIMIT = 5;
-
 // ─── POST /ai/session/start ───────────────────────────────────────────────────
 router.post('/session/start', auth, async (req, res) => {
   // Optional peer-bridge context — passed when user arrives from a failed peer request.
@@ -111,50 +109,33 @@ router.post('/session/start', auth, async (req, res) => {
   const { context, topic_label } = req.body || {};
 
   const { rows: userRows } = await query(
-    'SELECT persona_created, alias, birth_year, condition_category FROM users WHERE id = $1',
+    'SELECT persona_created, alias, birth_year, condition_category, free_ai_used_at FROM users WHERE id = $1',
     [req.user.id]
   );
   if (!userRows[0]?.persona_created) {
     return res.status(403).json({ error: 'Complete persona setup before starting AI chat', code: 'PERSONA_REQUIRED' });
   }
 
-  // Rate limit: 5 AI sessions per day
-  const { rows: sessionCountRows } = await query(
-    `SELECT COUNT(*) FROM sessions WHERE user_id = $1 AND type = 'ai' AND started_at::date = CURRENT_DATE`,
-    [req.user.id]
-  );
-  if (parseInt(sessionCountRows[0].count) >= AI_DAILY_SESSION_LIMIT) {
-    return res.status(429).json({
-      error: `Daily AI session limit reached (${AI_DAILY_SESSION_LIMIT}). Come back tomorrow.`,
-      code: 'DAILY_SESSION_LIMIT',
-    });
-  }
-
-  // Weekly free session: 1 free AI session per calendar week (Mon–Sun UTC).
-  // If the user has already started an AI session this week, 1 credit is required.
-  const { rows: weekRows } = await query(
-    `SELECT COUNT(*) FROM sessions WHERE user_id = $1 AND type = 'ai'
-     AND date_trunc('week', started_at AT TIME ZONE 'UTC') = date_trunc('week', NOW() AT TIME ZONE 'UTC')`,
-    [req.user.id]
-  );
-  const isFree = parseInt(weekRows[0].count) === 0;
+  // 1 free AI conversation per rolling 7-day window; paid sessions draw from bundle quota
+  const user = userRows[0];
+  const isFree = !user.free_ai_used_at ||
+    (Date.now() - new Date(user.free_ai_used_at).getTime()) > 7 * 24 * 60 * 60 * 1000;
 
   if (!isFree) {
-    const { rows: creditRows } = await query(
-      'SELECT balance FROM credits WHERE user_id = $1',
+    const { rows: quotaRows } = await query(
+      'SELECT ai_conversations_used, ai_conversations_cap FROM credits WHERE user_id = $1',
       [req.user.id]
     );
-    const balance = creditRows[0]?.balance ?? 0;
-    if (balance < 1) {
+    const used = quotaRows[0]?.ai_conversations_used ?? 0;
+    const cap  = quotaRows[0]?.ai_conversations_cap  ?? 0;
+    if (used >= cap) {
       return res.status(402).json({
-        error: "You've used your free session this week. Add credits to continue.",
-        code: 'INSUFFICIENT_CREDITS',
+        error: "You've used your free AI session this week. Get a bundle to unlock more conversations.",
+        code: 'AI_CAP_REACHED',
       });
     }
   }
 
-  // Compute age from birth_year (approximate — year only, no month precision)
-  const user = userRows[0];
   let userAge = null;
   if (user.birth_year) {
     userAge = new Date().getFullYear() - user.birth_year;
@@ -194,15 +175,20 @@ router.post('/session/start', auth, async (req, res) => {
   );
   const sessionId = sessionRows[0].id;
 
-  // Deduct 1 credit for paid sessions — atomic; if blocked (race condition), clean up and return 402
-  if (!isFree) {
-    const { blocked } = await deductCredit(req.user.id, 1, sessionId, 'ai');
-    if (blocked) {
+  if (isFree) {
+    await query('UPDATE users SET free_ai_used_at = NOW() WHERE id = $1', [req.user.id]);
+  } else {
+    // Atomic increment — guard against concurrent requests bypassing the cap check
+    const { rowCount } = await query(
+      `UPDATE credits SET ai_conversations_used = ai_conversations_used + 1
+       WHERE user_id = $1 AND ai_conversations_used < ai_conversations_cap`,
+      [req.user.id]
+    );
+    if (!rowCount) {
       await query('DELETE FROM sessions WHERE id = $1', [sessionId]).catch(() => {});
-      console.warn('[AI] Credit deduction blocked after session creation (race) — session deleted, user_id:', req.user.id);
       return res.status(402).json({
-        error: "You've used your free session this week. Add credits to continue.",
-        code: 'INSUFFICIENT_CREDITS',
+        error: "You've used your free AI session this week. Get a bundle to unlock more conversations.",
+        code: 'AI_CAP_REACHED',
       });
     }
   }

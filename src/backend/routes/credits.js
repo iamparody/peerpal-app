@@ -20,9 +20,16 @@ router.get('/balance', auth, async (req, res) => {
   const cached = await cache.get(cacheKey);
   if (cached !== null) return res.status(200).json(cached);
 
-  const { rows } = await query('SELECT balance FROM credits WHERE user_id = $1', [req.user.id]);
+  const { rows } = await query(
+    'SELECT balance, ai_conversations_used, ai_conversations_cap FROM credits WHERE user_id = $1',
+    [req.user.id]
+  );
   if (!rows.length) return res.status(404).json({ error: 'Credits record not found', code: 'NOT_FOUND' });
-  const result = { balance: rows[0].balance };
+  const result = {
+    balance: rows[0].balance,
+    ai_conversations_used: rows[0].ai_conversations_used,
+    ai_conversations_cap: rows[0].ai_conversations_cap,
+  };
   await cache.set(cacheKey, result, 30);
   return res.status(200).json(result);
 });
@@ -178,6 +185,15 @@ router.post('/mpesa-callback', async (req, res) => {
     'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
     [amount_credits, user_id]
   ).catch((e) => console.error('Daraja credit error:', e.message));
+
+  // Stack AI conversation allowance for the purchased bundle
+  const purchasedPkg = Object.values(PACKAGES).find((p) => p.credits === amount_credits);
+  if (purchasedPkg?.ai_conversations) {
+    await query(
+      'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
+      [purchasedPkg.ai_conversations, user_id]
+    ).catch((e) => console.error('Daraja AI conv award error:', e.message));
+  }
 
   await cache.del(`credits:${user_id}`);
 

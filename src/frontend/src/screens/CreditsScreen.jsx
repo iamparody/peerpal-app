@@ -9,8 +9,9 @@ const PACKAGES = [
     id: 'standard',
     name: 'Just for now',
     tagline: 'Take it one day at a time',
-    price: 100,
-    credits: 7,
+    price: 150,
+    credits: 10,
+    aiConversations: 4,
     Icon: Leaf,
     highlight: false,
     iconColor: '#C2A48A',
@@ -24,8 +25,9 @@ const PACKAGES = [
     id: 'plus',
     name: "I'm committed",
     tagline: "You're showing up for yourself",
-    price: 250,
-    credits: 20,
+    price: 300,
+    credits: 25,
+    aiConversations: 10,
     Icon: Heart,
     highlight: true,
     iconColor: '#8FAF9A',
@@ -41,6 +43,7 @@ const PACKAGES = [
     tagline: 'Full support, nothing held back',
     price: 500,
     credits: 50,
+    aiConversations: 20,
     Icon: Mountains,
     highlight: false,
     iconColor: '#C2A48A',
@@ -127,7 +130,7 @@ function PhoneModal({ pkg, onConfirm, onClose, submitting, error }) {
             <div>
               <div style={{ fontWeight: 700, fontSize: '1rem' }}>{pkg.name}</div>
               <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                {pkg.credits} credits · KSh {pkg.price}
+                {pkg.credits} peer credits · {pkg.aiConversations} AI sessions · KSh {pkg.price}
               </div>
             </div>
             <button
@@ -223,6 +226,9 @@ export default function CreditsScreen() {
   const balance = balanceData?.balance ?? null;
   const balanceLow = balance !== null && balance > 0 && balance <= 2;
   const balanceEmpty = balance === 0;
+  const aiUsed = balanceData?.ai_conversations_used ?? 0;
+  const aiCap  = balanceData?.ai_conversations_cap  ?? 0;
+  const aiLeft = Math.max(0, aiCap - aiUsed);
   const transactions = txData?.transactions ?? (Array.isArray(txData) ? txData : []);
   const TX_PREVIEW = 4;
   const visibleTx = showAllTx ? transactions : transactions.slice(0, TX_PREVIEW);
@@ -301,7 +307,12 @@ export default function CreditsScreen() {
           }}>
             {balance ?? '—'}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>credits</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>peer credits</div>
+          {aiCap > 0 && (
+            <div style={{ marginTop: 10, fontSize: 12, color: aiLeft > 0 ? 'var(--color-calm)' : 'var(--color-text-muted)' }}>
+              {aiLeft > 0 ? `${aiLeft} AI conversation${aiLeft !== 1 ? 's' : ''} left` : 'AI conversations used up'}
+            </div>
+          )}
           {balanceEmpty ? (
             <p style={{ fontSize: 13, color: 'var(--color-danger)', marginTop: 8, lineHeight: 1.5 }}>
               No credits remaining. Top up to resume sessions.
@@ -311,6 +322,16 @@ export default function CreditsScreen() {
               Running low — top up to keep using sessions.
             </p>
           ) : null}
+        </div>
+
+        {/* Headline */}
+        <div>
+          <p style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 4, lineHeight: 1.3 }}>
+            Everyone can get help.
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            One free AI session every week. Top up for peer sessions, voice calls, and more AI conversations.
+          </p>
         </div>
 
         {/* Top up */}
@@ -376,7 +397,7 @@ export default function CreditsScreen() {
                   KSh {pkg.price}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
-                  {pkg.credits} credits
+                  {pkg.credits} cr · {pkg.aiConversations} AI
                 </div>
               </div>
             </button>
@@ -403,23 +424,30 @@ export default function CreditsScreen() {
             {showHowCredits && (
               <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 8, background: 'rgba(194,164,138,0.03)' }}>
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Free every week</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Always free</p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-                    1 AI session each week — no credits needed<br />
-                    Crisis support, breathing exercises &amp; articles — always free
+                    1 AI session every 7 days — no top-up needed<br />
+                    Crisis support, breathing exercises &amp; articles — free forever
                   </p>
                 </div>
                 <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Using credits</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Using peer credits</p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
-                    1 credit — AI chat session<br />
                     1 credit — Peer support (text, 30 min)<br />
                     2 credits — Peer voice call (30 min)<br />
                     1 credit — Therapist referral
                   </p>
                 </div>
                 <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Your credits</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>AI conversations</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                    Each bundle includes AI sessions (4, 10, or 20)<br />
+                    Buying a new bundle adds to your remaining pool<br />
+                    AI sessions don't deduct from peer credits
+                  </p>
+                </div>
+                <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Good to know</p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
                     2 welcome credits on sign-up<br />
                     Credits don't expire<br />

@@ -1,10 +1,12 @@
 const https = require('https');
 
 // Credit packages — keyed by id, used by POST /api/credits/purchase
+// peer_credits: usable for peer sessions, therapist requests, groups
+// ai_conversations: monthly AI conversation allowance (resets on purchase)
 const PACKAGES = {
-  standard: { price_ksh: 100, credits: 7,  name: 'Just for now'    },
-  plus:     { price_ksh: 250, credits: 20, name: "I'm committed"    },
-  premium:  { price_ksh: 500, credits: 50, name: 'All of me'        },
+  standard: { price_ksh: 150, credits: 10, ai_conversations: 4,  name: 'Just for now'  },
+  plus:     { price_ksh: 300, credits: 25, ai_conversations: 10, name: "I'm committed"  },
+  premium:  { price_ksh: 500, credits: 50, ai_conversations: 20, name: 'All of me'      },
 };
 
 // Daraja credentials from env — populated when credentials are approved
