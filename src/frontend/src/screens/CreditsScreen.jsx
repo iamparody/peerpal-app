@@ -324,16 +324,6 @@ export default function CreditsScreen() {
           ) : null}
         </div>
 
-        {/* Headline */}
-        <div>
-          <p style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 4, lineHeight: 1.3 }}>
-            Everyone can get help.
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-            One free AI session every week. Top up for peer sessions, voice calls, and more AI conversations.
-          </p>
-        </div>
-
         {/* Top up */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PACKAGES.map((pkg) => (
@@ -423,7 +413,10 @@ export default function CreditsScreen() {
             </button>
             {showHowCredits && (
               <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 8, background: 'rgba(194,164,138,0.03)' }}>
-                <div>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: 0 }}>
+                  One free AI session every week. Top up for peer sessions, voice calls, and more AI conversations.
+                </p>
+                <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8 }}>
                   <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Always free</p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
                     1 AI session every 7 days — no top-up needed<br />
