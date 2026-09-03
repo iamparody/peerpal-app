@@ -1805,3 +1805,26 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — include `persona_name: personaNameInput.trim()` in `handleSave` PATCH body; validate non-empty before allowing save
 - [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — remove "name is permanent" subtitle; replace with neutral description
 - [x] `src/frontend/src/screens/EditPersonaScreen.jsx` — update saved confirmation text to use `personaNameInput` (the just-saved name)
+
+---
+
+## Phase 33 — Pricing Model Overhaul
+
+> Decision locked 2026-09-03. Implement in order.
+
+### 33.A — Credit packages
+- [ ] `src/backend/utils/daraja.js` — update PACKAGES: standard → KSh 150/10 credits, plus → KSh 300/25 credits, premium → KSh 500/50 credits
+
+### 33.B — AI conversation tracking
+- [ ] Write migration: add `ai_conversations_used` and `ai_conversations_cap` to `credits` table (or separate `ai_allowance` table)
+- [ ] `src/backend/routes/ai.js` — replace 1-credit-per-session gate with: check `ai_conversations_used < ai_conversations_cap`; increment on session start; free tier = 1/week (reset via cron or last_reset timestamp)
+- [ ] Bundle caps per package: standard = 4, plus = 10, premium = 20; free tier = 1/week
+
+### 33.C — Free tier gate
+- [ ] `src/backend/routes/ai.js` — users with no active bundle get 1 AI conversation/week; track via `free_ai_used_at` timestamp on users table
+- [ ] Frontend: gate message when free conversation used — "You've used your free session this week. Upgrade to continue."
+
+### 33.D — Pricing UI
+- [ ] `src/frontend/src/screens/CreditsScreen.jsx` — update package cards to show new prices, peer credits, and AI conversation count per tier
+- [ ] Add headline above packages: "Everyone can get help. Everyone who can, helps keep it available."
+- [ ] Remove any reference to old 7/20/50 credit counts
