@@ -28,8 +28,15 @@ function shortDate(str) {
   return d.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
 }
 
+function scaleSignal(totalUsers) {
+  if (totalUsers < 100)  return { level: 'ok',   color: '#6B9E8C', label: 'Comfortable',  note: 'Free tiers are fine. Keep an eye past 100 users.' };
+  if (totalUsers < 300)  return { level: 'watch', color: '#C2A48A', label: 'Watch',        note: 'Monitor DB connections and Render response times.' };
+  return                        { level: 'scale', color: '#B35C5C', label: 'Scale soon',   note: 'Upgrade Render and Supabase before performance drops.' };
+}
+
 export default function StatsTab() {
   const [stats,    setStats]    = useState(null);
+  const [growth,   setGrowth]   = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [series,   setSeries]   = useState([]);
   const [days,     setDays]     = useState(30);
@@ -38,12 +45,14 @@ export default function StatsTab() {
 
   const load = useCallback(async () => {
     try {
-      const [sr, fr, dr] = await Promise.all([
+      const [sr, gr, fr, dr] = await Promise.all([
         client.get('/api/admin/stats'),
+        client.get('/api/admin/stats/growth'),
         client.get('/api/admin/feedback'),
         client.get(`/api/admin/stats/daily?days=${days}`),
       ]);
       setStats(sr.data);
+      setGrowth(gr.data);
       setFeedback(fr.data);
       setSeries(dr.data.series ?? []);
     } catch { setError('Failed to load stats.'); }
@@ -82,6 +91,57 @@ export default function StatsTab() {
           </div>
         ))}
       </div>
+
+      {/* Growth & sustainability metrics */}
+      {growth && (() => {
+        const sig = scaleSignal(growth.total_users);
+        return (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
+              <div className="stat-card">
+                <div className="stat-card__label">👤 Total Users</div>
+                <div className="stat-card__value" style={{ fontSize: 28 }}>{growth.total_users}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-card__label">📅 MAU (30d)</div>
+                <div className="stat-card__value" style={{ fontSize: 28 }}>{growth.mau}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-card__label">💳 Conversion</div>
+                <div className="stat-card__value" style={{ fontSize: 28 }}>{growth.conversion_rate}%</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>{growth.paid_users} paid of {growth.total_users}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-card__label">🤝 Peer Match Rate</div>
+                <div className="stat-card__value" style={{ fontSize: 28 }}>
+                  {growth.peer_fulfillment_rate !== null ? `${growth.peer_fulfillment_rate}%` : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>last 30 days</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-card__label">🤖 AI Cost (30d)</div>
+                <div className="stat-card__value" style={{ fontSize: 28 }}>KSh {growth.ai_cost_30d_ksh}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>KSh {growth.ai_cost_per_mau_ksh}/user</div>
+              </div>
+            </div>
+
+            {/* Scaling callout */}
+            <div className="card" style={{ marginBottom: 28, borderLeft: `4px solid ${sig.color}`, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 22 }}>{sig.level === 'ok' ? '✅' : sig.level === 'watch' ? '⚠️' : '🔴'}</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: sig.color, marginBottom: 2 }}>
+                  Infrastructure: {sig.label}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{sig.note}</div>
+              </div>
+              <div style={{ marginLeft: 'auto', textAlign: 'right', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                <div>{growth.total_users} registered</div>
+                <div>{growth.mau} active / 30d</div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Time-series chart */}
       <div className="card" style={{ marginBottom: 28 }}>

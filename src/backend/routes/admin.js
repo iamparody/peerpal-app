@@ -426,6 +426,70 @@ router.get('/stats', async (req, res) => {
   });
 });
 
+// ─── GET /admin/stats/growth ──────────────────────────────────────────────────
+// Growth and sustainability signals: user totals, MAU, conversion, peer fulfillment, AI cost.
+router.get('/stats/growth', async (req, res) => {
+  try {
+    const AI_COST_PER_SESSION_KSH = 2.60;
+
+    const [totalRes, mauRes, paidRes, peerRes, aiRes] = await Promise.all([
+      // Total registered members
+      query(`SELECT COUNT(*) AS total FROM users WHERE role = 'member'`),
+
+      // Monthly Active Users — any session or check-in in last 30 days
+      query(`
+        SELECT COUNT(DISTINCT user_id) AS mau FROM (
+          SELECT user_id FROM sessions  WHERE started_at  > NOW() - INTERVAL '30 days'
+          UNION
+          SELECT user_id FROM moods     WHERE created_at  > NOW() - INTERVAL '30 days'
+        ) a
+      `),
+
+      // Users with at least one confirmed purchase
+      query(`SELECT COUNT(DISTINCT user_id) AS paid FROM credit_transactions WHERE type = 'purchase' AND status = 'confirmed'`),
+
+      // Peer fulfillment: locked/active = matched, escalated = not matched (last 30 days, excluding still-open)
+      query(`
+        SELECT
+          COUNT(*) FILTER (WHERE status IN ('locked','active','closed') AND escalated_at IS NULL)::int AS fulfilled,
+          COUNT(*) FILTER (WHERE status = 'escalated')::int AS escalated
+        FROM peer_requests
+        WHERE created_at > NOW() - INTERVAL '30 days' AND status != 'open'
+      `),
+
+      // AI sessions in last 30 days (for cost estimate)
+      query(`SELECT COUNT(*) AS count FROM sessions WHERE type = 'ai' AND started_at > NOW() - INTERVAL '30 days'`),
+    ]);
+
+    const totalUsers  = parseInt(totalRes.rows[0].total);
+    const mau         = parseInt(mauRes.rows[0].mau);
+    const paidUsers   = parseInt(paidRes.rows[0].paid);
+    const fulfilled   = peerRes.rows[0].fulfilled;
+    const escalated   = peerRes.rows[0].escalated;
+    const aiSessions  = parseInt(aiRes.rows[0].count);
+
+    const conversionRate   = totalUsers > 0 ? parseFloat(((paidUsers / totalUsers) * 100).toFixed(1)) : 0;
+    const totalPeerHandled = fulfilled + escalated;
+    const fulfillmentRate  = totalPeerHandled > 0 ? parseFloat(((fulfilled / totalPeerHandled) * 100).toFixed(1)) : null;
+    const aiCostKsh        = parseFloat((aiSessions * AI_COST_PER_SESSION_KSH).toFixed(0));
+    const aiCostPerMau     = mau > 0 ? parseFloat((aiCostKsh / mau).toFixed(2)) : 0;
+
+    return res.status(200).json({
+      total_users: totalUsers,
+      mau,
+      paid_users: paidUsers,
+      conversion_rate: conversionRate,
+      peer_fulfillment_rate: fulfillmentRate,
+      ai_sessions_30d: aiSessions,
+      ai_cost_30d_ksh: aiCostKsh,
+      ai_cost_per_mau_ksh: aiCostPerMau,
+    });
+  } catch (err) {
+    console.error('stats/growth error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch growth stats', code: 'QUERY_ERROR' });
+  }
+});
+
 // ─── GET /admin/stats/daily ───────────────────────────────────────────────────
 // Uses integer series offset (date - integer = date in PG) to avoid interval cast ambiguity
 router.get('/stats/daily', async (req, res) => {
