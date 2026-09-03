@@ -165,6 +165,17 @@ router.get('/escalations', async (req, res) => {
   return res.status(200).json({ escalations: rows });
 });
 
+// ─── PATCH /admin/escalations/:id/resolve ─────────────────────────────────────
+router.patch('/escalations/:id/resolve', async (req, res) => {
+  const { rowCount } = await query(
+    `UPDATE peer_requests SET status = 'closed', updated_at = NOW()
+     WHERE id = $1 AND status = 'escalated'`,
+    [req.params.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Escalation not found or already resolved', code: 'NOT_FOUND' });
+  return res.status(200).json({ resolved: true });
+});
+
 // ─── GET /admin/referrals ─────────────────────────────────────────────────────
 router.get('/referrals', async (req, res) => {
   const conditions = [];
@@ -260,6 +271,18 @@ router.get('/risk-flags', async (req, res) => {
      ORDER BY risk_level DESC, updated_at DESC`
   );
   return res.status(200).json({ flagged_users: rows });
+});
+
+// ─── PATCH /admin/risk-flags/:alias/dismiss ───────────────────────────────────
+// Manually clears a risk flag back to 'low'. Nightly classifier will re-evaluate.
+router.patch('/risk-flags/:alias/dismiss', async (req, res) => {
+  const { rowCount } = await query(
+    `UPDATE users SET risk_level = 'low', updated_at = NOW()
+     WHERE alias = $1 AND risk_level IN ('high', 'critical')`,
+    [req.params.alias]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Risk flag not found or already cleared', code: 'NOT_FOUND' });
+  return res.status(200).json({ dismissed: true });
 });
 
 // ─── POST /admin/users/:alias/message ────────────────────────────────────────

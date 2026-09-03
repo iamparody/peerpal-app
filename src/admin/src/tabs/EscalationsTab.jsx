@@ -14,6 +14,7 @@ export default function EscalationsTab({ onCountChange }) {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
   const [msgTarget, setMsgTarget] = useState(null);
+  const [resolving, setResolving] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -26,6 +27,20 @@ export default function EscalationsTab({ onCountChange }) {
   }, [onCountChange]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleResolve(id) {
+    setResolving(id);
+    try {
+      await client.patch(`/api/admin/escalations/${id}/resolve`);
+      const updated = items.filter((e) => e.id !== id);
+      setItems(updated);
+      onCountChange?.(updated.length);
+    } catch {
+      setError('Could not resolve escalation. Try again.');
+    } finally {
+      setResolving(null);
+    }
+  }
 
   return (
     <div>
@@ -74,9 +89,16 @@ export default function EscalationsTab({ onCountChange }) {
                     <td>
                       <span className="elapsed elapsed--urgent">{elapsed(e.escalated_at)}</span>
                     </td>
-                    <td>
+                    <td style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn--ghost btn--sm" onClick={() => setMsgTarget(e.alias)}>
                         Message
+                      </button>
+                      <button
+                        className="btn btn--primary btn--sm"
+                        disabled={resolving === e.id}
+                        onClick={() => handleResolve(e.id)}
+                      >
+                        {resolving === e.id ? '…' : 'Resolve'}
                       </button>
                     </td>
                   </tr>

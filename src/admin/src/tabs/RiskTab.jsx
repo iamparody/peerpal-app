@@ -3,10 +3,11 @@ import client from '../api/client';
 import MessageModal from '../components/MessageModal';
 
 export default function RiskTab({ onCountChange }) {
-  const [items,     setItems]     = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState('');
-  const [msgTarget, setMsgTarget] = useState(null);
+  const [items,      setItems]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [msgTarget,  setMsgTarget]  = useState(null);
+  const [dismissing, setDismissing] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -20,12 +21,26 @@ export default function RiskTab({ onCountChange }) {
 
   useEffect(() => { load(); }, [load]);
 
+  async function handleDismiss(alias) {
+    setDismissing(alias);
+    try {
+      await client.patch(`/api/admin/risk-flags/${alias}/dismiss`);
+      const updated = items.filter((u) => u.alias !== alias);
+      setItems(updated);
+      onCountChange?.(updated.length);
+    } catch {
+      setError('Could not dismiss flag. Try again.');
+    } finally {
+      setDismissing(null);
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Risk Flags</h1>
-          <p className="page-subtitle">Users with high or critical risk level — updated nightly</p>
+          <p className="page-subtitle">Users with high or critical risk level — updated nightly. Dismiss once reviewed.</p>
         </div>
         <button className="refresh-btn" onClick={load} title="Refresh">↻</button>
       </div>
@@ -61,9 +76,16 @@ export default function RiskTab({ onCountChange }) {
                       </span>
                     </td>
                     <td><span className="elapsed">{new Date(u.updated_at).toLocaleString()}</span></td>
-                    <td>
+                    <td style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn--ghost btn--sm" onClick={() => setMsgTarget(u.alias)}>
                         Send Care Message
+                      </button>
+                      <button
+                        className="btn btn--primary btn--sm"
+                        disabled={dismissing === u.alias}
+                        onClick={() => handleDismiss(u.alias)}
+                      >
+                        {dismissing === u.alias ? '…' : 'Dismiss'}
                       </button>
                     </td>
                   </tr>
