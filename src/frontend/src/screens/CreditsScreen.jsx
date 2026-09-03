@@ -324,6 +324,13 @@ export default function CreditsScreen() {
           ) : null}
         </div>
 
+        {/* Headline */}
+        <div>
+          <p style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.4, margin: 0 }}>
+            Everyone can get help. Everyone who can, helps keep it available.
+          </p>
+        </div>
+
         {/* Top up */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PACKAGES.map((pkg) => (
