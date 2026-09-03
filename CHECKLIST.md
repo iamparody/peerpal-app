@@ -1829,3 +1829,61 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] `src/frontend/src/screens/CreditsScreen.jsx` — updated package cards with new prices, peer credits, and AI session counts per tier
 - [x] "Everyone can get help." headline added above packages
 - [x] Old 7/20/50 credit counts removed; "How credits work" updated for new model
+
+---
+
+## Phase 34 — Admin Operations Hardening
+
+> Build in order. No skipping.
+
+### 34.1 — Fix held responses query (P0)
+- [ ] `src/backend/routes/admin.js` `GET /admin/groups/:id/feed` — fix held responses query: currently filters `is_deleted = true` (shows deleted messages); change to correct moderation-pending filter
+- [ ] Verify GroupsTab held responses section shows correct pending messages
+
+### 34.2 — Audit trail (P0)
+- [ ] Write migration 070: create `admin_audit_log` table — columns: `id, admin_id, action, target_type, target_id, target_alias, before_value, after_value, note, created_at`
+- [ ] `src/backend/routes/admin.js` — log on: risk flag dismiss, permission flag resolve, report action (warn/ban/dismiss), referral status change
+- [ ] `src/backend/routes/admin.js` — log on: emergency resolve, escalation resolve, group archive/delete, therapist create/edit
+- [ ] `src/admin/src/tabs/` — add Audit Log tab: table of recent actions, filterable by action type, paginated
+
+### 34.3 — Therapist password flow (P0)
+- [ ] `src/backend/routes/admin.js` `POST /admin/therapists` — remove password field; generate a secure random token; store as a password-reset token; send onboarding email to therapist with set-password link
+- [ ] `src/backend/services/emailService.js` — add `sendTherapistInvite(email, name, setPasswordUrl)` email template
+- [ ] `src/admin/src/tabs/TherapistsTab.jsx` — remove password input from New Therapist form; replace with note "An invite email will be sent"
+
+### 34.4 — Escalations auto-refresh (P1)
+- [ ] `src/admin/src/tabs/EscalationsTab.jsx` — add `setInterval(load, 30000)` with cleanup on unmount; match pattern used in EmergencyTab
+
+### 34.5 — Sessions table index (P1)
+- [ ] Write migration 071: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sessions_started_type ON sessions (started_at, type)` — fixes table scan on daily stats queries
+
+### 34.6 — Groups CRUD + dynamic categories (P1)
+- [ ] Write migration 072: create `group_categories` table (slug TEXT PK, label TEXT, sort_order INT); seed 8 existing values; add `category_slug TEXT FK` to groups; backfill from enum; drop `condition_category` column and `group_category` type
+- [ ] `src/backend/routes/admin.js` — `GET /admin/group-categories` (list all)
+- [ ] `src/backend/routes/admin.js` — `POST /admin/group-categories` (create: slug, label)
+- [ ] `src/backend/routes/admin.js` — `PATCH /admin/group-categories/:slug` (rename label, reorder)
+- [ ] `src/backend/routes/admin.js` — `DELETE /admin/group-categories/:slug` (blocked if any group uses it)
+- [ ] `src/backend/routes/admin.js` — `PATCH /admin/groups/:id` (edit name, category, description)
+- [ ] `src/backend/routes/admin.js` — `PATCH /admin/groups/:id/status` (toggle is_active)
+- [ ] `src/backend/routes/admin.js` — `DELETE /admin/groups/:id` (blocked if member_count > 0; else hard delete)
+- [ ] `src/admin/src/tabs/GroupsTab.jsx` — categories management panel: list, add, rename categories
+- [ ] `src/admin/src/tabs/GroupsTab.jsx` — edit panel per group: pre-filled form, archive/restore toggle, delete button (disabled if has members)
+- [ ] `src/admin/src/tabs/GroupsTab.jsx` — load categories from API; replace hardcoded GROUP_CATEGORIES array
+
+### 34.7 — Patterns → intervention (P2)
+- [ ] `src/admin/src/tabs/PatternsTab.jsx` — add "Message" button per row; reuse MessageModal already used in EscalationsTab and RiskTab
+
+### 34.8 — Config tables for packages and credit costs (P2)
+- [ ] Write migration 073: create `platform_config` table (key TEXT PK, value JSONB, updated_at); seed package definitions and credit costs
+- [ ] `src/backend/routes/admin.js` — `GET /admin/config` and `PATCH /admin/config/:key` (update any config value)
+- [ ] `src/backend/utils/daraja.js` — load PACKAGES from DB at startup (or per-request with cache); fall back to hardcoded if table empty
+- [ ] `src/backend/utils/creditDeductor.js` — load credit costs from config table; invalidate cache on config update
+- [ ] `src/admin/src/tabs/` — add Config tab: editable cards for packages (price, credits, AI conversations) and credit costs (peer text, voice, referral)
+
+### 34.9 — UX polish + referrals N+1 (P2)
+- [ ] `src/backend/routes/admin.js` `GET /admin/referrals` — replace N+1 therapist interests loop with single `array_agg` JOIN
+- [ ] `src/admin/src/tabs/ReferralsTab.jsx` — add success toast after status update
+- [ ] `src/admin/src/tabs/ContentTab.jsx` — unsaved changes warning before closing panel
+- [ ] `src/admin/src/tabs/TherapistsTab.jsx` — unsaved changes warning before closing panel
+- [ ] `src/frontend/src/screens/CreditsScreen.jsx` — round `duration_minutes` display in transaction history
+- [ ] `src/frontend/src/screens/CreditsScreen.jsx` — add `therapist_referral` label to `txLabel()` channel map
