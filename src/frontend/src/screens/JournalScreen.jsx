@@ -270,7 +270,7 @@ export default function JournalScreen() {
               value={formContent}
               onChange={(e) => setFormContent(e.target.value)}
               placeholder="Write freely… no rules, just you."
-              style={{ border: 'none', background: 'transparent', color: 'var(--color-text-dark)', padding: 0, resize: 'vertical', minHeight: 120 }}
+              style={{ border: 'none', background: 'transparent', color: 'var(--color-text-primary)', padding: 0, resize: 'vertical', minHeight: 120 }}
             />
           </div>
           {saveError && <div className="error-msg" style={{ marginBottom: 'var(--space-sm)' }}>{saveError}</div>}

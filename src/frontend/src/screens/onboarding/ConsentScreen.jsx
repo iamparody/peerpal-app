@@ -175,7 +175,7 @@ export default function ConsentScreen() {
               onChange={(e) => { setBirthMonth(e.target.value); setUnderage(false); setError(''); }}
               style={{
                 flex: 1, padding: '10px 12px', borderRadius: 8,
-                background: 'var(--color-surface-card)', color: 'var(--color-text)',
+                background: 'var(--color-surface-card)', color: '#F5EDE4',
                 border: '1px solid rgba(245,237,228,0.15)', fontSize: '0.9rem',
                 appearance: 'none', WebkitAppearance: 'none',
               }}
@@ -191,7 +191,7 @@ export default function ConsentScreen() {
               onChange={(e) => { setBirthYear(e.target.value); setUnderage(false); setError(''); }}
               style={{
                 width: 100, padding: '10px 12px', borderRadius: 8,
-                background: 'var(--color-surface-card)', color: 'var(--color-text)',
+                background: 'var(--color-surface-card)', color: '#F5EDE4',
                 border: '1px solid rgba(245,237,228,0.15)', fontSize: '0.9rem',
                 appearance: 'none', WebkitAppearance: 'none',
               }}
