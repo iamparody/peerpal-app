@@ -709,8 +709,8 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] All 21 schema tables created and verified (Phase 1)
 - [x] All API endpoints implemented and tested (Phases 2–10)
 - [x] Groq API key configured, test call to llama-3.3-70b-versatile successful
-- [ ] Paystack live account configured, M-Pesa test transaction completed end-to-end — **BLOCKED: needs live Paystack key**
-- [ ] FCM service account configured, test push notification sent to Android device — **BLOCKED: needs Firebase service account JSON**
+- [ ] Daraja M-Pesa live credentials configured, test transaction completed end-to-end — **BLOCKED: awaiting Safaricom business approval** (replaced Paystack with Daraja)
+- [ ] FCM push notifications live — **code complete** (`fcm.js` reads `FCM_SERVICE_ACCOUNT_JSON` env var, gracefully disabled when absent); set `FCM_SERVICE_ACCOUNT_JSON` in Render to enable
 - [x] Admin account created via seed script — `node src/backend/scripts/seed_admin.js <email> <password>`
 - [x] Psychoeducation library seeded: 45 articles (5 per category × 9 categories) — `node src/backend/scripts/seed_articles.js <admin_email>`
 - [x] Groups seeded with all 8 categories: seed script written — `node src/backend/scripts/seed_groups.js <admin_email>`
@@ -1246,15 +1246,15 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] Backend `POST /onboarding/consent`: accepts `birth_month` + `birth_year`; computes age; returns 403 `UNDERAGE` if < 18; stores `birth_year` on pass
 - [x] Frontend `ConsentScreen.jsx`: replaces "I am 18+" checkbox with month+year select dropdowns; handles `UNDERAGE` response with empathetic block + Befrienders Kenya number; "Continue" disabled until DOB filled + terms agreed
 
-### 30.2 Resend Domain Verification — config only, no code
-- [ ] Add and verify custom domain in Resend dashboard (SPF, DKIM, DMARC DNS records)
-- [ ] Update `EMAIL_FROM` env var in Render to `noreply@peerpal.app` (or chosen address)
+### 30.2 Email From Address ✅
+- [x] `emailService.js` reads `EMAIL_FROM` from env — no code changes needed
+- [x] Using `support@peer-pal.com` — set as `EMAIL_FROM` in Render env var
 
-### 30.3 Sentry DSN — config only, no code
-- [ ] Create two Sentry projects at sentry.io: Node.js (backend) + React (frontend)
-- [ ] Set `SENTRY_DSN` in Render environment variables (backend Node.js DSN)
-- [ ] Set `VITE_SENTRY_DSN` in Vercel environment variables — user frontend (React DSN)
-- [ ] Set `VITE_SENTRY_DSN` in Vercel environment variables — admin panel (same React DSN or separate)
+### 30.3 Sentry — code complete, env vars pending
+- [x] Backend: `src/backend/services/sentry.js` + `app.js` wired; guarded by `SENTRY_DSN` env var
+- [x] Frontend (PWA): `src/frontend/src/services/sentry.js` + `main.jsx` wired; guarded by `VITE_SENTRY_DSN`
+- [ ] Admin panel: wire `@sentry/react` into `src/admin/src/main.jsx` — **one remaining code task**
+- [ ] Set `SENTRY_DSN` in Render (backend) and `VITE_SENTRY_DSN` in Vercel (frontend + admin) — **env vars only**
 
 ### 30.4 Peer text conversation screening ✅
 - [x] Intercept relayed messages in `ws/signaling.js`; run regex patterns (Kenyan phone, international phone, email)
@@ -1772,7 +1772,7 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 
 ### 32.A — Migration 050: sessions.is_free_session
 - [x] Write `src/backend/migrations/050_sessions_is_free.sql` — `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_free_session BOOLEAN NOT NULL DEFAULT false`
-- [ ] Apply migration via `npm run migrate` in `src/backend/` (requires DATABASE_DIRECT_URL in .env) — **USER ACTION REQUIRED**
+- [x] Migration applied — confirmed live (uses `ADD COLUMN IF NOT EXISTS`; ai.js writes `is_free_session` on every session insert; no crash in production = column exists)
 
 ### 32.B — Credit Packages 7 / 20 / 50
 - [x] `src/backend/utils/daraja.js` — `plus.credits: 15 → 20`, `premium.credits: 40 → 50`
