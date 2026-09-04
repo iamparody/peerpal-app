@@ -76,4 +76,10 @@ async function getCurrentBalance(user_id) {
   return rows[0]?.balance ?? 0;
 }
 
-module.exports = { deductCredit, refundCredit };
+async function getCreditCosts() {
+  const { getConfig } = require('./config');
+  const fromDb = await getConfig('credit_costs', null);
+  return fromDb || { text: 1, voice: 2, referral: 1 };
+}
+
+module.exports = { deductCredit, refundCredit, getCreditCosts };

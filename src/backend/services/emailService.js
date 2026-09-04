@@ -36,6 +36,36 @@ function verificationTemplate(alias, link) {
 </html>`;
 }
 
+function inviteTherapistTemplate(name, link) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F5F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
+    <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
+      <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
+        You've been added as a therapist partner on PeerPal.<br>
+        Set your password to activate your account and get started.
+      </p>
+      <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px">
+        <tr><td style="background:#5BAD9A;border-radius:8px;padding:14px 28px">
+          <a href="${link}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Set my password</a>
+        </td></tr>
+      </table>
+      <p style="font-size:13px;color:#888;line-height:1.5;margin:0 0 8px">This link expires in 72 hours.</p>
+      <p style="font-size:13px;color:#888;line-height:1.5;margin:0">
+        If you weren't expecting this, contact PeerPal support.
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
+      <p style="font-size:12px;color:#aaa;margin:0">— The PeerPal Team</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 function resetTemplate(alias, link) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -124,4 +154,9 @@ async function sendPasswordResetEmail(email, alias, token) {
   await enqueueEmail(email, 'Reset your PeerPal password', resetTemplate(alias, link));
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, deliverEmail };
+async function sendTherapistInvite(email, displayName, token) {
+  const link = `${getAppUrl()}/reset-password?token=${token}`;
+  await enqueueEmail(email, 'Welcome to PeerPal — set your password', inviteTherapistTemplate(displayName, link));
+}
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, deliverEmail };

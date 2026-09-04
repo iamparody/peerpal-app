@@ -11,6 +11,7 @@ export default function ReferralsTab() {
   const [filter,    setFilter]    = useState('');
   const [editing,   setEditing]   = useState(null);
   const [msgTarget, setMsgTarget] = useState(null);
+  const [toast,     setToast]     = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -138,15 +139,33 @@ export default function ReferralsTab() {
         ))
       )}
 
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--color-success)', color: '#fff', padding: '10px 20px',
+          borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 1000,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+        }}>
+          {toast}
+        </div>
+      )}
+
       {editing && (
-        <EditReferralModal referral={editing} onClose={() => { setEditing(null); load(); }} />
+        <EditReferralModal
+          referral={editing}
+          onClose={() => { setEditing(null); load(); }}
+          onSuccess={(msg) => {
+            setToast(msg);
+            setTimeout(() => setToast(''), 2500);
+          }}
+        />
       )}
       {msgTarget && <MessageModal alias={msgTarget} onClose={() => setMsgTarget(null)} />}
     </div>
   );
 }
 
-function EditReferralModal({ referral, onClose }) {
+function EditReferralModal({ referral, onClose, onSuccess }) {
   const [status, setStatus] = useState(referral.status);
   const [notes,  setNotes]  = useState(referral.admin_notes ?? '');
   const [saving, setSaving] = useState(false);
@@ -157,6 +176,7 @@ function EditReferralModal({ referral, onClose }) {
     setError('');
     try {
       await client.patch(`/api/admin/referrals/${referral.id}`, { status, admin_notes: notes });
+      onSuccess(`Referral updated — ${status.replace('_', ' ')}`);
       onClose();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save.');

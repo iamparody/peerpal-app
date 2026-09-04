@@ -3,7 +3,7 @@ const { query, getClient } = require('../db');
 const auth = require('../middleware/auth');
 const { ICE_SERVERS } = require('../ws/signaling');
 const cache = require('../services/cache');
-const { deductCredit, refundCredit } = require('../utils/creditDeductor');
+const { deductCredit, refundCredit, getCreditCosts } = require('../utils/creditDeductor');
 const { isPermissionActive } = require('../services/policyEngine');
 const screening = require('../config/screening');
 
@@ -362,8 +362,9 @@ router.post('/request', auth, async (req, res) => {
   );
   const requestId = reqRows[0].id;
 
-  // Deduct credits at submission: 1cr text, 2cr voice
-  const creditCost = channel_preference === 'voice' ? 2 : 1;
+  // Deduct credits at submission: configurable per channel (default: 1cr text, 2cr voice)
+  const _costs1 = await getCreditCosts();
+  const creditCost = channel_preference === 'voice' ? _costs1.voice : _costs1.text;
   const { blocked } = await deductCredit(req.user.id, creditCost, null, channel_preference);
   if (blocked) {
     await query('DELETE FROM peer_requests WHERE id = $1', [requestId]);
@@ -680,7 +681,8 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     );
 
     if (rowCount) {
-      const creditCost = channel_preference === 'voice' ? 2 : 1;
+      const _costs2 = await getCreditCosts();
+      const creditCost = channel_preference === 'voice' ? _costs2.voice : _costs2.text;
       await refundCredit(
         requesterId, creditCost, null, channel_preference,
         `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} request was cancelled — ${creditCost} credit${creditCost > 1 ? 's' : ''} refunded.`
@@ -713,7 +715,8 @@ router.patch('/request/:id/close', auth, async (req, res) => {
 
   // If WebRTC never connected, refund the requester and skip peer earning
   if (never_connected && req.user.id === requesterId) {
-    const creditCost = channel_preference === 'voice' ? 2 : 1;
+    const _costs3 = await getCreditCosts();
+    const creditCost = channel_preference === 'voice' ? _costs3.voice : _costs3.text;
     await refundCredit(
       requesterId, creditCost, session_id, channel_preference,
       `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} could not connect — ${creditCost} credit${creditCost > 1 ? 's' : ''} refunded.`
@@ -908,7 +911,8 @@ router.post('/request/:id/extend', auth, async (req, res) => {
     return res.status(403).json({ error: 'Only the requester can extend a session', code: 'FORBIDDEN' });
   }
 
-  const extensionCost = channel_preference === 'voice' ? 2 : 1;
+  const _costs4 = await getCreditCosts();
+  const extensionCost = channel_preference === 'voice' ? _costs4.voice : _costs4.text;
   const { blocked } = await deductCredit(req.user.id, extensionCost, session_id, channel_preference);
   if (blocked) {
     return res.status(402).json({ error: 'Insufficient credits to extend session', code: 'INSUFFICIENT_CREDITS' });

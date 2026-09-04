@@ -28,7 +28,7 @@ router.get('/', auth, async (req, res) => {
   if (cached) return res.status(200).json(cached);
 
   const { rows } = await query(
-    `SELECT g.id, g.name, g.condition_category, g.description, g.is_active,
+    `SELECT g.id, g.name, g.category_slug, g.description, g.is_active,
             COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count,
             EXISTS(
               SELECT 1 FROM group_memberships um
@@ -49,7 +49,7 @@ router.get('/', auth, async (req, res) => {
 // ─── GET /groups/:id ──────────────────────────────────────────────────────────
 router.get('/:id', auth, async (req, res) => {
   const { rows: groupRows } = await query(
-    `SELECT g.id, g.name, g.condition_category, g.description, g.is_active,
+    `SELECT g.id, g.name, g.category_slug, g.description, g.is_active,
             COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count
      FROM groups g
      LEFT JOIN group_memberships gm ON gm.group_id = g.id
@@ -178,7 +178,7 @@ router.get('/:id/feed', auth, async (req, res) => {
 
   const [groupResult, announcementResult, promptResult, pollResult] = await Promise.all([
     query(
-      `SELECT g.id, g.name, g.condition_category, g.description,
+      `SELECT g.id, g.name, g.category_slug, g.description,
               COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count
        FROM groups g
        LEFT JOIN group_memberships gm ON gm.group_id = g.id

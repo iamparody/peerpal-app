@@ -26,7 +26,11 @@ export default function EscalationsTab({ onCountChange }) {
     finally   { setLoading(false); }
   }, [onCountChange]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const iv = setInterval(load, 30000);
+    return () => clearInterval(iv);
+  }, [load]);
 
   async function handleResolve(id) {
     setResolving(id);

@@ -179,7 +179,6 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
   const isNew = !therapist;
 
   const [email,           setEmail]           = useState('');
-  const [password,        setPassword]        = useState('');
   const [displayName,     setDisplayName]     = useState(therapist?.display_name ?? '');
   const [fullName,        setFullName]        = useState(therapist?.full_name ?? '');
   const [credentials,     setCredentials]     = useState(therapist?.credentials ?? '');
@@ -196,6 +195,16 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
   const [availability,    setAvailability]    = useState(therapist?.availability_status ?? 'available');
   const [saving,          setSaving]          = useState(false);
   const [error,           setError]           = useState('');
+  const [dirty,           setDirty]           = useState(false);
+
+  function markDirty(setter) {
+    return (val) => { setter(val); setDirty(true); };
+  }
+
+  function handleClose() {
+    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    onClose();
+  }
 
   function toggleSpec(sp) {
     setSpecializations((prev) =>
@@ -213,8 +222,8 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
       setError('Display name and credentials are required.');
       return;
     }
-    if (isNew && (!email.trim() || !password.trim() || !fullName.trim())) {
-      setError('Email, password, and full name are required for new therapists.');
+    if (isNew && (!email.trim() || !fullName.trim())) {
+      setError('Email and full name are required for new therapists.');
       return;
     }
     setSaving(true);
@@ -237,7 +246,7 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
     };
     try {
       if (isNew) {
-        await client.post('/api/admin/therapists', { ...body, email: email.trim(), password });
+        await client.post('/api/admin/therapists', { ...body, email: email.trim() });
       } else {
         await client.patch(`/api/admin/therapists/${therapist.id}`, body);
       }
@@ -251,11 +260,11 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
 
   return (
     <>
-      <div className="panel-overlay" onClick={onClose} />
+      <div className="panel-overlay" onClick={handleClose} />
       <div className="slide-panel">
         <div className="slide-panel__header">
           <span className="slide-panel__title">{isNew ? 'Add Therapist' : 'Edit Therapist'}</span>
-          <button className="btn btn--ghost btn--sm" onClick={onClose}>✕</button>
+          <button className="btn btn--ghost btn--sm" onClick={handleClose}>✕</button>
         </div>
 
         <div className="slide-panel__body">
@@ -263,15 +272,14 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
             <>
               <div className="form-group">
                 <label className="form-label">Email address</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="therapist@example.com" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Temporary password</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 chars" />
+                <input type="email" value={email} onChange={(e) => markDirty(setEmail)(e.target.value)} placeholder="therapist@example.com" />
               </div>
               <div className="form-group">
                 <label className="form-label">Full legal name</label>
-                <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Dr. Amina Hassan" />
+                <input type="text" value={fullName} onChange={(e) => markDirty(setFullName)(e.target.value)} placeholder="Dr. Amina Hassan" />
+              </div>
+              <div style={{ background: 'var(--color-surface-secondary)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                ✉️ An invite email will be sent to this address with a link to set their password. The link expires in 72 hours.
               </div>
             </>
           )}
@@ -279,27 +287,27 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="form-group">
               <label className="form-label">Display name</label>
-              <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Dr. Amina K." />
+              <input type="text" value={displayName} onChange={(e) => markDirty(setDisplayName)(e.target.value)} placeholder="Dr. Amina K." />
             </div>
             <div className="form-group">
               <label className="form-label">Years experience</label>
-              <input type="number" value={yearsExp} onChange={(e) => setYearsExp(e.target.value)} min={0} max={40} />
+              <input type="number" value={yearsExp} onChange={(e) => markDirty(setYearsExp)(e.target.value)} min={0} max={40} />
             </div>
           </div>
 
           <div className="form-group">
             <label className="form-label">Credentials</label>
-            <input type="text" value={credentials} onChange={(e) => setCredentials(e.target.value)} placeholder="MA Clinical Psychology, KPS" />
+            <input type="text" value={credentials} onChange={(e) => markDirty(setCredentials)(e.target.value)} placeholder="MA Clinical Psychology, KPS" />
           </div>
 
           <div className="form-group">
             <label className="form-label">Photo URL (optional)</label>
-            <input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." />
+            <input type="url" value={photoUrl} onChange={(e) => markDirty(setPhotoUrl)(e.target.value)} placeholder="https://..." />
           </div>
 
           <div className="form-group">
             <label className="form-label">Availability</label>
-            <select value={availability} onChange={(e) => setAvailability(e.target.value)}>
+            <select value={availability} onChange={(e) => markDirty(setAvailability)(e.target.value)}>
               {AVAILABILITY_OPT.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
@@ -312,7 +320,7 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
                 <button
                   key={sp}
                   type="button"
-                  onClick={() => toggleSpec(sp)}
+                  onClick={() => { toggleSpec(sp); setDirty(true); }}
                   className={`btn btn--sm ${specializations.includes(sp) ? 'btn--primary' : 'btn--ghost'}`}
                   style={{ height: 30, fontSize: 11 }}
                 >
@@ -330,7 +338,7 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
                 <button
                   key={f}
                   type="button"
-                  onClick={() => toggleFormat(f)}
+                  onClick={() => { toggleFormat(f); setDirty(true); }}
                   className={`btn btn--sm ${sessionFormats.includes(f) ? 'btn--primary' : 'btn--ghost'}`}
                   style={{ height: 30, fontSize: 11 }}
                 >
@@ -342,36 +350,36 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
 
           <div className="form-group">
             <label className="form-label">Languages (comma-separated)</label>
-            <input type="text" value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="English, Swahili, Kikuyu" />
+            <input type="text" value={languages} onChange={(e) => markDirty(setLanguages)(e.target.value)} placeholder="English, Swahili, Kikuyu" />
           </div>
 
           <div className="form-group">
             <label className="form-label">Location (optional, for in-person)</label>
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Westlands, Nairobi" />
+            <input type="text" value={location} onChange={(e) => markDirty(setLocation)(e.target.value)} placeholder="Westlands, Nairobi" />
           </div>
 
           {/* Human-facing content */}
           <div className="form-group">
             <label className="form-label">In their own words <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(first person — shown to members)</span></label>
-            <textarea value={plainIntro} onChange={(e) => setPlainIntro(e.target.value)} rows={4}
+            <textarea value={plainIntro} onChange={(e) => markDirty(setPlainIntro)(e.target.value)} rows={4}
               placeholder="Hi, I'm Amina. I work with people who feel stuck — whether that's anxiety, grief, or just knowing something needs to change…" />
           </div>
 
           <div className="form-group">
             <label className="form-label">Their approach <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(plain language, shown to members)</span></label>
-            <textarea value={approachPlain} onChange={(e) => setApproachPlain(e.target.value)} rows={3}
+            <textarea value={approachPlain} onChange={(e) => markDirty(setApproachPlain)(e.target.value)} rows={3}
               placeholder="I help you understand the patterns driving your feelings. We work at your pace — no pressure to arrive at answers before you're ready." />
           </div>
 
           <div className="form-group">
             <label className="form-label">Cultural competencies (comma-separated)</label>
-            <input type="text" value={culturalComps} onChange={(e) => setCulturalComps(e.target.value)}
+            <input type="text" value={culturalComps} onChange={(e) => markDirty(setCulturalComps)(e.target.value)}
               placeholder="Kenyan family systems, Faith-integrated, LGBTQ+ affirming, Trauma-informed" />
           </div>
 
           <div className="form-group">
             <label className="form-label">Professional statement <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(optional, internal)</span></label>
-            <textarea value={statement} onChange={(e) => setStatement(e.target.value)} rows={2}
+            <textarea value={statement} onChange={(e) => markDirty(setStatement)(e.target.value)} rows={2}
               placeholder="Professional bio or notes (not shown to members)" />
           </div>
 
@@ -379,7 +387,7 @@ function TherapistPanel({ therapist, onClose, onSaved }) {
         </div>
 
         <div className="slide-panel__footer">
-          <button className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn--ghost" onClick={handleClose}>Cancel</button>
           <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : isNew ? 'Add Therapist' : 'Save Changes'}
           </button>

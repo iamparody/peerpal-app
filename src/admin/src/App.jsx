@@ -13,10 +13,12 @@ import TherapistsTab   from './tabs/TherapistsTab';
 import PatternsTab     from './tabs/PatternsTab';
 import GroupsTab          from './tabs/GroupsTab';
 import PermissionFlagsTab from './tabs/PermissionFlagsTab';
+import AuditLogTab        from './tabs/AuditLogTab';
+import ConfigTab           from './tabs/ConfigTab';
 import {
   House, Siren, Handshake, Stethoscope,
   Flag, Warning, BookOpen, ChartBar, UserCircle,
-  CaretLeft, CaretRight, List, ChartLineUp, UsersThree, ShieldWarning,
+  CaretLeft, CaretRight, List, ChartLineUp, UsersThree, ShieldWarning, Clipboard, Sliders,
 } from '@phosphor-icons/react';
 
 const TABS = [
@@ -32,6 +34,8 @@ const TABS = [
   { id: 'therapists',  label: 'Therapists',  Icon: UserCircle },
   { id: 'stats',       label: 'Stats',       Icon: ChartBar },
   { id: 'patterns',    label: 'Patterns',    Icon: ChartLineUp },
+  { id: 'audit',       label: 'Audit Log',   Icon: Clipboard },
+  { id: 'config',      label: 'Config',      Icon: Sliders },
 ];
 
 function AdminShell() {
@@ -65,6 +69,8 @@ function AdminShell() {
       case 'therapists':  return <TherapistsTab />;
       case 'stats':       return <StatsTab />;
       case 'patterns':    return <PatternsTab />;
+      case 'audit':       return <AuditLogTab />;
+      case 'config':      return <ConfigTab />;
       default:            return null;
     }
   };

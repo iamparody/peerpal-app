@@ -76,7 +76,7 @@ function txLabel(tx) {
 
 function txDetail(tx) {
   if (tx.duration_minutes != null && tx.duration_minutes > 0) {
-    return `${tx.duration_minutes} min`;
+    return `${Math.round(tx.duration_minutes)} min`;
   }
   return null;
 }

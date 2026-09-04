@@ -114,7 +114,7 @@ router.post('/condition', auth, async (req, res) => {
 
   // Auto-join the matching group
   const { rows: groupRows } = await query(
-    'SELECT id FROM groups WHERE condition_category = $1 AND is_active = true LIMIT 1',
+    'SELECT id FROM groups WHERE category_slug = $1 AND is_active = true LIMIT 1',
     [condition_category]
   );
 

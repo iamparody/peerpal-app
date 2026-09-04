@@ -3,6 +3,30 @@
 ---
 
 ## Current Phase
+**Phase 34 COMPLETE — Admin Operations Hardening (all 9 sub-tasks done).**
+
+### Phase 34 Summary — Admin Operations Hardening
+
+**34.1** — Held responses audit: false positive. No fix needed.
+
+**34.2** — Audit trail: `admin_audit_log` table (migration 070), `auditLog()` helper wired into 9 admin routes, `AuditLogTab` UI with filter pills + pagination.
+
+**34.3** — Therapist invite flow: removed password field from creation form; backend generates reset token and sends `sendTherapistInvite()` email. 72-hr expiry reusing existing reset columns.
+
+**34.4** — Escalations auto-refresh: 30s `setInterval` with `clearInterval` cleanup in `EscalationsTab`.
+
+**34.5** — Sessions index migration 071: `idx_sessions_started_type` on `(started_at, type)`.
+
+**34.6** — Groups CRUD + dynamic categories: migration 072 drops `group_category` ENUM → `group_categories` lookup table. Full CRUD endpoints (GET/POST/PATCH/DELETE for groups and categories). `GroupsTab` rewritten with categories management panel.
+
+**34.7** — Patterns message button: false positive. Already implemented.
+
+**34.8** — Config tables: migration 073 creates `platform_config` (key TEXT PK, value JSONB). `getConfig()`/`invalidateConfig()` utility with 5-min Redis cache. `getPackages()` in daraja.js, `getCreditCosts()` in creditDeductor.js. All 4 cost spots in peer.js migrated. `GET /admin/config` + `PATCH /admin/config/:key` endpoints. AI cost constant in stats/growth route reads from config. `ConfigTab` UI with packages, credit costs, AI economics editors.
+
+**34.9** — Referrals N+1 fix + UX polish: single `array_agg` JOIN replaces N+1 loop in `GET /admin/referrals`. Success toast in ReferralsTab. Unsaved-changes guard in ContentTab + TherapistsTab panels. `Math.round()` on duration_minutes in CreditsScreen.
+
+---
+
 **Session 32 COMPLETE — AI credit gate (1 free/week, 1cr/session), credit package rebalance (7/20/50), AI context enrichment (birth_year + condition_category), companion name unlock, credits explainer.**
 
 ---

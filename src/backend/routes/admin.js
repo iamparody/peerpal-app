@@ -3,11 +3,22 @@ const { query } = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const cache = require('../services/cache');
 const { refundCredit } = require('../utils/creditDeductor');
+const { getConfig, invalidateConfig } = require('../utils/config');
 
 const router = express.Router();
 
 // All routes in this file require admin role verified from DB.
 router.use(adminAuth);
+
+async function auditLog(adminId, action, targetType, targetId, targetAlias, beforeValue, afterValue) {
+  await query(
+    `INSERT INTO admin_audit_log
+       (admin_id, action, target_type, target_id, target_alias, before_value, after_value)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [adminId, action, targetType || null, targetId != null ? String(targetId) : null,
+     targetAlias || null, beforeValue || null, afterValue || null]
+  ).catch((e) => console.error('[audit]', e.message));
+}
 
 // ─── GET /admin/reports ───────────────────────────────────────────────────────
 router.get('/reports', async (req, res) => {
@@ -53,6 +64,7 @@ router.patch('/emergency/:id/acknowledge', async (req, res) => {
     [req.user.id, req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Log not found or already acknowledged', code: 'NOT_FOUND' });
+  await auditLog(req.user.id, 'emergency.acknowledge', 'emergency', req.params.id, null, 'open', 'acknowledged');
   return res.status(200).json({ acknowledged_at: rows[0].acknowledged_at });
 });
 
@@ -66,6 +78,7 @@ router.patch('/emergency/:id/resolve', async (req, res) => {
     [req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Log not found or already resolved', code: 'NOT_FOUND' });
+  await auditLog(req.user.id, 'emergency.resolve', 'emergency', req.params.id, null, null, 'resolved');
   return res.status(200).json({ resolved_at: rows[0].resolved_at });
 });
 
@@ -77,8 +90,10 @@ router.patch('/reports/:id/action', async (req, res) => {
   }
 
   const { rows: reportRows } = await query(
-    `SELECT gr.id, gr.group_id, gr.reported_user_id, gr.status
-     FROM group_reports gr WHERE gr.id = $1`,
+    `SELECT gr.id, gr.group_id, gr.reported_user_id, gr.status, u.alias AS reported_alias
+     FROM group_reports gr
+     JOIN users u ON u.id = gr.reported_user_id
+     WHERE gr.id = $1`,
     [req.params.id]
   );
   if (!reportRows.length) return res.status(404).json({ error: 'Report not found', code: 'NOT_FOUND' });
@@ -136,6 +151,7 @@ router.patch('/reports/:id/action', async (req, res) => {
     );
   }
 
+  await auditLog(req.user.id, `report.${action}`, 'report', req.params.id, reportRows[0].reported_alias, 'pending', action);
   return res.status(200).json({ action_taken: action });
 });
 
@@ -173,6 +189,7 @@ router.patch('/escalations/:id/resolve', async (req, res) => {
     [req.params.id]
   );
   if (!rowCount) return res.status(404).json({ error: 'Escalation not found or already resolved', code: 'NOT_FOUND' });
+  await auditLog(req.user.id, 'escalation.resolve', 'escalation', req.params.id, null, 'escalated', 'closed');
   return res.status(200).json({ resolved: true });
 });
 
@@ -192,27 +209,29 @@ router.get('/referrals', async (req, res) => {
   const { rows } = await query(
     `SELECT tr.id, tr.struggles, tr.specific_needs, tr.preferred_time, tr.contact_method,
             tr.status, tr.admin_notes, tr.support_style_preference,
-            tr.created_at, tr.updated_at, u.alias
+            tr.created_at, tr.updated_at, u.alias,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'id',                  ti.id,
+                  'status',              ti.status,
+                  'display_name',        tp.display_name,
+                  'photo_url',           tp.photo_url,
+                  'availability_status', tp.availability_status,
+                  'specializations',     tp.specializations
+                ) ORDER BY ti.created_at ASC
+              ) FILTER (WHERE ti.id IS NOT NULL),
+              '[]'
+            ) AS interests
      FROM therapist_referrals tr
      JOIN users u ON u.id = tr.user_id
+     LEFT JOIN therapist_interests ti ON ti.referral_id = tr.id
+     LEFT JOIN therapist_profiles tp ON tp.id = ti.therapist_id
      ${where}
+     GROUP BY tr.id, u.alias
      ORDER BY tr.created_at ASC`,
     params
   );
-
-  // Attach expressed therapist interests to each referral
-  for (const referral of rows) {
-    const { rows: interests } = await query(
-      `SELECT ti.id, ti.status,
-              tp.display_name, tp.photo_url, tp.availability_status, tp.specializations
-       FROM therapist_interests ti
-       JOIN therapist_profiles tp ON tp.id = ti.therapist_id
-       WHERE ti.referral_id = $1
-       ORDER BY ti.created_at ASC`,
-      [referral.id]
-    );
-    referral.interests = interests;
-  }
 
   return res.status(200).json({ referrals: rows });
 });
@@ -227,7 +246,7 @@ router.patch('/referrals/:id', async (req, res) => {
   }
 
   const { rows: refRows } = await query(
-    'SELECT user_id FROM therapist_referrals WHERE id = $1',
+    'SELECT user_id, status AS before_status FROM therapist_referrals WHERE id = $1',
     [req.params.id]
   );
   if (!refRows.length) return res.status(404).json({ error: 'Referral not found', code: 'NOT_FOUND' });
@@ -260,6 +279,9 @@ router.patch('/referrals/:id', async (req, res) => {
     [refRows[0].user_id, JSON.stringify({ referral_id: req.params.id, status, admin_notes })]
   );
 
+  if (status !== undefined) {
+    await auditLog(req.user.id, 'referral.status_change', 'referral', req.params.id, null, refRows[0].before_status, status);
+  }
   return res.status(200).json({ updated: true });
 });
 
@@ -276,12 +298,17 @@ router.get('/risk-flags', async (req, res) => {
 // ─── PATCH /admin/risk-flags/:alias/dismiss ───────────────────────────────────
 // Manually clears a risk flag back to 'low'. Nightly classifier will re-evaluate.
 router.patch('/risk-flags/:alias/dismiss', async (req, res) => {
-  const { rowCount } = await query(
-    `UPDATE users SET risk_level = 'low', updated_at = NOW()
-     WHERE alias = $1 AND risk_level IN ('high', 'critical')`,
+  const { rows: riskRows } = await query(
+    `SELECT risk_level FROM users WHERE alias = $1 AND risk_level IN ('high', 'critical')`,
     [req.params.alias]
   );
-  if (!rowCount) return res.status(404).json({ error: 'Risk flag not found or already cleared', code: 'NOT_FOUND' });
+  if (!riskRows.length) return res.status(404).json({ error: 'Risk flag not found or already cleared', code: 'NOT_FOUND' });
+  const beforeRiskLevel = riskRows[0].risk_level;
+  await query(
+    `UPDATE users SET risk_level = 'low', updated_at = NOW() WHERE alias = $1`,
+    [req.params.alias]
+  );
+  await auditLog(req.user.id, 'risk_flag.dismiss', 'user', null, req.params.alias, beforeRiskLevel, 'low');
   return res.status(200).json({ dismissed: true });
 });
 
@@ -430,7 +457,7 @@ router.get('/stats', async (req, res) => {
 // Growth and sustainability signals: user totals, MAU, conversion, peer fulfillment, AI cost.
 router.get('/stats/growth', async (req, res) => {
   try {
-    const AI_COST_PER_SESSION_KSH = 2.60;
+    const AI_COST_PER_SESSION_KSH = await getConfig('ai_cost_per_session_ksh', 2.60);
 
     const [totalRes, mauRes, paidRes, peerRes, aiRes] = await Promise.all([
       // Total registered members
@@ -568,35 +595,46 @@ router.get('/therapists', async (req, res) => {
 
 // ─── POST /admin/therapists ───────────────────────────────────────────────────
 // Creates a user with role=therapist then inserts a therapist_profiles row.
+// No password is ever set by admin — an invite email with a set-password link is sent instead.
 router.post('/therapists', async (req, res) => {
   const {
-    email, password,
+    email,
     display_name, full_name, credentials, years_experience,
     specializations, languages, session_formats, location,
     statement, plain_language_intro, cultural_competencies, approach_plain,
     photo_url, availability_status,
   } = req.body;
 
-  if (!email || !password || !display_name || !full_name || !credentials) {
+  if (!email || !display_name || !full_name || !credentials) {
     return res.status(400).json({
-      error: 'email, password, display_name, full_name, and credentials are required',
+      error: 'email, display_name, full_name, and credentials are required',
       code: 'MISSING_FIELDS',
     });
   }
 
+  const crypto = require('crypto');
   const bcrypt = require('bcrypt');
   const { generateAlias } = require('../utils/aliasGenerator');
+  const { sendTherapistInvite } = require('../services/emailService');
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
   const alias = await generateAlias();
 
   const { rows: userRows } = await query(
     `INSERT INTO users (email, password_hash, alias, role, consent_version, email_verified)
      VALUES ($1, $2, $3, 'therapist', '1.0', true)
      RETURNING id`,
-    [email.toLowerCase().trim(), passwordHash, alias]
+    [email.toLowerCase().trim(), placeholderHash, alias]
   );
   const userId = userRows[0].id;
+
+  const inviteToken = crypto.randomBytes(32).toString('hex');
+  const inviteHash  = crypto.createHash('sha256').update(inviteToken).digest('hex');
+  await query(
+    `UPDATE users SET reset_token_hash = $1, reset_token_expires = NOW() + INTERVAL '72 hours'
+     WHERE id = $2`,
+    [inviteHash, userId]
+  );
 
   const { rows: profileRows } = await query(
     `INSERT INTO therapist_profiles
@@ -625,6 +663,12 @@ router.post('/therapists', async (req, res) => {
     ]
   );
 
+  try {
+    await sendTherapistInvite(email.toLowerCase().trim(), display_name.trim(), inviteToken);
+  } catch (err) {
+    console.error('[therapist.invite] Email failed:', err.message);
+  }
+  await auditLog(req.user.id, 'therapist.create', 'therapist', userId, alias, null, email.toLowerCase().trim());
   return res.status(201).json({ therapist_id: profileRows[0].id, alias });
 });
 
@@ -665,6 +709,7 @@ router.patch('/therapists/:id', async (req, res) => {
     params
   );
   if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+  await auditLog(req.user.id, 'therapist.edit', 'therapist', req.params.id, null, null, null);
   return res.status(200).json({ updated: true });
 });
 
@@ -904,7 +949,10 @@ router.patch('/permission-flags/:id/resolve', async (req, res) => {
   }
 
   const { rows: flagRows } = await query(
-    `SELECT user_id, permission_id, resolved FROM permission_flags WHERE id = $1`,
+    `SELECT pf.user_id, pf.permission_id, pf.resolved, u.alias AS peer_alias
+     FROM permission_flags pf
+     JOIN users u ON u.id = pf.user_id
+     WHERE pf.id = $1`,
     [req.params.id]
   );
   if (!flagRows.length) {
@@ -945,28 +993,92 @@ router.patch('/permission-flags/:id/resolve', async (req, res) => {
     );
   }
 
+  await auditLog(req.user.id, 'permission_flag.resolve', 'permission_flag', req.params.id, flagRows[0].peer_alias, null, action_taken);
   return res.json({ resolved: true, action_taken });
+});
+
+// ─── GET /admin/group-categories ─────────────────────────────────────────────
+router.get('/group-categories', async (req, res) => {
+  const { rows } = await query(
+    `SELECT slug, label, sort_order FROM group_categories ORDER BY sort_order ASC, slug ASC`
+  );
+  return res.status(200).json({ categories: rows });
+});
+
+// ─── POST /admin/group-categories ────────────────────────────────────────────
+router.post('/group-categories', async (req, res) => {
+  const { slug, label } = req.body;
+  if (!slug || !/^[a-z0-9_]+$/.test(slug)) {
+    return res.status(400).json({ error: 'slug must be lowercase letters, digits, or underscores', code: 'INVALID_SLUG' });
+  }
+  if (!label || !label.trim()) {
+    return res.status(400).json({ error: 'label is required', code: 'MISSING_FIELD' });
+  }
+  const { rows: maxRows } = await query(`SELECT COALESCE(MAX(sort_order), 0) AS max FROM group_categories`);
+  const nextOrder = (maxRows[0].max || 0) + 1;
+  try {
+    const { rows } = await query(
+      `INSERT INTO group_categories (slug, label, sort_order) VALUES ($1, $2, $3) RETURNING *`,
+      [slug.toLowerCase(), label.trim(), nextOrder]
+    );
+    return res.status(201).json({ category: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Category slug already exists', code: 'DUPLICATE' });
+    throw err;
+  }
+});
+
+// ─── PATCH /admin/group-categories/:slug ─────────────────────────────────────
+router.patch('/group-categories/:slug', async (req, res) => {
+  const { label, sort_order } = req.body;
+  const setClauses = [];
+  const params = [];
+  let idx = 1;
+  if (label !== undefined)      { setClauses.push(`label = $${idx++}`);      params.push(label.trim()); }
+  if (sort_order !== undefined) { setClauses.push(`sort_order = $${idx++}`); params.push(sort_order); }
+  if (!setClauses.length) return res.status(400).json({ error: 'No fields to update', code: 'MISSING_FIELDS' });
+  params.push(req.params.slug);
+  const { rowCount } = await query(
+    `UPDATE group_categories SET ${setClauses.join(', ')} WHERE slug = $${idx}`,
+    params
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Category not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ updated: true });
+});
+
+// ─── DELETE /admin/group-categories/:slug ────────────────────────────────────
+router.delete('/group-categories/:slug', async (req, res) => {
+  const { rows: usageRows } = await query(
+    `SELECT COUNT(*) AS cnt FROM groups WHERE category_slug = $1`,
+    [req.params.slug]
+  );
+  if (parseInt(usageRows[0].cnt) > 0) {
+    return res.status(409).json({ error: 'Category is in use by one or more groups', code: 'IN_USE' });
+  }
+  const { rowCount } = await query(`DELETE FROM group_categories WHERE slug = $1`, [req.params.slug]);
+  if (!rowCount) return res.status(404).json({ error: 'Category not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ deleted: true });
 });
 
 // ─── POST /admin/groups ──────────────────────────────────────────────────────
 router.post('/groups', async (req, res) => {
-  const VALID_CATEGORIES = ['anxiety','depression','ocd','adhd','grief','loneliness','stress','general_support'];
-  const { name, condition_category, description } = req.body;
+  const { name, category_slug, description } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'name is required', code: 'MISSING_FIELD' });
   }
-  if (!VALID_CATEGORIES.includes(condition_category)) {
-    return res.status(400).json({
-      error: `condition_category must be one of: ${VALID_CATEGORIES.join(', ')}`,
-      code: 'INVALID_CATEGORY',
-    });
+
+  const { rows: catRows } = await query(
+    `SELECT slug FROM group_categories WHERE slug = $1`, [category_slug]
+  );
+  if (!catRows.length) {
+    return res.status(400).json({ error: 'category_slug is not a valid category', code: 'INVALID_CATEGORY' });
   }
 
   const { rows } = await query(
-    `INSERT INTO groups (name, condition_category, description, created_by)
+    `INSERT INTO groups (name, category_slug, description, created_by)
      VALUES ($1, $2, $3, $4) RETURNING id`,
-    [name.trim(), condition_category, description?.trim() || null, req.user.id]
+    [name.trim(), category_slug, description?.trim() || null, req.user.id]
   );
   return res.status(201).json({ group_id: rows[0].id });
 });
@@ -974,16 +1086,74 @@ router.post('/groups', async (req, res) => {
 // ─── GET /admin/groups ───────────────────────────────────────────────────────
 router.get('/groups', async (req, res) => {
   const { rows } = await query(
-    `SELECT g.id, g.name, g.condition_category, g.is_active, g.created_at,
+    `SELECT g.id, g.name, g.category_slug, gc.label AS category_label,
+            g.description, g.is_active, g.created_at,
             COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count,
             (SELECT MAX(gm2.created_at) FROM group_messages gm2
              WHERE gm2.group_id = g.id AND gm2.is_deleted = false) AS last_post_at
      FROM groups g
+     JOIN group_categories gc ON gc.slug = g.category_slug
      LEFT JOIN group_memberships gm ON gm.group_id = g.id
-     GROUP BY g.id
+     GROUP BY g.id, gc.label
      ORDER BY g.name ASC`
   );
   return res.status(200).json({ groups: rows });
+});
+
+// ─── PATCH /admin/groups/:id ─────────────────────────────────────────────────
+router.patch('/groups/:id', async (req, res) => {
+  const { name, category_slug, description } = req.body;
+  const setClauses = ['updated_at = NOW()'];
+  const params = [];
+  let idx = 1;
+
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ error: 'name cannot be empty', code: 'MISSING_FIELD' });
+    setClauses.push(`name = $${idx++}`); params.push(name.trim());
+  }
+  if (category_slug !== undefined) {
+    const { rows: catRows } = await query(`SELECT slug FROM group_categories WHERE slug = $1`, [category_slug]);
+    if (!catRows.length) return res.status(400).json({ error: 'category_slug is not valid', code: 'INVALID_CATEGORY' });
+    setClauses.push(`category_slug = $${idx++}`); params.push(category_slug);
+  }
+  if (description !== undefined) { setClauses.push(`description = $${idx++}`); params.push(description?.trim() || null); }
+
+  if (params.length === 0) return res.status(400).json({ error: 'No fields to update', code: 'MISSING_FIELDS' });
+
+  params.push(req.params.id);
+  const { rowCount } = await query(
+    `UPDATE groups SET ${setClauses.join(', ')} WHERE id = $${idx}`, params
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Group not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ updated: true });
+});
+
+// ─── PATCH /admin/groups/:id/status ──────────────────────────────────────────
+router.patch('/groups/:id/status', async (req, res) => {
+  const { is_active } = req.body;
+  if (typeof is_active !== 'boolean') {
+    return res.status(400).json({ error: 'is_active must be boolean', code: 'INVALID_FIELD' });
+  }
+  const { rowCount } = await query(
+    `UPDATE groups SET is_active = $1, updated_at = NOW() WHERE id = $2`,
+    [is_active, req.params.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Group not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ updated: true, is_active });
+});
+
+// ─── DELETE /admin/groups/:id ─────────────────────────────────────────────────
+router.delete('/groups/:id', async (req, res) => {
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*) AS cnt FROM group_memberships WHERE group_id = $1 AND status = 'active'`,
+    [req.params.id]
+  );
+  if (parseInt(countRows[0].cnt) > 0) {
+    return res.status(409).json({ error: 'Cannot delete a group that has active members', code: 'HAS_MEMBERS' });
+  }
+  const { rowCount } = await query(`DELETE FROM groups WHERE id = $1`, [req.params.id]);
+  if (!rowCount) return res.status(404).json({ error: 'Group not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ deleted: true });
 });
 
 // ─── GET /admin/groups/:id/feed ───────────────────────────────────────────────
@@ -991,12 +1161,13 @@ router.get('/groups', async (req, res) => {
 router.get('/groups/:id/feed', async (req, res) => {
   const [groupResult, announcementResult, promptResult, pollResult, heldResult] = await Promise.all([
     query(
-      `SELECT g.id, g.name, g.condition_category, g.description,
+      `SELECT g.id, g.name, g.category_slug, gc.label AS category_label, g.description,
               COUNT(gm.id) FILTER (WHERE gm.status = 'active') AS member_count
        FROM groups g
+       JOIN group_categories gc ON gc.slug = g.category_slug
        LEFT JOIN group_memberships gm ON gm.group_id = g.id
        WHERE g.id = $1
-       GROUP BY g.id`,
+       GROUP BY g.id, gc.label`,
       [req.params.id]
     ),
     query(
@@ -1111,6 +1282,85 @@ router.delete('/groups/held/:msgId', async (req, res) => {
   );
   if (!rowCount) return res.status(404).json({ error: 'Response not found', code: 'NOT_FOUND' });
   return res.status(200).json({ deleted: true });
+});
+
+// ─── GET /admin/audit-log ────────────────────────────────────────────────────
+router.get('/audit-log', async (req, res) => {
+  const page   = Math.max(1, parseInt(req.query.page) || 1);
+  const limit  = 30;
+  const offset = (page - 1) * limit;
+  const action = req.query.action || null;
+
+  const params = [];
+  let where = '';
+  if (action) {
+    params.push(`${action}%`);
+    where = `WHERE al.action LIKE $${params.length}`;
+  }
+
+  const [logsRes, countRes] = await Promise.all([
+    query(
+      `SELECT al.id, al.action, al.target_type, al.target_id, al.target_alias,
+              al.before_value, al.after_value, al.created_at,
+              u.alias AS admin_alias
+       FROM admin_audit_log al
+       JOIN users u ON u.id = al.admin_id
+       ${where}
+       ORDER BY al.created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM admin_audit_log al ${where}`,
+      params
+    ),
+  ]);
+
+  return res.json({
+    logs:  logsRes.rows,
+    total: parseInt(countRes.rows[0].total),
+    page,
+    pages: Math.ceil(parseInt(countRes.rows[0].total) / limit),
+  });
+});
+
+// ─── GET /admin/config ────────────────────────────────────────────────────────
+// Returns all platform_config keys and their current values.
+router.get('/config', async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT key, value, updated_at FROM platform_config ORDER BY key ASC`
+    );
+    return res.json({ config: rows });
+  } catch (err) {
+    console.error('admin/config GET error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch config', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── PATCH /admin/config/:key ─────────────────────────────────────────────────
+// Upserts a single config key. Body: { value: any }
+router.patch('/config/:key', async (req, res) => {
+  const { key } = req.params;
+  const { value } = req.body;
+  if (value === undefined) {
+    return res.status(400).json({ error: 'value is required', code: 'MISSING_VALUE' });
+  }
+  try {
+    const { rows } = await query(
+      `INSERT INTO platform_config (key, value, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+       RETURNING key, value, updated_at`,
+      [key, JSON.stringify(value)]
+    );
+    await invalidateConfig(key);
+    await auditLog(req.user.id, `config.update`, 'config', key, key, null, JSON.stringify(value));
+    return res.json({ config: rows[0] });
+  } catch (err) {
+    console.error('admin/config PATCH error:', err.message);
+    return res.status(500).json({ error: 'Failed to update config', code: 'QUERY_ERROR' });
+  }
 });
 
 module.exports = router;

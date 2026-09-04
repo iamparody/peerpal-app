@@ -1,13 +1,18 @@
 const https = require('https');
+const { getConfig } = require('./config');
 
-// Credit packages — keyed by id, used by POST /api/credits/purchase
-// peer_credits: usable for peer sessions, therapist requests, groups
-// ai_conversations: monthly AI conversation allowance (resets on purchase)
+// Hardcoded fallback — used when the DB is unavailable or config table is empty.
 const PACKAGES = {
   standard: { price_ksh: 150, credits: 10, ai_conversations: 4,  name: 'Just for now'  },
   plus:     { price_ksh: 300, credits: 25, ai_conversations: 10, name: "I'm committed"  },
   premium:  { price_ksh: 500, credits: 50, ai_conversations: 20, name: 'All of me'      },
 };
+
+// Live packages — loaded from platform_config with 5-min cache, falls back to PACKAGES.
+async function getPackages() {
+  const fromDb = await getConfig('packages', null);
+  return fromDb || PACKAGES;
+}
 
 // Daraja credentials from env — populated when credentials are approved
 const {
@@ -125,4 +130,4 @@ function normalisePhone(raw) {
   throw new Error('Unrecognised phone format — expected Kenyan number (07X or 01X)');
 }
 
-module.exports = { PACKAGES, stkPush, parseCallback, normalisePhone, getAccessToken };
+module.exports = { PACKAGES, getPackages, stkPush, parseCallback, normalisePhone, getAccessToken };

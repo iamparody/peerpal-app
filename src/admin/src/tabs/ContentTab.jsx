@@ -149,6 +149,16 @@ function ArticlePanel({ article, onClose, onSaved }) {
   const [sourceUrl,   setSourceUrl]   = useState(article?.source_url ?? '');
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState('');
+  const [dirty,       setDirty]       = useState(false);
+
+  function markDirty(setter) {
+    return (val) => { setter(val); setDirty(true); };
+  }
+
+  function handleClose() {
+    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    onClose();
+  }
 
   const isStory = contentType === 'story';
 
@@ -183,11 +193,11 @@ function ArticlePanel({ article, onClose, onSaved }) {
 
   return (
     <>
-      <div className="panel-overlay" onClick={onClose} />
+      <div className="panel-overlay" onClick={handleClose} />
       <div className="slide-panel">
         <div className="slide-panel__header">
           <span className="slide-panel__title">{isNew ? 'New Content' : 'Edit Content'}</span>
-          <button className="btn btn--ghost btn--sm" onClick={onClose}>✕</button>
+          <button className="btn btn--ghost btn--sm" onClick={handleClose}>✕</button>
         </div>
 
         <div className="slide-panel__body">
@@ -199,7 +209,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setContentType(t)}
+                  onClick={() => { setContentType(t); setDirty(true); }}
                   className={`btn btn--sm ${contentType === t ? 'btn--primary' : 'btn--ghost'}`}
                   style={{ flex: 1 }}
                 >
@@ -214,7 +224,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => markDirty(setTitle)(e.target.value)}
               placeholder={isStory ? 'Story title…' : 'Article title…'}
               autoFocus
             />
@@ -223,13 +233,13 @@ function ArticlePanel({ article, onClose, onSaved }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="form-group">
               <label className="form-label">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <select value={category} onChange={(e) => markDirty(setCategory)(e.target.value)}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">Read time (min)</label>
-              <input type="number" value={readMins} onChange={(e) => setReadMins(e.target.value)} min={1} max={60} />
+              <input type="number" value={readMins} onChange={(e) => markDirty(setReadMins)(e.target.value)} min={1} max={60} />
             </div>
           </div>
 
@@ -241,7 +251,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
                 <input
                   type="text"
                   value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
+                  onChange={(e) => markDirty(setAuthorName)(e.target.value)}
                   placeholder="e.g. Amina K."
                 />
               </div>
@@ -249,7 +259,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
                 <label className="form-label">Author bio (short)</label>
                 <textarea
                   value={authorBio}
-                  onChange={(e) => setAuthorBio(e.target.value)}
+                  onChange={(e) => markDirty(setAuthorBio)(e.target.value)}
                   rows={2}
                   placeholder="One or two sentences about the author…"
                 />
@@ -259,7 +269,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
                 <input
                   type="url"
                   value={sourceUrl}
-                  onChange={(e) => setSourceUrl(e.target.value)}
+                  onChange={(e) => markDirty(setSourceUrl)(e.target.value)}
                   placeholder="https://author.substack.com/p/story"
                 />
               </div>
@@ -270,7 +280,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
             <label className="form-label">Content {!isStory && '(markdown supported)'}</label>
             <textarea
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => markDirty(setContent)(e.target.value)}
               rows={14}
               placeholder={isStory ? 'The full story…' : 'Article body — use **bold**, *italic*, - bullets…'}
             />
@@ -281,7 +291,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
             <input
               type="text"
               value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              onChange={(e) => markDirty(setTags)(e.target.value)}
               placeholder="anxiety, recovery, Kenya"
             />
           </div>
@@ -290,7 +300,7 @@ function ArticlePanel({ article, onClose, onSaved }) {
         </div>
 
         <div className="slide-panel__footer">
-          <button className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn--ghost" onClick={handleClose}>Cancel</button>
           <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : isNew ? 'Create' : 'Save Changes'}
           </button>

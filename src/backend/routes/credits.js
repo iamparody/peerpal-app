@@ -1,7 +1,7 @@
 ﻿const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
-const { PACKAGES, stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
+const { PACKAGES, getPackages, stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
 const cache = require('../services/cache');
 
 const DARAJA_LIVE = !!(
@@ -61,14 +61,15 @@ router.get('/transactions', auth, async (req, res) => {
 // Returns { payment_url: null } placeholder when credentials not yet configured.
 router.post('/purchase', auth, async (req, res) => {
   const packageId = req.body.package || req.body.package_id;
-  if (!packageId || !PACKAGES[packageId]) {
+  const PKGS = await getPackages();
+  if (!packageId || !PKGS[packageId]) {
     return res.status(400).json({
-      error: `package must be one of: ${Object.keys(PACKAGES).join(', ')}`,
+      error: `package must be one of: ${Object.keys(PKGS).join(', ')}`,
       code: 'INVALID_PACKAGE',
     });
   }
 
-  const pkg = PACKAGES[packageId];
+  const pkg = PKGS[packageId];
 
   if (!DARAJA_LIVE) {
     return res.status(200).json({
@@ -187,7 +188,7 @@ router.post('/mpesa-callback', async (req, res) => {
   ).catch((e) => console.error('Daraja credit error:', e.message));
 
   // Stack AI conversation allowance for the purchased bundle
-  const purchasedPkg = Object.values(PACKAGES).find((p) => p.credits === amount_credits);
+  const purchasedPkg = Object.values(await getPackages()).find((p) => p.credits === amount_credits);
   if (purchasedPkg?.ai_conversations) {
     await query(
       'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
