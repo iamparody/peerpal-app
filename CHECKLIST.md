@@ -1254,7 +1254,7 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] Backend: `src/backend/services/sentry.js` + `app.js` wired; guarded by `SENTRY_DSN` env var
 - [x] Frontend (PWA): `src/frontend/src/services/sentry.js` + `main.jsx` wired; guarded by `VITE_SENTRY_DSN`
 - [x] Admin panel: `src/admin/src/services/sentry.js` created; `initSentry()` called in `main.jsx`; `@sentry/react` added to admin `package.json`
-- [ ] Set `SENTRY_DSN` in Render (backend) and `VITE_SENTRY_DSN` in Vercel (frontend + admin) — **env vars only, create projects at sentry.io first**
+- [x] Set `SENTRY_DSN` in Render (backend) and `VITE_SENTRY_DSN` in Vercel (frontend + admin) ✅
 
 ### 30.4 Peer text conversation screening ✅
 - [x] Intercept relayed messages in `ws/signaling.js`; run regex patterns (Kenyan phone, international phone, email)
