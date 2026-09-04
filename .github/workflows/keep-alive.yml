@@ -1,0 +1,19 @@
+name: Keep Supabase alive
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'   # every 12 hours
+  workflow_dispatch:           # allow manual trigger from GitHub UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.BACKEND_URL }}/health)
+          echo "Health check returned HTTP $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed"
+            exit 1
+          fi

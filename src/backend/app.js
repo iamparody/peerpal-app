@@ -37,7 +37,15 @@ app.use(express.json());
 app.use('/api', apiLimiter);
 
 // ─── Health check ─────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', async (_req, res) => {
+  try {
+    const { query } = require('./db');
+    await query('SELECT 1');
+    res.json({ status: 'ok', db: 'ok' });
+  } catch (err) {
+    res.status(503).json({ status: 'ok', db: 'error', detail: err.message });
+  }
+});
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/auth',          require('./routes/auth'));
