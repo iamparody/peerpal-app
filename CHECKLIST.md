@@ -1881,3 +1881,31 @@ b/index.js — pg Pool with DATABASE_URL, exported query function
 - [x] `src/admin/src/tabs/TherapistsTab.jsx` — unsaved changes warning before closing panel
 - [x] `src/frontend/src/screens/CreditsScreen.jsx` — round `duration_minutes` display in transaction history
 - [x] `src/frontend/src/screens/CreditsScreen.jsx` — `therapist_referral` channel already covered by `channel === 'referral'` in txLabel (false positive)
+
+---
+
+## Phase 35 — Life-Domain Peer Routing & Resolution Tools (post-rollout)
+
+> Logged 2026-09-06. Do not implement until core rollout is stable and validated.
+
+### Vision
+Expand PeerPal from emotional support into root-cause resolution. Users don't just talk about their problems — they get connected to peers who have lived-experience expertise in the domain driving their distress.
+
+### 35.1 — Life-domain skill taxonomy expansion
+Extend the existing peer competency system (Phase 31) with life-domain skill categories alongside emotional skills:
+- `financial_literacy` — budgeting, debt management, financial stress
+- `sobriety_support` — alcohol/substance harm reduction, streak accountability
+- `burnout_recovery` — work pressure, boundary-setting, rest frameworks
+- Grief stays in Groups (peer groups > solo tooling for grief)
+
+### 35.2 — Life-domain peer routing
+Routing engine already works by skill + permission. Add life-domain permissions that map to peer request topic tags. A peer trained in financial literacy gets routed financial-stress requests — no new architecture needed, only taxonomy additions and new scenario content.
+
+### 35.3 — In-app resolution tools
+Lightweight tools that connect to existing mood data:
+- Budgeting pressure tracker — income/expense log with a "financial stress score" that surfaces in mood correlation
+- Drinks calendar — harm-reduction streak tracker (requires clinical input before build, same gate as Phase 24)
+- Burnout check-in — structured weekly reflection, separate from mood log, produces a burnout trend score
+
+### 35.4 — Training scenarios for life domains
+New branching scenarios for each life-domain skill, following the Phase 31 scenario format. Requires subject-matter review before `PEER_SCREENING_LIVE=true` for these skills in production.
