@@ -1909,3 +1909,162 @@ Lightweight tools that connect to existing mood data:
 
 ### 35.4 — Training scenarios for life domains
 New branching scenarios for each life-domain skill, following the Phase 31 scenario format. Requires subject-matter review before `PEER_SCREENING_LIVE=true` for these skills in production.
+
+---
+
+## Phase 36 — AI Pipeline Hardening (close before next AI capability)
+
+### 36.0 — Commit AI pipeline work and apply migration ⚠️ BLOCKER
+- [ ] Commit all uncommitted AI pipeline files to git:
+  - `src/backend/db/index.js` — `transaction()` helper
+  - `src/backend/routes/ai.js` — full pipeline integration
+  - `src/backend/ai/pipelinePersistence.js` — transactional persistence + event logging
+  - `src/backend/ai/pipelinePersistence.test.js` — 15 failure-injection tests
+  - `src/backend/migrations/075_ai_pipeline.sql` — 4 audit tables
+  - `src/backend/package.json` + `package-lock.json` — updated deps
+  - `docs/ai-spec/` — any spec docs
+- [ ] Run `src/backend/migrations/075_ai_pipeline.sql` against Supabase (SQL editor or migration runner)
+- [ ] Verify all four tables exist: `ai_detected_source`, `ai_detected`, `ai_decided`, `ai_generated`
+- [ ] Verify RLS is enabled on all four tables
+
+**Nothing in the AI pipeline persists until this is done.**
+
+### 36.1 — LLM detection reliability
+Test every conversational detector failure mode. Each must produce: `_fallback=true` in DETECTED_SOURCE → canonical DETECTED (FAIL_CLOSED, not ABSENT) → correct policy → `DETECTION_FALLBACK_APPLIED` event.
+
+Failure modes to cover:
+- [ ] Groq timeout (simulate via `AbortController` / request hang)
+- [ ] Malformed JSON response (non-parseable body)
+- [ ] Missing required field in Groq response (`support_need`, `urgency`, `expressed_emotion` absent)
+- [ ] Invalid enum value (`risk_signal: "UNKNOWN_VALUE"`)
+- [ ] Invalid confidence (out-of-range, wrong type)
+- [ ] Empty response body
+- [ ] Provider error (4xx / 5xx from Groq)
+- [ ] Unexpected extra fields (must not corrupt canonical DETECTED)
+
+**Complete when:** No infrastructure failure path can produce `risk_signal.value = 'ABSENT'` without `_fallback=true` in the source payload.
+
+### 36.2 — Sanitizer threshold versioned config
+- [ ] Extract `40%` strip threshold from `utils/sanitizer.js` and `generator.js` into a named constant: `SANITIZER_STRIP_THRESHOLD`
+- [ ] Expose the constant in the generation config/version so it is persisted and logged alongside `ai_generated` records
+- [ ] Add a comment in `generator.js` documenting why 40% was chosen (or flag for clinical review if rationale is unknown)
+
+**Complete when:** No magic number `0.4` / `40` appears in the sanitizer or generator paths; the value is traceable from config to log.
+
+---
+
+## Phase 37 — Therapist Module Rebuild
+
+> Current therapist module shows a blank prompt ("What's been on your mind?"). Replace with a structured discovery and booking flow, in-app video/voice sessions, and a split-payment escrow model.
+
+### 37.1 — Counsellor category taxonomy
+- [ ] Migration: `counsellor_categories` table (id, slug, label, description, sort_order); seed with initial set: `general`, `teen`, `children`, `couples`, `students`, `adhd`, `ptsd`, `ocd`, `grief`, `addiction`, `anxiety`, `trauma`, `lgbtq`, `workplace`
+- [ ] Migration: `therapist_categories` junction table (therapist_id → category_id, many-to-many)
+- [ ] Admin: category management (add/edit/deactivate categories, assign categories to therapist profiles)
+
+### 37.2 — Counsellor discovery
+- [ ] Entry point: replace current therapist landing with a category grid (icon + label per category)
+- [ ] Category browse page: filter by `language`, `gender`, `age_range`, `session_rate_per_hour`, `session_rate_per_30min`, `accepts_insurance`, `availability_next_7_days`; paginated; sorted by: recommended, price low–high, earliest available
+- [ ] Counsellor profile card: photo, name, credentials, bio (200 chars), categories, languages, rate, next available slot, "Book" CTA
+- [ ] Full profile page: expanded bio, session format options (video / voice / text), all available slots, reviews average
+
+### 37.3 — Appointment scheduling
+- [ ] Migration: `therapist_availability` (therapist_id, day_of_week, start_time, end_time, timezone, recurs)
+- [ ] Migration: `therapy_bookings` (booking_id, user_id, therapist_id, category_id, session_type `video|voice|text`, scheduled_at, duration_minutes, status `pending|confirmed|in_progress|completed|cancelled|no_show`, platform_fee_pct, therapist_payout, total_charged, escrow_status `held|released|refunded`, session_token, created_at)
+- [ ] `POST /therapy/bookings` — create booking; charge user credits or card; place funds in escrow (`escrow_status=held`); send confirmation to both parties
+- [ ] `PATCH /therapy/bookings/:id/cancel` — refund policy: full refund >24hr; 50% refund 2–24hr; no refund <2hr
+- [ ] `GET /therapy/bookings` — user's upcoming + past bookings
+- [ ] `GET /therapist/bookings` — therapist's schedule view
+
+### 37.4 — In-app video and voice (therapist module only)
+- [ ] Evaluate and select one WebRTC provider: **Daily.co**, **Livekit**, or **Twilio Video** — document choice and rationale before implementation
+- [ ] Migration: `therapy_sessions` (session_id, booking_id, room_url, room_token_user, room_token_therapist, started_at, ended_at, duration_billed_minutes, recording_consent_user, recording_consent_therapist)
+- [ ] `POST /therapy/sessions/start` — called by therapist at session time; creates provider room; returns join tokens for both parties; sets `therapy_bookings.status = in_progress`
+- [ ] `POST /therapy/sessions/:id/end` — therapist or timeout triggers; records `ended_at`; computes `duration_billed_minutes`; triggers escrow release
+- [ ] Frontend: in-app video component (Daily/Livekit SDK embed); mute, camera toggle, end call; session timer visible to both parties; no external link — session stays inside the app
+- [ ] Anti-poaching guard: session tokens are single-use and scoped to `booking_id`; provider room is closed immediately on `end`; therapist contact details (phone/email) are never surfaced in the app UI — `GET /therapist/:id` returns display name + credentials only
+
+### 37.5 — Split-payment and escrow
+- [ ] Platform cut is a configurable percentage stored in `platform_config` (key: `therapist_platform_fee_pct`); default 20%
+- [ ] On booking: total charge = therapist rate; `platform_fee = total × fee_pct`; `therapist_payout = total − platform_fee`; both stored on `therapy_bookings` at time of booking (immutable after)
+- [ ] Escrow release triggers: `therapy_sessions.ended_at` set AND `duration_billed_minutes >= booking.duration_minutes × 0.8` (session must have run ≥80% of booked time to release in full); partial release for partial sessions
+- [ ] Therapist payout: M-Pesa (Daraja B2C) or bank transfer; `POST /admin/payouts/release` — admin-triggered or automatic on escrow release condition
+- [ ] Migration: `therapist_payouts` (payout_id, therapist_id, booking_id, amount, method, status, initiated_at, settled_at)
+- [ ] Session dispute window: 24hr after session end; user or therapist can flag; disputed sessions freeze payout pending admin review
+
+### 37.6 — Session tracking and analytics
+- [ ] Track: sessions booked, sessions completed, no-shows (by party), average session duration, revenue by category, platform net revenue, therapist earnings per period
+- [ ] Admin dashboard: new "Therapy" tab — bookings queue, session status, payout status, dispute queue, revenue split chart
+- [ ] Therapist dashboard: earnings summary, upcoming sessions, completed session history, payout history
+
+**Phase 37 complete when:**
+- User can browse by category, filter, book, and join a session without leaving the app
+- Therapist contact details are never exposed in any API response
+- Escrow releases only after verified session completion
+- Platform fee is configurable from admin without a deploy
+
+---
+
+## Phase 38 — Counsellor and Organisation Activities Marketplace
+
+> Counsellors and organisations can post mental health events (workshops, training, webinars, group sessions). Platform takes a configurable cut of ticket/registration revenue.
+
+### 38.1 — Activities schema
+- [ ] Migration: `activity_organisers` (organiser_id, user_id OR therapist_id, org_name, verified, bio, website)
+- [ ] Migration: `activities` (activity_id, organiser_id, title, description, category_slug, format `online|in_person|hybrid`, location, start_at, end_at, capacity, price_per_seat, platform_fee_pct, status `draft|published|cancelled|completed`, created_at)
+- [ ] Migration: `activity_registrations` (registration_id, activity_id, user_id, amount_paid, platform_fee, organiser_payout, escrow_status, registered_at, attended BOOLEAN)
+- [ ] Platform fee configurable in `platform_config` key: `activities_platform_fee_pct`; default 15%
+
+### 38.2 — Organiser tools
+- [ ] `POST /activities` — create activity (organisers only); status starts `draft`
+- [ ] `PATCH /activities/:id/publish` — makes activity publicly visible; validates capacity > 0, price set, start_at in future
+- [ ] `POST /activities/:id/register` — user registers + pays; funds held in escrow
+- [ ] `POST /activities/:id/complete` — organiser marks complete; triggers escrow release to organiser (minus platform fee)
+- [ ] Attendance tracking: `PATCH /activity-registrations/:id/attend` — mark attended (organiser or admin)
+
+### 38.3 — Discovery
+- [ ] `GET /activities` — public list; filter by category, format, date range, price range; sorted by start_at
+- [ ] Activities surface on: Home feed (upcoming near user), Therapist profile page (that therapist's activities), Groups page (org-run events relevant to group topic)
+
+### 38.4 — Admin
+- [ ] Activities tab in admin: all activities, organiser verification queue, dispute/refund handling, payout management, revenue report
+
+**Phase 38 complete when:**
+- An organiser can create, publish, and complete an activity end-to-end
+- Platform fee is released only after organiser marks complete
+- Revenue split is correct and auditable per registration
+
+---
+
+## Phase 39 — Infrastructure: Login Lag, Load Balancing, Blue/Green Deployment
+
+> Current login shows noticeable lag. Address root cause before user growth makes it critical.
+
+### 39.1 — Login lag diagnosis
+- [ ] Profile the login route end-to-end: measure time at DB query, bcrypt compare, JWT sign, email lookup separately — identify which step is slow
+- [ ] Check DB connection pool exhaustion under load: if `max: 20` connections are all held, new requests queue — measure wait time
+- [ ] Check bcrypt cost factor — `bcryptjs` default rounds=10 adds ~100ms; consider `argon2` or tuning rounds to 12 max
+- [ ] If Redis is used for session cache on login path: measure Redis latency
+
+### 39.2 — Connection pool and query tuning
+- [ ] Set `connectionTimeoutMillis` and `idleTimeoutMillis` explicitly per environment (prod vs dev)
+- [ ] Add a DB health-check route (`GET /health/db`) that measures pool queue depth — use this to detect saturation before users feel it
+- [ ] Index audit: confirm `users.email` has a unique index (login lookup); confirm `sessions.user_id` is indexed
+
+### 39.3 — Load balancing
+- [ ] Current deploy target (Railway / Render): document how horizontal scaling is triggered (autoscale config or manual replica count)
+- [ ] Ensure all state is external (DB + Redis only) — no in-process session state that breaks with multiple instances
+- [ ] Sticky sessions: not needed if JWT is stateless — confirm no in-memory state that requires affinity
+- [ ] Add `X-Request-Id` header propagation for tracing across instances
+
+### 39.4 — Blue/green deployment
+- [ ] Document the current deploy strategy (rolling? instant cutover?)
+- [ ] Railway/Render blue/green pattern: run new version alongside old; health-check new version before cutting traffic; instant rollback path
+- [ ] DB migration compatibility: every migration must be backwards-compatible with the old version (add columns with defaults, never drop or rename in the same deploy as the code that uses them)
+- [ ] Zero-downtime migration checklist: expand/contract pattern — add column → deploy → backfill → remove old column in a later deploy
+
+### 39.5 — Backup and recovery
+- [ ] Confirm Supabase point-in-time recovery is enabled and retention period is set (minimum 7 days)
+- [ ] Document recovery procedure: what steps restore the DB to a known-good state after a bad migration
+- [ ] Redis backup: if Redis holds session cache, a wipe is non-fatal (users re-login); document this so it is not treated as a crisis
+- [ ] Runbook: login failure → checklist of where to look (DB pool, Redis, auth service, bcrypt overhead)

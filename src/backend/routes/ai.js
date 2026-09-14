@@ -1,10 +1,15 @@
 const express = require('express');
 const Groq = require('groq-sdk');
+const { v4: uuidv4 } = require('uuid');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
-const { classify } = require('../utils/riskClassifier');
-const { sanitize, stripHtml } = require('../utils/sanitizer');
+const { stripHtml } = require('../utils/sanitizer');
 const cache = require('../services/cache');
+const pipeline     = require('../ai/pipeline');
+const policyEngine = require('../ai/policyEngine');
+const generator    = require('../ai/generator');
+const { canDeliver } = require('../ai/schemas');
+const { persistPipelineRecords, logPipelineEvents } = require('../ai/pipelinePersistence');
 
 
 const MAX_INPUT_LEN = 2000;
@@ -246,34 +251,21 @@ router.post('/session/:id/message', auth, async (req, res) => {
     return res.status(429).json({ error: 'Daily AI token limit reached', code: 'TOKEN_LIMIT' });
   }
 
-  // ── Risk classification ───────────────────────────────────────────────────
-  const riskResult = classify(cleanInput);
+  // ── Build OBSERVED record ─────────────────────────────────────────────────
+  const observedId = uuidv4();
+  const observed = {
+    record_id:      observedId,
+    user_id:        userId,
+    source:         'SESSION_MESSAGE',
+    created_at:     new Date().toISOString(),
+    session_id:     req.params.id,
+    content_type:   'TEXT',
+    content_ref:    observedId,
+    schema_version: '1.0.0',
+  };
 
-  if (riskResult?.severity === 'critical') {
-    // Paused session — do NOT call Groq
-    await query(
-      `INSERT INTO ai_interactions (user_id, session_id, input_text, output_text, flagged, flag_reason)
-       VALUES ($1, $2, $3, '', true, $4)`,
-      [userId, req.params.id, cleanInput, `${riskResult.category}: ${riskResult.keyword}`]
-    );
-    await query(
-      `INSERT INTO escalation_logs (user_id, session_id, trigger_type, trigger_detail, escalated_to)
-       VALUES ($1, $2, 'keyword', $3, 'emergency')`,
-      [userId, req.params.id, `${riskResult.category}: ${riskResult.keyword}`]
-    );
-    // Alert all admins
-    await query(
-      `INSERT INTO notifications (user_id, type, payload, channel)
-       SELECT id, 'emergency_alert', $1, 'in_app'
-       FROM users WHERE role = 'admin' AND is_active = true`,
-      [JSON.stringify({ source: 'ai_critical', session_id: req.params.id, category: riskResult.category })]
-    );
-    return res.status(200).json({ action: 'emergency', message: null, flagged: true });
-  }
-
-  // ── Assemble messages for Groq ────────────────────────────────────────────
+  // ── Rebuild system prompt on cache miss ───────────────────────────────────
   if (!sessionData.systemPrompt) {
-    // Rebuild system prompt if cache was lost (server restart)
     const { rows: pRows } = await query('SELECT * FROM ai_personas WHERE user_id = $1', [userId]);
     const { rows: mRows } = await query(
       'SELECT mood_level, tags, created_at FROM moods WHERE user_id = $1 ORDER BY created_at DESC LIMIT 3',
@@ -281,102 +273,153 @@ router.post('/session/:id/message', auth, async (req, res) => {
     );
     const { rows: uRows } = await query('SELECT alias FROM users WHERE id = $1', [userId]);
     sessionData.systemPrompt = buildSystemPrompt(pRows[0], mRows, uRows[0]?.alias);
-    sessionData.messages = [];
+    sessionData.messages  = [];
     sessionData.flagCount = 0;
   }
 
-  // Inject elevated care note if this is a high-severity interaction
-  let systemOverride = sessionData.systemPrompt;
-  if (riskResult?.severity === 'high') {
-    systemOverride += '\n\n[ELEVATED CARE MODE]: The user has expressed significant distress. Respond with extra empathy and gently introduce emergency resources (Emergency button or Befrienders Kenya 0800 723 253) as part of your reply.';
+  // ── Run detection pipeline ────────────────────────────────────────────────
+  const { detected, sources } = await pipeline.run(cleanInput, observed, {
+    sessionContext: sessionData.messages,
+  });
+
+  // ── Policy decision ───────────────────────────────────────────────────────
+  // effectiveUrgency (R7 upshift) is stripped from the DECIDED schema but logged
+  // separately in the POLICY_DECISION event (Section 3.11).
+  const decidedRaw = policyEngine.decide(detected);
+  const decided    = policyEngine.buildDecided(detected);
+
+  // ── CRISIS_RESPONSE: deterministic path — Groq not invoked (Section 3.6) ──
+  if (decided.strategy === 'CRISIS_RESPONSE') {
+    const crisisGenerated = await generator.generate(decided, {
+      systemPrompt: '', messages: [], userMessage: cleanInput,
+    });
+
+    const triggerDetail = sources.keyword?._matched_category
+      ? `keyword: ${sources.keyword._matched_category}`
+      : `risk_signal: ${detected.risk_signal.value}`;
+
+    await Promise.all([
+      query(
+        `INSERT INTO ai_interactions
+           (user_id, session_id, input_text, output_text, flagged, flag_reason)
+         VALUES ($1,$2,$3,$4,true,$5)`,
+        [userId, req.params.id, cleanInput, crisisGenerated.content, triggerDetail]
+      ),
+      query(
+        `INSERT INTO escalation_logs
+           (user_id, session_id, trigger_type, trigger_detail, escalated_to)
+         VALUES ($1,$2,'keyword',$3,'emergency')`,
+        [userId, req.params.id, triggerDetail]
+      ),
+      query(
+        `INSERT INTO notifications (user_id, type, payload, channel)
+         SELECT id, 'emergency_alert', $1, 'in_app'
+         FROM users WHERE role = 'admin' AND is_active = true`,
+        [JSON.stringify({ source: 'ai_critical', session_id: req.params.id, risk_signal: detected.risk_signal.value })]
+      ),
+      persistPipelineRecords(req.params.id, userId, observed, detected, decided, crisisGenerated, sources).catch(
+        (err) => console.error('[pipeline:persist] crisis:', err.message)
+      ),
+    ]);
+
+    logPipelineEvents(userId, req.params.id, detected, decided, sources, decidedRaw.effectiveUrgency);
+
+    return res.status(200).json({
+      response_text:      canDeliver(crisisGenerated) ? crisisGenerated.content : null,
+      action:             'emergency',
+      flagged:            true,
+      session_flag_count: sessionData.flagCount,
+    });
+  }
+
+  // ── Generate response ─────────────────────────────────────────────────────
+  const generated = await generator.generate(decided, {
+    systemPrompt: sessionData.systemPrompt,
+    messages:     sessionData.messages,
+    userMessage:  cleanInput,
+  });
+
+  // Delivery guard — FAILED generated output is never returned to the user
+  if (!canDeliver(generated)) {
+    persistPipelineRecords(req.params.id, userId, observed, detected, decided, generated, sources).catch(
+      (err) => console.error('[pipeline:persist] failed-generation:', err.message)
+    );
+    logPipelineEvents(userId, req.params.id, detected, decided, sources, decidedRaw.effectiveUrgency);
+    return res.status(200).json({
+      response_text:      'I want to make sure I respond to you well. Could you share a bit more about what you mean?',
+      flagged:            false,
+      session_flag_count: sessionData.flagCount,
+      action:             null,
+    });
+  }
+
+  const responseText = generated.content;
+  const flagged      = decided.escalation_action !== 'NONE';
+  const flagReason   = flagged ? `${decided.escalation_action}: ${decided.reason_code}` : null;
+
+  if (decided.escalation_action === 'ESCALATE_TO_HUMAN') {
     sessionData.flagCount++;
   }
 
-  const messages = [
-    { role: 'system', content: systemOverride },
-    ...sessionData.messages,
-    { role: 'user', content: cleanInput },
-  ];
-
-  // ── Call Groq ─────────────────────────────────────────────────────────────
-  let rawOutput = '';
-  let tokensUsed = 0;
-  try {
-    const completion = await getGroq().chat.completions.create({
-      model: PRIMARY_MODEL,
-      messages,
-      max_tokens: 600,
-    });
-    rawOutput = completion.choices[0]?.message?.content || '';
-    tokensUsed = completion.usage?.total_tokens || 0;
-  } catch (primaryErr) {
-    console.warn('Groq primary model failed, trying fallback:', primaryErr.message);
-    try {
-      const completion = await getGroq().chat.completions.create({
-        model: FALLBACK_MODEL,
-        messages,
-        max_tokens: 600,
-      });
-      rawOutput = completion.choices[0]?.message?.content || '';
-      tokensUsed = completion.usage?.total_tokens || 0;
-    } catch (fallbackErr) {
-      console.error('Groq fallback model failed:', fallbackErr.message);
-      return res.status(503).json({ error: 'AI service temporarily unavailable', code: 'AI_UNAVAILABLE' });
-    }
-  }
-  if (!tokensUsed) tokensUsed = Math.ceil((cleanInput.length + rawOutput.length) / 4);
-
-  // ── Sanitize output ───────────────────────────────────────────────────────
-  const responseText = sanitize(rawOutput);
-  const flagged = !!riskResult;
-  const flagReason = riskResult ? `${riskResult.category}: ${riskResult.keyword}` : null;
-
   // ── Token tracking ────────────────────────────────────────────────────────
-  const midnight = new Date();
+  const tokensUsed = Math.ceil((cleanInput.length + responseText.length) / 4);
+  const midnight   = new Date();
   midnight.setHours(24, 0, 0, 0);
   await Promise.all([
     cache.incrby(tokenKey, tokensUsed, Math.floor(midnight.getTime() / 1000)),
     query(
       `INSERT INTO ai_usage (user_id, date, token_count, message_count)
-       VALUES ($1, $2, $3, 1)
+       VALUES ($1,$2,$3,1)
        ON CONFLICT (user_id, date) DO UPDATE
-         SET token_count = ai_usage.token_count + EXCLUDED.token_count,
+         SET token_count   = ai_usage.token_count + EXCLUDED.token_count,
              message_count = ai_usage.message_count + 1,
-             updated_at = NOW()`,
+             updated_at    = NOW()`,
       [userId, todayISO, tokensUsed]
     ),
   ]);
 
   // Update session cache
-  sessionData.messages.push({ role: 'user', content: cleanInput });
+  sessionData.messages.push({ role: 'user',      content: cleanInput });
   sessionData.messages.push({ role: 'assistant', content: responseText });
   sessionCache.set(req.params.id, sessionData);
 
-  // Persist interaction
+  // Persist legacy interaction record (read by session list preview)
   const contextSnapshot = {
-    persona_tone: sessionData.systemPrompt?.match(/tone is (\w+)/)?.[1],
-    flag_count: sessionData.flagCount,
+    persona_tone:      sessionData.systemPrompt?.match(/tone is (\w+)/)?.[1],
+    flag_count:        sessionData.flagCount,
+    strategy:          decided.strategy,
+    escalation_action: decided.escalation_action,
   };
   await query(
-    `INSERT INTO ai_interactions (user_id, session_id, input_text, output_text, context_snapshot, flagged, flag_reason)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO ai_interactions
+       (user_id, session_id, input_text, output_text, context_snapshot, flagged, flag_reason)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
     [userId, req.params.id, cleanInput, responseText, JSON.stringify(contextSnapshot), flagged, flagReason]
   );
 
-  // Second high-severity flag in session → bump risk level + admin alert
-  if (riskResult?.severity === 'high' && sessionData.flagCount >= 2) {
+  // Persist pipeline records to audit tables — non-fatal on failure
+  persistPipelineRecords(req.params.id, userId, observed, detected, decided, generated, sources).catch(
+    (err) => console.error('[pipeline:persist]', err.message)
+  );
+
+  // Fire-and-forget observability events
+  logPipelineEvents(userId, req.params.id, detected, decided, sources, decidedRaw.effectiveUrgency);
+
+  // Second ESCALATE_TO_HUMAN in session → bump user risk level + admin alert
+  if (decided.escalation_action === 'ESCALATE_TO_HUMAN' && sessionData.flagCount >= 2) {
     await query(
       `UPDATE users SET risk_level = CASE
-         WHEN risk_level = 'low' THEN 'medium'
+         WHEN risk_level = 'low'    THEN 'medium'
          WHEN risk_level = 'medium' THEN 'high'
          ELSE risk_level END
        WHERE id = $1`,
       [userId]
     );
     await query(
-      `INSERT INTO escalation_logs (user_id, session_id, trigger_type, trigger_detail, escalated_to)
-       VALUES ($1, $2, 'repeated_flag', $3, 'admin')`,
-      [userId, req.params.id, `2nd high flag in session: ${riskResult.category}`]
+      `INSERT INTO escalation_logs
+         (user_id, session_id, trigger_type, trigger_detail, escalated_to)
+       VALUES ($1,$2,'repeated_flag',$3,'admin')`,
+      [userId, req.params.id, `2nd ESCALATE_TO_HUMAN in session: ${decided.reason_code}`]
     );
     await query(
       `INSERT INTO notifications (user_id, type, payload, channel)
@@ -387,10 +430,10 @@ router.post('/session/:id/message', auth, async (req, res) => {
   }
 
   return res.status(200).json({
-    response_text: responseText,
+    response_text:      responseText,
     flagged,
     session_flag_count: sessionData.flagCount,
-    action: null,
+    action:             null,
   });
 });
 

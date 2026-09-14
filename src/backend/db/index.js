@@ -28,4 +28,21 @@ async function getClient() {
   return pool.connect();
 }
 
-module.exports = { query, getClient, pool };
+// Wraps fn(client) in BEGIN/COMMIT/ROLLBACK. Releases the client on exit.
+// Throws on either the fn body or the COMMIT — caller handles.
+async function transaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { query, getClient, transaction, pool };
