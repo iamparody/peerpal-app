@@ -107,11 +107,6 @@ router.post('/condition', auth, async (req, res) => {
     });
   }
 
-  await query(
-    'UPDATE users SET condition_category = $1, updated_at = NOW() WHERE id = $2',
-    [condition_category, req.user.id]
-  );
-
   // Auto-join the matching group
   const { rows: groupRows } = await query(
     'SELECT id FROM groups WHERE category_slug = $1 AND is_active = true LIMIT 1',
@@ -135,7 +130,7 @@ router.post('/condition', auth, async (req, res) => {
 // ─── GET /onboarding/status ───────────────────────────────────────────────────
 router.get('/status', auth, async (req, res) => {
   const { rows: userRows } = await query(
-    'SELECT consent_version, persona_created, signup_bonus_credited, welcome_seen, condition_category FROM users WHERE id = $1',
+    'SELECT consent_version, persona_created, signup_bonus_credited, welcome_seen FROM users WHERE id = $1',
     [req.user.id]
   );
 
@@ -148,10 +143,20 @@ router.get('/status', auth, async (req, res) => {
     [req.user.id]
   );
 
+  // condition_selected tracks group_memberships, not a users column — POST
+  // /onboarding/condition joins the matching group as its only side effect
+  // (users.condition_category was dropped as collateral damage by migration
+  // 072's `DROP TYPE group_category CASCADE`; there is no per-user record of
+  // the raw category choice anymore, only of the resulting group membership).
+  const { rows: membershipRows } = await query(
+    "SELECT 1 FROM group_memberships WHERE user_id = $1 AND status = 'active' LIMIT 1",
+    [req.user.id]
+  );
+
   return res.status(200).json({
     consent: Boolean(user.consent_version),
     persona: user.persona_created,
-    condition_selected: Boolean(user.condition_category),
+    condition_selected: membershipRows.length > 0,
     first_mood: moodRows.length > 0,
     signup_bonus: user.signup_bonus_credited,
     welcome_seen: user.welcome_seen,

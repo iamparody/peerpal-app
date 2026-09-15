@@ -61,7 +61,7 @@ export default function GroupDetailScreen() {
   );
 
   const { group, is_member, membership_status } = data;
-  const meta    = groupMeta(group.condition_category);
+  const meta    = groupMeta(group.category_slug);
   const isBanned = membership_status === 'banned';
 
   // Current prompt preview (for non-members who can't fetch /feed — feed will 403)

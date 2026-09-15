@@ -707,7 +707,7 @@ export default function GroupChatScreen() {
   const prompt     = data?.prompt;
   const poll       = data?.poll;
   const totalPages = data?.pages ?? 1;
-  const meta       = group ? groupMeta(group.condition_category) : null;
+  const meta       = group ? groupMeta(group.category_slug) : null;
 
   useEffect(() => {
     if (isError) navigate(`/groups/${groupId}`, { replace: true });

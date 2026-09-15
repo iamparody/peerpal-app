@@ -55,7 +55,7 @@ export default function GroupsScreen() {
           </div>
         ) : (
           groups.map((g) => {
-            const meta = groupMeta(g.condition_category);
+            const meta = groupMeta(g.category_slug);
             return (
               <div
                 key={g.id}

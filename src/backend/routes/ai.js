@@ -114,7 +114,7 @@ router.post('/session/start', auth, async (req, res) => {
   const { context, topic_label } = req.body || {};
 
   const { rows: userRows } = await query(
-    'SELECT persona_created, alias, birth_year, condition_category, free_ai_used_at FROM users WHERE id = $1',
+    'SELECT persona_created, alias, birth_year, free_ai_used_at FROM users WHERE id = $1',
     [req.user.id]
   );
   if (!userRows[0]?.persona_created) {
@@ -145,7 +145,16 @@ router.post('/session/start', auth, async (req, res) => {
   if (user.birth_year) {
     userAge = new Date().getFullYear() - user.birth_year;
   }
-  const conditionCategory = user.condition_category || null;
+  // users.condition_category was dropped by migration 072's `DROP TYPE
+  // group_category CASCADE` — derive it from the active group membership instead.
+  const { rows: categoryRows } = await query(
+    `SELECT g.category_slug FROM group_memberships gm
+     JOIN groups g ON g.id = gm.group_id
+     WHERE gm.user_id = $1 AND gm.status = 'active'
+     LIMIT 1`,
+    [req.user.id]
+  );
+  const conditionCategory = categoryRows[0]?.category_slug || null;
 
   let persona = await cache.get(`persona:${req.user.id}`);
   if (!persona) {
