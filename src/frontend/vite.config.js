@@ -24,6 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB — bundle exceeds 2 MiB default
         navigateFallback: '/index.html',
         // Pull Firebase messaging into the Workbox-generated SW so there is only
         // ONE service worker at scope '/'. Without this, firebase-messaging-sw.js
