@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS therapy_disputes CASCADE;

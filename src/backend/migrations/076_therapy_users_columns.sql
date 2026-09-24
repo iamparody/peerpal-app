@@ -1,0 +1,4 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS therapy_consent_version VARCHAR(10) NULL,
+  ADD COLUMN IF NOT EXISTS therapy_consented_at    TIMESTAMPTZ NULL,
+  ADD COLUMN IF NOT EXISTS last_therapy_nudge_at   TIMESTAMPTZ NULL;

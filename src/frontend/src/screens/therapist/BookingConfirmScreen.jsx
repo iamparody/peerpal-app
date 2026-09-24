@@ -54,7 +54,7 @@ export default function BookingConfirmScreen() {
                   <img src={booking.therapist_photo_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
                 ) : null}
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{booking.therapist_name}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{booking.therapist_display_name}</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{booking.therapist_credentials}</div>
                 </div>
               </div>

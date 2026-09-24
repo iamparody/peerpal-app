@@ -1,0 +1,4 @@
+-- PostgreSQL does not support DROP VALUE from an enum.
+-- To roll back: rename the type, create a new one without 'therapist_nudge', and cast all columns.
+-- In practice, removing an unused enum value is safe to defer until the next major schema revision.
+-- No-op rollback: ensure no rows use 'therapist_nudge' before removing manually.

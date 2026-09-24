@@ -17,7 +17,7 @@ export default function TherapyConsentScreen() {
     setSubmitting(true);
     setError('');
     try {
-      await client.post('/api/therapy/consent', { version: '2.0' });
+      await client.post('/api/therapy/consent', { consent_version: '2.0' });
       updateUser({ therapy_consent_version: '2.0' });
       navigate('/therapists', { replace: true });
     } catch (err) {

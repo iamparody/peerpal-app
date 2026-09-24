@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Star, SlidersHorizontal, User, ArrowLeft } from '@phosphor-icons/react';
+import { Star, SlidersHorizontal, User, ArrowLeft, X } from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const FORMAT_LABELS = { video: 'Video', voice: 'Voice', text: 'Text' };
@@ -290,18 +290,34 @@ function FilterSheet({ filters, setFilters, rateRange, onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={onClose}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-      <div style={{ position: 'relative', background: 'var(--color-bg-primary)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', maxHeight: '80vh', overflowY: 'auto', animation: 'sheetSlideUp 280ms ease' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: '100%', maxWidth: 480,
+          background: 'var(--color-bg-primary)',
+          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+          maxHeight: '80vh',
+          display: 'flex', flexDirection: 'column',
+          animation: 'sheetSlideUp 280ms ease',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
         </div>
-        <div style={{ padding: 'var(--space-md)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-            <h3 style={{ margin: 0 }}>Filter</h3>
-            <button onClick={clear} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-calm)', fontWeight: 600 }}>Clear all</button>
-          </div>
 
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px 0', flexShrink: 0 }}>
+          <h3 style={{ margin: 0, fontSize: '1rem' }}>Filter</h3>
+          <button onClick={clear} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-calm)', fontWeight: 600 }}>Clear all</button>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '16px 20px 8px' }}>
           <FilterSection label="Session format">
             {['video', 'voice', 'text'].map(f => (
               <Chip key={f} label={FORMAT_LABELS[f]} active={(local.formats ?? []).includes(f)} onToggle={() => toggleArray('formats', f)} />
@@ -340,7 +356,10 @@ function FilterSheet({ filters, setFilters, rateRange, onClose }) {
               </div>
             </div>
           )}
+        </div>
 
+        {/* Pinned CTA */}
+        <div style={{ padding: '12px 20px 32px', borderTop: '1px solid var(--color-border)', flexShrink: 0 }}>
           <button className="btn btn--primary" style={{ width: '100%' }} onClick={apply}>Apply Filters</button>
         </div>
       </div>

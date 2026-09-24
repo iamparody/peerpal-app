@@ -56,12 +56,18 @@ export default function TherapistBookingScreen() {
   const platformFee = Math.round(rate * 0.2);
   const total = rate + platformFee;
 
-  // Group slots by date
+  // API returns ISO strings — parse into { iso, localDate, displayTime } objects grouped by local date
   const slotsByDate = {};
-  for (const slot of (availData?.slots ?? [])) {
-    const key = slot.date;
-    if (!slotsByDate[key]) slotsByDate[key] = [];
-    slotsByDate[key].push(slot);
+  for (const iso of (availData?.slots ?? [])) {
+    const d = new Date(iso);
+    // Use EAT (Africa/Nairobi, UTC+3) for display
+    const localDate = new Date(d.getTime() + 3 * 3600000);
+    const dateKey   = localDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const hh = String(localDate.getUTCHours()).padStart(2, '0');
+    const mm = String(localDate.getUTCMinutes()).padStart(2, '0');
+    const displayTime = `${hh}:${mm}`;
+    if (!slotsByDate[dateKey]) slotsByDate[dateKey] = [];
+    slotsByDate[dateKey].push({ iso, dateKey, displayTime });
   }
   const dates = Object.keys(slotsByDate).sort();
 
@@ -90,14 +96,15 @@ export default function TherapistBookingScreen() {
 
   async function acquireLock() {
     if (!selectedSlot) return;
+    setError('');
     try {
       const { data } = await client.post('/api/therapy/slot-lock', {
         therapist_id: therapistId,
-        slot_date: selectedSlot.date,
-        slot_time: selectedSlot.start_time,
+        scheduled_at: selectedSlot.iso,
       });
       setSlotLockId(data.lock_id);
-      setLockCountdown(300); // 5 min
+      setLockCountdown(300);
+      return data.lock_id;
     } catch (err) {
       const code = err.response?.data?.code;
       if (code === 'SLOT_TAKEN') {
@@ -105,13 +112,26 @@ export default function TherapistBookingScreen() {
       } else {
         setError('Could not hold this slot. Please try again.');
       }
+      return null;
     }
   }
 
-  async function handleConfirm() {
-    if (!selectedFormat || !selectedSlot || !slotLockId) return;
+  // Single action: lock slot then immediately confirm booking
+  async function handleSchedule() {
+    if (!selectedFormat || !selectedSlot) return;
     setSubmitting(true);
     setError('');
+    // If we don't have a lock yet, acquire one first
+    let lockId = slotLockId;
+    if (!lockId) {
+      lockId = await acquireLock();
+      if (!lockId) { setSubmitting(false); return; }
+    }
+    await handleConfirm(lockId);
+  }
+
+  async function handleConfirm(lockId) {
+    if (!selectedFormat || !selectedSlot || !lockId) return;
     try {
       // category_id comes from therapist's first category
       const categoryId = (therapist.category_ids ?? [])[0] ?? null;
@@ -131,9 +151,9 @@ export default function TherapistBookingScreen() {
       const { data } = await client.post('/api/therapy/bookings', {
         therapist_id: therapistId,
         category_id: categoryId,
-        lock_id: slotLockId,
+        lock_id: lockId,
         session_format: selectedFormat,
-        scheduled_at: `${selectedSlot.date}T${selectedSlot.start_time}:00`,
+        scheduled_at: selectedSlot.iso,
         duration_minutes: selectedDuration,
         phone,
         notes: notes.trim() || null,
@@ -182,8 +202,10 @@ export default function TherapistBookingScreen() {
     );
   }
 
+  const canSchedule = !!(selectedFormat && selectedSlot);
+
   return (
-    <div className="screen" style={{ overflowY: 'auto' }}>
+    <div className="screen" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
@@ -211,7 +233,7 @@ export default function TherapistBookingScreen() {
           </button>
         </div>
       ) : (
-        <div style={{ padding: 'var(--space-md)' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)' }}>
           {/* Format selector */}
           <Section label="Session Format">
             <div style={{ display: 'flex', gap: 10 }}>
@@ -295,17 +317,17 @@ export default function TherapistBookingScreen() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {(slotsByDate[selectedDate] ?? []).map(slot => (
                   <button
-                    key={slot.start_time}
+                    key={slot.iso}
                     onClick={() => { setSelectedSlot(slot); setSlotLockId(null); setLockCountdown(null); setError(''); }}
                     style={{
                       padding: '8px 14px', borderRadius: 20, cursor: 'pointer', fontSize: '0.84rem', fontWeight: 500,
-                      border: selectedSlot?.start_time === slot.start_time ? '2px solid var(--color-calm)' : '1px solid var(--color-border)',
-                      background: selectedSlot?.start_time === slot.start_time ? 'var(--color-calm)' : 'var(--color-surface)',
-                      color: selectedSlot?.start_time === slot.start_time ? '#fff' : 'var(--color-text-primary)',
+                      border: selectedSlot?.iso === slot.iso ? '2px solid var(--color-calm)' : '1px solid var(--color-border)',
+                      background: selectedSlot?.iso === slot.iso ? 'var(--color-calm)' : 'var(--color-surface)',
+                      color: selectedSlot?.iso === slot.iso ? '#fff' : 'var(--color-text-primary)',
                       transition: 'all 120ms ease',
                     }}
                   >
-                    {formatTime(slot.start_time)}
+                    {slot.displayTime}
                   </button>
                 ))}
               </div>
@@ -330,44 +352,53 @@ export default function TherapistBookingScreen() {
             </div>
           </Section>
 
-          {/* Cost summary */}
-          {selectedFormat && (
+          {/* Cost summary — shown once format + duration are chosen */}
+          {selectedFormat && selectedDuration && (
             <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
-              <h4 style={{ fontWeight: 700, marginBottom: 12, fontSize: '0.88rem' }}>Cost Summary</h4>
-              <CostRow label="Session rate" value={`KES ${rate.toLocaleString()}`} />
-              <CostRow label="Platform fee (20%)" value={`KES ${platformFee.toLocaleString()}`} />
-              <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 8, paddingTop: 8 }}>
-                <CostRow label="Total" value={`KES ${total.toLocaleString()}`} bold />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)' }}>Session fee</span>
+                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>KES {total.toLocaleString()}</span>
               </div>
-              <p style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)', marginTop: 6 }}>1 credit will also be deducted from your balance.</p>
+              <p style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}>+ 1 credit deducted from your balance on booking</p>
+            </div>
+          )}
+
+          {/* Slot-lock countdown */}
+          {slotLockId && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12, fontSize: '0.84rem', color: 'var(--color-text-muted)' }}>
+              <Clock size={16} />
+              Slot held for {Math.floor(lockCountdown / 60)}:{String(lockCountdown % 60).padStart(2, '0')}
             </div>
           )}
 
           {error && <p style={{ color: 'var(--color-error, #c0392b)', fontSize: '0.84rem', marginBottom: 12, textAlign: 'center' }}>{error}</p>}
+        </div>
+      )}
 
-          {/* Slot lock + confirm buttons */}
-          {selectedSlot && !slotLockId && (
-            <button className="btn btn--primary" style={{ width: '100%' }} onClick={acquireLock}>
-              Hold this slot
-            </button>
-          )}
-
-          {slotLockId && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12, fontSize: '0.84rem', color: 'var(--color-text-muted)' }}>
-                <Clock size={16} />
-                Slot held for {Math.floor(lockCountdown / 60)}:{String(lockCountdown % 60).padStart(2, '0')}
-              </div>
-              <button
-                className="btn btn--primary"
-                style={{ width: '100%' }}
-                onClick={handleConfirm}
-                disabled={submitting || !selectedFormat}
-              >
-                {submitting ? 'Confirming…' : `Confirm — KES ${total.toLocaleString()}`}
-              </button>
+      {/* ── Schedule footer — flex sibling, not fixed ── */}
+      {!waitingMpesa && (
+        <div style={{
+          flexShrink: 0,
+          padding: '12px 20px 28px',
+          background: 'var(--color-bg-primary)',
+          borderTop: '1px solid var(--color-border)',
+        }}>
+          {selectedFormat && selectedDuration && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)' }}>
+                {selectedSlot ? `KES ${total.toLocaleString()}` : 'Select a time slot'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>1 credit on booking</span>
             </div>
           )}
+          <button
+            className="btn btn--primary"
+            style={{ width: '100%', fontSize: '1rem', padding: '14px', opacity: canSchedule ? 1 : 0.45 }}
+            onClick={canSchedule ? handleSchedule : undefined}
+            disabled={submitting || !canSchedule}
+          >
+            {submitting ? 'Scheduling…' : 'Schedule Session'}
+          </button>
         </div>
       )}
     </div>

@@ -63,7 +63,8 @@ export default function TherapistProfileScreen() {
   }
 
   return (
-    <div className="screen" style={{ overflowY: 'auto', paddingBottom: 100 }}>
+    <div className="screen" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, overflowY: 'auto' }}>
 
       {/* ── Hero ── */}
       <div style={{ position: 'relative' }}>
@@ -288,14 +289,14 @@ export default function TherapistProfileScreen() {
         </Section>
 
       </div>
+    </div>
 
-      {/* ── Sticky CTA ── */}
+      {/* ── Pinned CTA — flex sibling, not fixed ── */}
       <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+        flexShrink: 0,
         padding: '12px 20px 24px',
         background: 'var(--color-bg-primary)',
         borderTop: '1px solid var(--color-border)',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div>
@@ -306,7 +307,7 @@ export default function TherapistProfileScreen() {
             <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}> / 45 min</span>
           </div>
           <div style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>
-            1 credit · +20% fee
+            1 credit on booking
           </div>
         </div>
         <button

@@ -424,7 +424,7 @@ export default function TherapySessionScreen() {
         setBooking(bData.booking);
       } catch (err) {
         const code = err.response?.data?.code;
-        if (code === 'TOKEN_ALREADY_USED') {
+        if (code === 'TOKEN_CONSUMED') {
           setError('This session link has already been used. Please return to your bookings.');
         } else {
           setError(err.response?.data?.message || 'Could not join session. Please try again.');

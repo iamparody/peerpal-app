@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const express  = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -23,7 +23,7 @@ const DISPUTE_WINDOW_HOURS     = 24;
 const BAYESIAN_C               = 10;
 const BAYESIAN_MEAN            = 3.5;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function notifyUser(user_id, type, payload) {
   await query(
@@ -33,7 +33,7 @@ async function notifyUser(user_id, type, payload) {
   ).catch((e) => console.error('[therapy:notify]', e.message));
 }
 
-// ─── GET /therapy/categories ─────────────────────────────────────────────────
+// â”€â”€â”€ GET /therapy/categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/categories', auth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -52,8 +52,8 @@ router.get('/categories', auth, async (req, res) => {
   }
 });
 
-// ─── DELETE /therapy/slot-lock/:id ───────────────────────────────────────────
-// Release lock on back-navigation — only lock owner can delete.
+// â”€â”€â”€ DELETE /therapy/slot-lock/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Release lock on back-navigation â€” only lock owner can delete.
 router.delete('/slot-lock/:id', auth, async (req, res) => {
   try {
     const { rowCount } = await query(
@@ -68,8 +68,8 @@ router.delete('/slot-lock/:id', auth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/therapists ──────────────────────────────────────────────────
-// Discovery list — verified, active, non-suspended therapists.
+// â”€â”€â”€ GET /therapy/therapists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Discovery list â€” verified, active, non-suspended therapists.
 // Filters: category_id, session_format, language, gender, max_rate_kes
 router.get('/therapists', auth, async (req, res) => {
   try {
@@ -110,16 +110,17 @@ router.get('/therapists', auth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/therapists/:id ─────────────────────────────────────────────
+// â”€â”€â”€ GET /therapy/therapists/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/therapists/:id', auth, async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT tp.id, tp.display_name, tp.full_name, tp.photo_url, tp.credentials,
+      `SELECT tp.id, tp.display_name, tp.photo_url, tp.credentials,
               tp.years_experience, tp.languages, tp.session_formats, tp.category_ids,
               tp.location, tp.plain_language_intro, tp.approach_plain,
               tp.cultural_competencies, tp.availability_status, tp.average_rating,
               tp.total_ratings_count, tp.total_sessions, tp.rate_per_session_kes,
-              tp.gender, tp.age, tp.kcpa_level
+              tp.gender, tp.age, tp.kcpa_level, tp.registration_number,
+              tp.show_rating, tp.bayesian_average
        FROM therapist_profiles tp
        WHERE tp.id = $1 AND tp.is_active = true AND tp.is_verified = true AND tp.suspended = false`,
       [req.params.id]
@@ -132,7 +133,7 @@ router.get('/therapists/:id', auth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/therapists/:id/availability ─────────────────────────────────
+// â”€â”€â”€ GET /therapy/therapists/:id/availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns available ISO datetime slots for the next 14 days based on
 // therapist_availability weekly schedule, minus already-booked and locked slots.
 router.get('/therapists/:id/availability', auth, async (req, res) => {
@@ -203,7 +204,7 @@ router.get('/therapists/:id/availability', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/slot-lock ──────────────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/slot-lock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Acquires a 5-min lock on a slot. Returns 409 if taken.
 router.post('/slot-lock', auth, async (req, res) => {
   const { therapist_id, scheduled_at } = req.body;
@@ -228,7 +229,7 @@ router.post('/slot-lock', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/consent ────────────────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/consent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/consent', auth, async (req, res) => {
   const { consent_version } = req.body;
   if (consent_version !== THERAPY_CONSENT_VERSION) {
@@ -252,7 +253,7 @@ router.post('/consent', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/bookings ───────────────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Creates a booking, deducts 1 credit, initiates Daraja STK Push.
 router.post('/bookings', auth, async (req, res) => {
   const {
@@ -322,7 +323,7 @@ router.post('/bookings', auth, async (req, res) => {
     // Release slot lock
     await query('DELETE FROM booking_slot_locks WHERE id = $1', [lock_id]).catch(() => {});
 
-    // Initiate STK Push — store checkout_request_id in payment_reference
+    // Initiate STK Push â€” store checkout_request_id in payment_reference
     let checkoutRequestId = null;
     try {
       const normalisedPhone = normalisePhone(phone);
@@ -339,7 +340,7 @@ router.post('/bookings', auth, async (req, res) => {
       );
     } catch (stkErr) {
       console.error('[therapy.booking.stk]', stkErr.message);
-      // Booking created, STK failed — member can retry payment; booking stays unpaid
+      // Booking created, STK failed â€” member can retry payment; booking stays unpaid
     }
 
     // Notify therapist
@@ -362,8 +363,8 @@ router.post('/bookings', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/mpesa-callback ────────────────────────────────────────────
-// Public — called by Safaricom. Respond immediately, process async.
+// â”€â”€â”€ POST /therapy/mpesa-callback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Public â€” called by Safaricom. Respond immediately, process async.
 router.post('/mpesa-callback', async (req, res) => {
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
@@ -420,8 +421,8 @@ router.post('/mpesa-callback', async (req, res) => {
   }
 });
 
-// ─── POST /therapy/b2c-callback ───────────────────────────────────────────────
-// Public — Daraja B2C result callback for therapist payouts.
+// â”€â”€â”€ POST /therapy/b2c-callback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Public â€” Daraja B2C result callback for therapist payouts.
 router.post('/b2c-callback', async (req, res) => {
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
@@ -452,7 +453,7 @@ router.post('/b2c-callback', async (req, res) => {
   }
 });
 
-// ─── PATCH /therapy/bookings/:id/confirm ─────────────────────────────────────
+// â”€â”€â”€ PATCH /therapy/bookings/:id/confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.patch('/bookings/:id/confirm', therapistAuth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -476,7 +477,7 @@ router.patch('/bookings/:id/confirm', therapistAuth, async (req, res) => {
   }
 });
 
-// ─── PATCH /therapy/bookings/:id/decline ─────────────────────────────────────
+// â”€â”€â”€ PATCH /therapy/bookings/:id/decline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -503,7 +504,7 @@ router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
       [req.therapist.profile_id]
     );
     if (parseInt(recentDeclines[0].cnt) >= 2) {
-      console.warn('[therapy.decline] Therapist flagged — 2+ declines in 30 days:', req.therapist.profile_id);
+      console.warn('[therapy.decline] Therapist flagged â€” 2+ declines in 30 days:', req.therapist.profile_id);
       // Admin notification via notifications to all admins would go here
     }
 
@@ -514,7 +515,7 @@ router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
   }
 });
 
-// ─── PATCH /therapy/bookings/:id/cancel ──────────────────────────────────────
+// â”€â”€â”€ PATCH /therapy/bookings/:id/cancel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Member cancellation with tiered refund policy.
 router.patch('/bookings/:id/cancel', auth, async (req, res) => {
   try {
@@ -531,7 +532,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
     const hoursUntil   = (scheduledAt - Date.now()) / (1000 * 60 * 60);
 
     let creditRefund = false;
-    let mpesaRefundPct = 0; // 0–100
+    let mpesaRefundPct = 0; // 0â€“100
 
     if (hoursUntil > 24) {
       creditRefund = true;
@@ -540,7 +541,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
       creditRefund = false;
       mpesaRefundPct = 50;
     } else {
-      // <2hr — check lifetime grace (first cancellation <2hr gets full refund)
+      // <2hr â€” check lifetime grace (first cancellation <2hr gets full refund)
       const { rows: graceRows } = await query(
         `SELECT COUNT(*) AS cnt FROM therapist_bookings
          WHERE member_user_id = $1
@@ -602,7 +603,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/bookings ────────────────────────────────────────────────────
+// â”€â”€â”€ GET /therapy/bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/bookings', auth, async (req, res) => {
   try {
     const { status } = req.query;
@@ -632,7 +633,7 @@ router.get('/bookings', auth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/bookings/:id ────────────────────────────────────────────────
+// â”€â”€â”€ GET /therapy/bookings/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Member: full booking view. Therapist: includes member alias + notes.
 router.get('/bookings/:id', auth, async (req, res) => {
   try {
@@ -657,7 +658,7 @@ router.get('/bookings/:id', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/sessions/start ────────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/sessions/start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Therapist starts the session. Generates TURN credentials and encrypted tokens.
 router.post('/sessions/start', therapistAuth, async (req, res) => {
   const { booking_id } = req.body;
@@ -716,8 +717,8 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/sessions/:booking_id/join ───────────────────────────────────
-// Member joins an in-progress session. Token is single-use — nulled after delivery.
+// â”€â”€â”€ GET /therapy/sessions/:booking_id/join â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Member joins an in-progress session. Token is single-use â€” nulled after delivery.
 router.get('/sessions/:booking_id/join', auth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -757,7 +758,7 @@ router.get('/sessions/:booking_id/join', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/sessions/:id/end ──────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/sessions/:id/end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
   try {
     const { rows: sessionRows } = await query(
@@ -797,7 +798,7 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
         [session.booking_id]
       );
     } else {
-      // Partial session — flag for admin review; escrow stays held
+      // Partial session â€” flag for admin review; escrow stays held
       await query(
         `UPDATE therapist_bookings
          SET status = 'completed', escrow_status = 'held',
@@ -836,7 +837,7 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/ratings ────────────────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/ratings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/ratings', auth, async (req, res) => {
   const { booking_id, rating, comment } = req.body;
 
@@ -844,7 +845,7 @@ router.post('/ratings', auth, async (req, res) => {
     return res.status(400).json({ error: 'booking_id and rating are required', code: 'MISSING_FIELDS' });
   }
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return res.status(400).json({ error: 'rating must be an integer 1–5', code: 'INVALID_RATING' });
+    return res.status(400).json({ error: 'rating must be an integer 1â€“5', code: 'INVALID_RATING' });
   }
 
   try {
@@ -894,8 +895,8 @@ router.post('/ratings', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/session-notes ─────────────────────────────────────────────
-// Therapist only — member cannot access this endpoint or data.
+// â”€â”€â”€ POST /therapy/session-notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Therapist only â€” member cannot access this endpoint or data.
 router.post('/session-notes', therapistAuth, async (req, res) => {
   const { booking_id, content } = req.body;
   if (!booking_id || !content?.trim()) {
@@ -921,7 +922,7 @@ router.post('/session-notes', therapistAuth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/disputes ───────────────────────────────────────────────────
+// â”€â”€â”€ POST /therapy/disputes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/disputes', auth, async (req, res) => {
   const { booking_id, reason } = req.body;
   if (!booking_id || !reason?.trim()) {
@@ -973,12 +974,358 @@ router.post('/disputes', auth, async (req, res) => {
       [booking_id]
     ).catch(() => {});
 
-    console.warn('[therapy.disputes] New dispute raised — admin alert needed:', disputeId);
+    console.warn('[therapy.disputes] New dispute raised â€” admin alert needed:', disputeId);
 
     return res.status(201).json({ dispute_id: disputeId });
   } catch (err) {
     console.error('[therapy.disputes]', err.message);
     return res.status(500).json({ error: 'Failed to raise dispute', code: 'QUERY_ERROR' });
+  }
+});
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// THERAPIST-SIDE ENDPOINTS  (all require therapistAuth)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// â”€â”€â”€ GET /therapy/therapist/dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/therapist/dashboard', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  try {
+    const now = new Date().toISOString();
+    const in7Days = new Date(Date.now() + 7 * 86400000).toISOString();
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+    const [upcomingRes, pendingRes, earningsRes, profileRes] = await Promise.all([
+      query(
+        `SELECT b.id, b.scheduled_at, b.session_format, b.duration_minutes, b.status,
+                u.alias AS member_alias
+         FROM therapist_bookings b
+         JOIN users u ON u.id = b.member_user_id
+         WHERE b.therapist_id = $1
+           AND b.status IN ('confirmed','in_progress')
+           AND b.scheduled_at BETWEEN $2 AND $3
+         ORDER BY b.scheduled_at ASC
+         LIMIT 20`,
+        [therapistId, now, in7Days]
+      ),
+      query(
+        `SELECT b.id, b.scheduled_at, b.session_format, b.duration_minutes,
+                u.alias AS member_alias
+         FROM therapist_bookings b
+         JOIN users u ON u.id = b.member_user_id
+         WHERE b.therapist_id = $1 AND b.status = 'pending'
+         ORDER BY b.created_at ASC`,
+        [therapistId]
+      ),
+      query(
+        `SELECT COALESCE(SUM(therapist_payout_kes), 0) AS month_earnings
+         FROM therapist_bookings
+         WHERE therapist_id = $1 AND status = 'completed' AND scheduled_at >= $2`,
+        [therapistId, monthStart]
+      ),
+      query(
+        `SELECT average_rating, total_sessions, total_ratings_count
+         FROM therapist_profiles WHERE id = $1`,
+        [therapistId]
+      ),
+    ]);
+
+    return res.json({
+      upcoming_sessions: upcomingRes.rows,
+      pending_requests:  pendingRes.rows,
+      earnings_this_month_kes: parseFloat(earningsRes.rows[0].month_earnings),
+      average_rating:    profileRes.rows[0]?.average_rating ?? null,
+      total_sessions:    profileRes.rows[0]?.total_sessions ?? 0,
+      total_ratings_count: profileRes.rows[0]?.total_ratings_count ?? 0,
+    });
+  } catch (err) {
+    console.error('[therapy.therapist.dashboard]', err.message);
+    return res.status(500).json({ error: 'Failed to load dashboard', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ GET /therapy/therapist/bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/therapist/bookings', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  const { status, page = 1, limit = 20 } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  const conditions = ['b.therapist_id = $1'];
+  const params = [therapistId];
+  let idx = 2;
+
+  if (status) {
+    const allowed = ['pending','confirmed','completed','cancelled','in_progress'];
+    const statuses = status.split(',').filter(s => allowed.includes(s));
+    if (statuses.length) {
+      params.push(statuses);
+      conditions.push(`b.status = ANY($${idx++})`);
+    }
+  }
+
+  try {
+    const { rows } = await query(
+      `SELECT b.id, b.scheduled_at, b.session_format, b.duration_minutes,
+              b.status, b.payment_status, b.notes AS member_notes,
+              b.cancellation_reason, b.created_at,
+              u.alias AS member_alias
+       FROM therapist_bookings b
+       JOIN users u ON u.id = b.member_user_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY b.scheduled_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, parseInt(limit), offset]
+    );
+
+    const { rows: countRows } = await query(
+      `SELECT COUNT(*) AS total FROM therapist_bookings b WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+
+    return res.json({
+      bookings: rows,
+      total: parseInt(countRows[0].total),
+      page: parseInt(page),
+      total_pages: Math.ceil(parseInt(countRows[0].total) / parseInt(limit)),
+    });
+  } catch (err) {
+    console.error('[therapy.therapist.bookings]', err.message);
+    return res.status(500).json({ error: 'Failed to load bookings', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ GET /therapy/therapist/availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/therapist/availability', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  try {
+    const [availRes, bookingsRes] = await Promise.all([
+      query(
+        `SELECT id, day_of_week, start_time, end_time, is_active
+         FROM therapist_availability WHERE therapist_id = $1
+         ORDER BY day_of_week, start_time`,
+        [therapistId]
+      ),
+      query(
+        `SELECT scheduled_at, duration_minutes, status
+         FROM therapist_bookings
+         WHERE therapist_id = $1
+           AND status IN ('confirmed','in_progress')
+           AND scheduled_at >= NOW()
+           AND scheduled_at <= NOW() + INTERVAL '28 days'`,
+        [therapistId]
+      ),
+    ]);
+
+    return res.json({
+      availability: availRes.rows,
+      bookings: bookingsRes.rows,
+    });
+  } catch (err) {
+    console.error('[therapy.therapist.availability]', err.message);
+    return res.status(500).json({ error: 'Failed to load availability', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ PATCH /therapy/therapist/availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.patch('/therapist/availability', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  const { slots } = req.body; // [{ day_of_week, start_time, end_time, is_active }]
+  if (!Array.isArray(slots) || !slots.length) {
+    return res.status(400).json({ error: 'slots array required', code: 'MISSING_FIELDS' });
+  }
+
+  try {
+    // Guard: cannot deactivate a slot that has a confirmed booking
+    const { rows: bookedSlots } = await query(
+      `SELECT EXTRACT(DOW FROM scheduled_at AT TIME ZONE 'Africa/Nairobi') AS dow,
+              TO_CHAR(scheduled_at AT TIME ZONE 'Africa/Nairobi', 'HH24:MI') AS start_time
+       FROM therapist_bookings
+       WHERE therapist_id = $1 AND status IN ('confirmed','in_progress') AND scheduled_at >= NOW()`,
+      [therapistId]
+    );
+
+    const bookedKeys = new Set(bookedSlots.map(r => `${r.dow}::${r.start_time}`));
+
+    for (const slot of slots) {
+      const key = `${slot.day_of_week}::${slot.start_time}`;
+      if (!slot.is_active && bookedKeys.has(key)) {
+        return res.status(409).json({
+          error: `Cannot deactivate slot ${slot.start_time} on day ${slot.day_of_week} â€” a confirmed booking exists`,
+          code: 'SLOT_HAS_BOOKING',
+        });
+      }
+    }
+
+    for (const slot of slots) {
+      await query(
+        `INSERT INTO therapist_availability (id, therapist_id, day_of_week, start_time, end_time, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (therapist_id, day_of_week, start_time)
+         DO UPDATE SET end_time = $5, is_active = $6, updated_at = NOW()`,
+        [uuidv4(), therapistId, slot.day_of_week, slot.start_time, slot.end_time, slot.is_active]
+      );
+    }
+
+    return res.json({ updated: slots.length });
+  } catch (err) {
+    console.error('[therapy.therapist.availability.patch]', err.message);
+    return res.status(500).json({ error: 'Failed to update availability', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ GET /therapy/therapist/payments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/therapist/payments', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  const { page = 1, limit = 20 } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  try {
+    const [rowsRes, summaryRes, countRes] = await Promise.all([
+      query(
+        `SELECT b.id AS booking_id, b.scheduled_at, b.session_format, b.duration_minutes,
+                b.rate_kes, b.platform_fee_kes, b.therapist_payout_kes,
+                p.status AS payout_status, p.mpesa_reference, p.created_at AS payout_date
+         FROM therapist_bookings b
+         LEFT JOIN therapist_payouts p ON p.booking_id = b.id
+         WHERE b.therapist_id = $1 AND b.status = 'completed'
+         ORDER BY b.scheduled_at DESC
+         LIMIT $2 OFFSET $3`,
+        [therapistId, parseInt(limit), offset]
+      ),
+      query(
+        `SELECT
+           COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM scheduled_at) = EXTRACT(MONTH FROM NOW())
+                              AND EXTRACT(YEAR FROM scheduled_at) = EXTRACT(YEAR FROM NOW())
+                             THEN therapist_payout_kes ELSE 0 END), 0) AS month_kes,
+           COALESCE(SUM(therapist_payout_kes), 0) AS lifetime_kes
+         FROM therapist_bookings
+         WHERE therapist_id = $1 AND status = 'completed'`,
+        [therapistId]
+      ),
+      query(
+        `SELECT
+           COALESCE(SUM(CASE WHEN status = 'pending' THEN therapist_payout_kes ELSE 0 END), 0) AS pending_kes,
+           COALESCE(SUM(CASE WHEN status = 'completed' THEN therapist_payout_kes ELSE 0 END), 0) AS completed_kes
+         FROM therapist_payouts p
+         JOIN therapist_bookings b ON b.id = p.booking_id
+         WHERE b.therapist_id = $1`,
+        [therapistId]
+      ),
+    ]);
+
+    return res.json({
+      payments: rowsRes.rows,
+      summary: {
+        month_kes:     parseFloat(summaryRes.rows[0].month_kes),
+        lifetime_kes:  parseFloat(summaryRes.rows[0].lifetime_kes),
+        pending_kes:   parseFloat(countRes.rows[0].pending_kes),
+        completed_kes: parseFloat(countRes.rows[0].completed_kes),
+      },
+      page: parseInt(page),
+    });
+  } catch (err) {
+    console.error('[therapy.therapist.payments]', err.message);
+    return res.status(500).json({ error: 'Failed to load payments', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ GET /therapy/therapist/ratings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/therapist/ratings', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  try {
+    const [ratingsRes, distRes] = await Promise.all([
+      query(
+        `SELECT r.rating, r.comment,
+                TO_CHAR(r.created_at, 'Mon YYYY') AS month_year
+         FROM therapist_ratings r
+         WHERE r.therapist_id = $1 AND r.flagged = false
+         ORDER BY r.created_at DESC
+         LIMIT 50`,
+        [therapistId]
+      ),
+      query(
+        `SELECT rating, COUNT(*) AS cnt
+         FROM therapist_ratings
+         WHERE therapist_id = $1 AND flagged = false
+         GROUP BY rating ORDER BY rating DESC`,
+        [therapistId]
+      ),
+    ]);
+
+    const { rows: profileRows } = await query(
+      `SELECT average_rating, total_ratings_count FROM therapist_profiles WHERE id = $1`,
+      [therapistId]
+    );
+
+    const distribution = [5,4,3,2,1].map(star => ({
+      star,
+      count: parseInt(distRes.rows.find(r => parseInt(r.rating) === star)?.cnt ?? 0),
+    }));
+
+    return res.json({
+      ratings: ratingsRes.rows,
+      distribution,
+      average_rating: profileRows[0]?.average_rating ?? null,
+      total_ratings_count: profileRows[0]?.total_ratings_count ?? 0,
+    });
+  } catch (err) {
+    console.error('[therapy.therapist.ratings]', err.message);
+    return res.status(500).json({ error: 'Failed to load ratings', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ GET /therapy/therapist/profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/therapist/profile', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  try {
+    const { rows } = await query(
+      `SELECT tp.id, tp.display_name, tp.full_name, tp.credentials, tp.photo_url,
+              tp.plain_language_intro, tp.approach_plain, tp.cultural_competencies,
+              tp.languages, tp.session_formats, tp.rate_per_session_kes,
+              tp.availability_status, tp.registration_number, tp.kcpa_level,
+              tp.total_sessions, tp.average_rating, tp.total_ratings_count,
+              tp.is_verified, tp.suspended, tp.age, tp.gender,
+              tp.statement, tp.years_experience
+       FROM therapist_profiles tp WHERE tp.id = $1`,
+      [therapistId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Profile not found', code: 'NOT_FOUND' });
+    return res.json({ profile: rows[0] });
+  } catch (err) {
+    console.error('[therapy.therapist.profile.get]', err.message);
+    return res.status(500).json({ error: 'Failed to load profile', code: 'QUERY_ERROR' });
+  }
+});
+
+// â”€â”€â”€ PATCH /therapy/therapist/profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.patch('/therapist/profile', therapistAuth, async (req, res) => {
+  const therapistId = req.therapist.profile_id;
+  const EDITABLE = [
+    'photo_url', 'plain_language_intro', 'approach_plain', 'cultural_competencies',
+    'languages', 'session_formats', 'rate_per_session_kes', 'availability_status', 'statement',
+  ];
+
+  const updates = {};
+  for (const key of EDITABLE) {
+    if (req.body[key] !== undefined) updates[key] = req.body[key];
+  }
+
+  if (!Object.keys(updates).length) {
+    return res.status(400).json({ error: 'No editable fields provided', code: 'MISSING_FIELDS' });
+  }
+
+  const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+  const values = [therapistId, ...Object.values(updates)];
+
+  try {
+    await query(
+      `UPDATE therapist_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $1`,
+      values
+    );
+    return res.json({ updated: true });
+  } catch (err) {
+    console.error('[therapy.therapist.profile.patch]', err.message);
+    return res.status(500).json({ error: 'Failed to update profile', code: 'QUERY_ERROR' });
   }
 });
 

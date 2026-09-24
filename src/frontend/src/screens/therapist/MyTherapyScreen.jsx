@@ -113,7 +113,7 @@ function RatingModal({ booking, onDone }) {
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} onClick={onDone} />
       <div style={{ position: 'relative', background: 'var(--color-bg-primary)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
         <h3 style={{ marginBottom: 6 }}>Rate your session</h3>
-        <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted)', marginBottom: 20 }}>How was your session with {booking.therapist_name}?</p>
+        <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted)', marginBottom: 20 }}>How was your session with {booking.therapist_display_name}?</p>
 
         {/* Stars */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
@@ -164,7 +164,7 @@ function BookingCard({ booking, tab, onCancel, onRate, onJoin }) {
       {/* Therapist + time */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{booking.therapist_name}</div>
+          <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{booking.therapist_display_name}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{formatEAT(booking.scheduled_at)}</div>
         </div>
         <span style={{
