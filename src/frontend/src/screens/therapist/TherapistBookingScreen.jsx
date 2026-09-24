@@ -25,6 +25,7 @@ export default function TherapistBookingScreen() {
   const navigate = useNavigate();
 
   const [selectedFormat, setSelectedFormat] = useState(null);
+  const [selectedDuration, setSelectedDuration] = useState(60);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [notes, setNotes] = useState('');
@@ -49,7 +50,9 @@ export default function TherapistBookingScreen() {
 
   const therapist = therapistData?.therapist;
   const formats = therapist?.session_formats ?? [];
-  const rate = therapist?.rate_per_session_kes ?? 0;
+  const baseRate = therapist?.rate_per_session_kes ?? 0;
+  // 45-min session is 75% of the 60-min rate
+  const rate = selectedDuration === 45 ? Math.round(baseRate * 0.75) : baseRate;
   const platformFee = Math.round(rate * 0.2);
   const total = rate + platformFee;
 
@@ -115,6 +118,7 @@ export default function TherapistBookingScreen() {
         slot_lock_id: slotLockId,
         session_format: selectedFormat,
         scheduled_at: `${selectedSlot.date}T${selectedSlot.start_time}:00`,
+        duration_minutes: selectedDuration,
         member_notes: notes.trim() || null,
       });
       const bookingId = data.booking_id;
@@ -215,6 +219,30 @@ export default function TherapistBookingScreen() {
                   </button>
                 );
               })}
+            </div>
+          </Section>
+
+          {/* Duration selector */}
+          <Section label="Session Duration">
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[
+                { value: 45, label: '45 min', desc: 'Focus session' },
+                { value: 60, label: '60 min', desc: 'Full session' },
+              ].map(d => (
+                <button
+                  key={d.value}
+                  onClick={() => setSelectedDuration(d.value)}
+                  style={{
+                    flex: 1, padding: '12px 8px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                    border: selectedDuration === d.value ? '2px solid var(--color-calm)' : '1px solid var(--color-border)',
+                    background: selectedDuration === d.value ? 'var(--color-calm-light, #e8f4f8)' : 'var(--color-surface)',
+                    transition: 'all 120ms ease',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: selectedDuration === d.value ? 'var(--color-calm)' : 'var(--color-text-primary)' }}>{d.label}</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{d.desc}</div>
+                </button>
+              ))}
             </div>
           </Section>
 

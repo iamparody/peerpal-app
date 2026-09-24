@@ -6,6 +6,7 @@ import client from '../../api/client';
 
 const FORMAT_LABELS = { video: 'Video', voice: 'Voice', text: 'Text' };
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const GENDER_LABELS = { male: 'Male', female: 'Female', non_binary: 'Non-binary' };
 
 function StarRating({ value, size = 14 }) {
   return (
@@ -33,35 +34,44 @@ function TherapistCard({ therapist, onViewProfile, index }) {
         animation: `cardFadeIn 300ms ease ${index * 60}ms both`,
       }}
     >
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
         {therapist.photo_url ? (
-          <img src={therapist.photo_url} alt={therapist.display_name} style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+          <img src={therapist.photo_url} alt={therapist.display_name} style={{ width: 60, height: 60, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
         ) : (
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-calm-light, #e8f4f8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <User size={28} color="var(--color-calm)" />
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--color-calm-light, #e8f4f8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <User size={30} color="var(--color-calm)" />
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary)', marginBottom: 2 }}>
+          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary)', marginBottom: 1 }}>
             {therapist.display_name}
           </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 3 }}>
             {therapist.credentials}
           </div>
+          {/* Age · Gender */}
+          {(therapist.age || therapist.gender) && (
+            <div style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+              {[
+                therapist.age ? `${therapist.age} yrs` : null,
+                therapist.gender ? (GENDER_LABELS[therapist.gender] ?? therapist.gender) : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
           {therapist.show_rating && therapist.bayesian_average != null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <StarRating value={therapist.bayesian_average} />
-              <span style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
-                ({therapist.total_sessions} sessions)
+              <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>
+                {Number(therapist.bayesian_average).toFixed(1)} ({therapist.total_sessions} sessions)
               </span>
             </div>
           )}
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--color-calm)' }}>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--color-calm)' }}>
             KES {therapist.rate_per_session_kes?.toLocaleString()}
           </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>/ session</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>/ session</div>
         </div>
       </div>
 
@@ -90,123 +100,160 @@ function ProfileSheet({ therapist, onClose, onBook }) {
   const formats = therapist.session_formats ?? [];
   const showRating = therapist.show_rating && therapist.bayesian_average != null;
   const comments = therapist.recent_comments ?? [];
+  const competencies = Array.isArray(therapist.cultural_competencies)
+    ? therapist.cultural_competencies.join(' · ')
+    : therapist.cultural_competencies;
 
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
       onClick={onClose}
     >
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
+
+      {/* Sheet — max 82vh, flex column so CTA stays pinned at bottom */}
       <div
         style={{
           position: 'relative', background: 'var(--color-bg-primary)',
-          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-          maxHeight: '92vh', overflowY: 'auto',
+          borderRadius: '20px 20px 0 0',
+          maxHeight: '82vh',
+          display: 'flex', flexDirection: 'column',
           animation: 'sheetSlideUp 280ms ease',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
+        {/* Drag handle + close row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 16px 0', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
         </div>
-
-        {/* Close */}
-        <button onClick={onClose} style={{ position: 'absolute', right: 16, top: 16, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }} aria-label="Close">
-          <X size={24} />
+        <button onClick={onClose} style={{ position: 'absolute', right: 14, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 6 }} aria-label="Close">
+          <X size={20} />
         </button>
 
-        <div style={{ padding: '16px var(--space-md) var(--space-lg)' }}>
-          {/* Photo + name */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 16px 8px' }}>
+
+          {/* Header row — photo left, info right */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
             {therapist.photo_url ? (
-              <img src={therapist.photo_url} alt={therapist.display_name} style={{ width: 88, height: 88, borderRadius: '50%', objectFit: 'cover', marginBottom: 12 }} />
+              <img src={therapist.photo_url} alt={therapist.display_name}
+                style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 88, height: 88, borderRadius: '50%', background: 'var(--color-calm-light, #e8f4f8)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                <User size={44} color="var(--color-calm)" />
+              <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'var(--color-calm-light,#e8f4f8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <User size={36} color="var(--color-calm)" />
               </div>
             )}
-            <h2 style={{ fontFamily: 'var(--font-editorial)', marginBottom: 4, textAlign: 'center' }}>{therapist.display_name}</h2>
-            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>{therapist.credentials}</p>
-            {therapist.years_experience && (
-              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{therapist.years_experience} years experience</p>
-            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h3 style={{ fontFamily: 'var(--font-editorial)', fontSize: '1.05rem', margin: '0 0 2px' }}>{therapist.display_name}</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '0 0 4px', lineHeight: 1.3 }}>{therapist.credentials}</p>
+              {/* Age · Gender · Experience */}
+              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '0 0 6px' }}>
+                {[
+                  therapist.age ? `${therapist.age} yrs` : null,
+                  therapist.gender ? GENDER_LABELS[therapist.gender] ?? therapist.gender : null,
+                  therapist.years_experience ? `${therapist.years_experience} yrs exp.` : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+              {showRating && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <StarRating value={therapist.bayesian_average} size={13} />
+                  <span style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
+                    {Number(therapist.bayesian_average).toFixed(1)} ({therapist.total_ratings_count})
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Rating */}
-          {showRating && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 'var(--space-md)' }}>
-              <StarRating value={therapist.bayesian_average} size={18} />
-              <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>{Number(therapist.bayesian_average).toFixed(1)}</span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>({therapist.total_ratings_count} reviews)</span>
-            </div>
-          )}
-
-          {/* Trust signal */}
+          {/* KCPA trust badge */}
           {therapist.registration_number && (
-            <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: '8px 14px', marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>KCPA Reg.</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, fontFamily: 'monospace' }}>{therapist.registration_number}</span>
+            <div style={{ background: 'var(--color-surface)', borderRadius: 8, padding: '7px 12px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>KCPA</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--color-calm)' }}>{therapist.registration_number}</span>
             </div>
           )}
 
-          {/* Bio */}
+          {/* Quick-fact chips row */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {formats.map(f => (
+              <span key={f} style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: 20, background: 'var(--color-calm-light,#e8f4f8)', color: 'var(--color-calm)', fontWeight: 600 }}>
+                {FORMAT_LABELS[f] ?? f}
+              </span>
+            ))}
+            {/* Session durations */}
+            <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: 20, background: 'var(--color-surface)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+              45 min
+            </span>
+            <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: 20, background: 'var(--color-surface)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+              60 min
+            </span>
+            {(therapist.languages ?? []).map(l => (
+              <span key={l} style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: 20, background: 'var(--color-surface)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                {l}
+              </span>
+            ))}
+            <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: 20, background: 'var(--color-surface)', color: 'var(--color-calm)', fontWeight: 600, border: '1px solid var(--color-border)' }}>
+              KES {therapist.rate_per_session_kes?.toLocaleString()}
+            </span>
+          </div>
+
+          {/* About */}
           {therapist.plain_language_intro && (
-            <div style={{ marginBottom: 'var(--space-md)' }}>
-              <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>About</h4>
-              <p style={{ fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>{therapist.plain_language_intro}</p>
-            </div>
+            <ProfileSection label="About">
+              <p style={{ fontSize: '0.86rem', lineHeight: 1.65, color: 'var(--color-text-primary)', margin: 0 }}>{therapist.plain_language_intro}</p>
+            </ProfileSection>
           )}
 
           {/* Approach */}
           {therapist.approach_plain && (
-            <div style={{ marginBottom: 'var(--space-md)' }}>
-              <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>My Approach</h4>
-              <p style={{ fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>{therapist.approach_plain}</p>
-            </div>
+            <ProfileSection label="My Approach">
+              <p style={{ fontSize: '0.86rem', lineHeight: 1.65, color: 'var(--color-text-primary)', margin: 0 }}>{therapist.approach_plain}</p>
+            </ProfileSection>
           )}
 
-          {/* Cultural competencies */}
-          {therapist.cultural_competencies && (
-            <div style={{ marginBottom: 'var(--space-md)' }}>
-              <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Cultural Context</h4>
-              <p style={{ fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>{therapist.cultural_competencies}</p>
-            </div>
+          {/* Cultural context */}
+          {competencies && (
+            <ProfileSection label="Cultural Context">
+              <p style={{ fontSize: '0.86rem', lineHeight: 1.65, color: 'var(--color-text-primary)', margin: 0 }}>{competencies}</p>
+            </ProfileSection>
           )}
 
-          {/* Details grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 'var(--space-md)' }}>
-            <DetailCell label="Rate" value={`KES ${therapist.rate_per_session_kes?.toLocaleString()} / session`} />
-            <DetailCell label="Session formats" value={formats.map(f => FORMAT_LABELS[f] ?? f).join(', ') || '—'} />
-            <DetailCell label="Languages" value={(therapist.languages ?? []).join(', ') || '—'} />
-            <DetailCell label="Available" value={(therapist.availability_days ?? []).map(d => DAY_LABELS[d] ?? d).join(', ') || '—'} />
-          </div>
-
-          {/* Anonymous comments */}
+          {/* Reviews */}
           {comments.length > 0 && (
-            <div style={{ marginBottom: 'var(--space-md)' }}>
-              <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Recent Reviews</h4>
+            <ProfileSection label="Recent Reviews">
               {comments.map((c, i) => (
-                <div key={i} style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 8 }}>
+                <div key={i} style={{ background: 'var(--color-surface)', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <StarRating value={c.rating} size={13} />
-                    <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>{c.month_year}</span>
+                    <StarRating value={c.rating} size={12} />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{c.month_year}</span>
                   </div>
-                  {c.comment && <p style={{ fontSize: '0.84rem', color: 'var(--color-text-primary)', lineHeight: 1.5, margin: 0 }}>{c.comment}</p>}
+                  {c.comment && <p style={{ fontSize: '0.83rem', color: 'var(--color-text-primary)', lineHeight: 1.5, margin: 0 }}>{c.comment}</p>}
                 </div>
               ))}
-            </div>
+            </ProfileSection>
           )}
+        </div>
 
+        {/* Pinned CTA */}
+        <div style={{ padding: '10px 16px 20px', borderTop: '1px solid var(--color-border)', flexShrink: 0, background: 'var(--color-bg-primary)' }}>
           <button
             className="btn btn--primary"
-            style={{ width: '100%', fontSize: '1rem', padding: '14px' }}
+            style={{ width: '100%', fontSize: '0.95rem', padding: '13px' }}
             onClick={() => onBook(therapist.id)}
           >
             Book a Session
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProfileSection({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{label}</p>
+      {children}
     </div>
   );
 }
