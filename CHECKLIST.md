@@ -1953,55 +1953,283 @@ Failure modes to cover:
 
 ---
 
-## Phase 37 — Therapist Module Rebuild
+## Phase 37 — Therapist Marketplace (Production)
 
-> Current therapist module shows a blank prompt ("What's been on your mind?"). Replace with a structured discovery and booking flow, in-app video/voice sessions, and a split-payment escrow model.
+> Full replacement of the referral-only therapist module. Production-level: category discovery, verified therapist profiles, structured booking, in-app video/voice/text sessions, M-Pesa escrow with B2C payout, split-payment, dispute flow, therapist portal (separate app), and admin marketplace management.
 
-### 37.1 — Counsellor category taxonomy
-- [ ] Migration: `counsellor_categories` table (id, slug, label, description, sort_order); seed with initial set: `general`, `teen`, `children`, `couples`, `students`, `adhd`, `ptsd`, `ocd`, `grief`, `addiction`, `anxiety`, `trauma`, `lgbtq`, `workplace`
-- [ ] Migration: `therapist_categories` junction table (therapist_id → category_id, many-to-many)
-- [ ] Admin: category management (add/edit/deactivate categories, assign categories to therapist profiles)
+### Locked Decisions (do not revisit during build)
+- One payment gateway: Daraja STK Push (collection) + Daraja B2C (payout). No second gateway.
+- Platform fee: 20% retained. Therapist payout: 80% via M-Pesa B2C. Stored in `platform_config`.
+- Credit gate: 1 credit deducted at booking confirmation only (after full profile viewed).
+- Video/voice: WebRTC using existing `ws/signaling.js` + Twilio Network Traversal Service (NTS) as TURN. No Daily.co.
+- Therapist portal: separate Vite app at `src/therapist/`. Same pattern as `src/admin/`. Deployed at `therapist.[domain]`.
+- Therapist portal core tabs (Sessions, Dashboard, Schedule): mobile-first. Payments, Ratings: desktop-optimised.
+- Therapist portal: PWA manifest included. Therapist can add to phone home screen.
+- Therapist accounts are professional only. No access to member features. Personal use = separate member account.
+- `therapistAuth.js` middleware: verifies `role = 'therapist'` from DB, not JWT payload. Required on all therapist routes.
+- 18+ platform-wide. Youth & Adolescent category excluded. Under-18 access is a separate future phase.
+- No third-party analytics events on any therapist-module screen (DPA 2019 compliance).
 
-### 37.2 — Counsellor discovery
-- [ ] Entry point: replace current therapist landing with a category grid (icon + label per category)
-- [ ] Category browse page: filter by `language`, `gender`, `age_range`, `session_rate_per_hour`, `session_rate_per_30min`, `accepts_insurance`, `availability_next_7_days`; paginated; sorted by: recommended, price low–high, earliest available
-- [ ] Counsellor profile card: photo, name, credentials, bio (200 chars), categories, languages, rate, next available slot, "Book" CTA
-- [ ] Full profile page: expanded bio, session format options (video / voice / text), all available slots, reviews average
+---
 
-### 37.3 — Appointment scheduling
-- [ ] Migration: `therapist_availability` (therapist_id, day_of_week, start_time, end_time, timezone, recurs)
-- [ ] Migration: `therapy_bookings` (booking_id, user_id, therapist_id, category_id, session_type `video|voice|text`, scheduled_at, duration_minutes, status `pending|confirmed|in_progress|completed|cancelled|no_show`, platform_fee_pct, therapist_payout, total_charged, escrow_status `held|released|refunded`, session_token, created_at)
-- [ ] `POST /therapy/bookings` — create booking; charge user credits or card; place funds in escrow (`escrow_status=held`); send confirmation to both parties
-- [ ] `PATCH /therapy/bookings/:id/cancel` — refund policy: full refund >24hr; 50% refund 2–24hr; no refund <2hr
-- [ ] `GET /therapy/bookings` — user's upcoming + past bookings
-- [ ] `GET /therapist/bookings` — therapist's schedule view
+### 37.0 — Pre-Build Actions (Must Complete Before Any Code)
 
-### 37.4 — In-app video and voice (therapist module only)
-- [ ] Evaluate and select one WebRTC provider: **Daily.co**, **Livekit**, or **Twilio Video** — document choice and rationale before implementation
-- [ ] Migration: `therapy_sessions` (session_id, booking_id, room_url, room_token_user, room_token_therapist, started_at, ended_at, duration_billed_minutes, recording_consent_user, recording_consent_therapist)
-- [ ] `POST /therapy/sessions/start` — called by therapist at session time; creates provider room; returns join tokens for both parties; sets `therapy_bookings.status = in_progress`
-- [ ] `POST /therapy/sessions/:id/end` — therapist or timeout triggers; records `ended_at`; computes `duration_billed_minutes`; triggers escrow release
-- [ ] Frontend: in-app video component (Daily/Livekit SDK embed); mute, camera toggle, end call; session timer visible to both parties; no external link — session stays inside the app
-- [ ] Anti-poaching guard: session tokens are single-use and scoped to `booking_id`; provider room is closed immediately on `end`; therapist contact details (phone/email) are never surfaced in the app UI — `GET /therapist/:id` returns display name + credentials only
+- [ ] **ODPC**: Register platform as Data Controller and Data Processor with Kenya's Office of the Data Protection Commissioner (Form DP/DC/01 + DP/DP/02) — required before therapist module handles any session data
+- [ ] **Daraja B2C**: Submit Safaricom application for Bulk Disbursement Account (B2C Short Code). Separate from STK Push paybill. Start immediately — approval takes longer than STK Push
+- [ ] **Twilio NTS**: Create Twilio account, obtain NTS credentials (Account SID + Auth Token + TURN username/credential), add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` to `.env.example`
+- [ ] **Therapist Agreement**: Draft Therapist Partnership Agreement document (independent contractor status, 20/80 split acknowledgement, off-platform contact prohibition, KCPA compliance obligation, data handling, termination clauses) — required before first NGO therapist is onboarded
+- [ ] **Privacy Policy + ToS**: Update both documents to cover therapy session data, therapist independence, cancellation/refund policy, dispute window, crisis escalation, data retention (7 years for session records per clinical standards)
+- [ ] **Therapy consent version**: Decide on version string (e.g. `'2.0'`) for therapy consent addendum — needed for migration
 
-### 37.5 — Split-payment and escrow
-- [ ] Platform cut is a configurable percentage stored in `platform_config` (key: `therapist_platform_fee_pct`); default 20%
-- [ ] On booking: total charge = therapist rate; `platform_fee = total × fee_pct`; `therapist_payout = total − platform_fee`; both stored on `therapy_bookings` at time of booking (immutable after)
-- [ ] Escrow release triggers: `therapy_sessions.ended_at` set AND `duration_billed_minutes >= booking.duration_minutes × 0.8` (session must have run ≥80% of booked time to release in full); partial release for partial sessions
-- [ ] Therapist payout: M-Pesa (Daraja B2C) or bank transfer; `POST /admin/payouts/release` — admin-triggered or automatic on escrow release condition
-- [ ] Migration: `therapist_payouts` (payout_id, therapist_id, booking_id, amount, method, status, initiated_at, settled_at)
-- [ ] Session dispute window: 24hr after session end; user or therapist can flag; disputed sessions freeze payout pending admin review
+---
 
-### 37.6 — Session tracking and analytics
-- [ ] Track: sessions booked, sessions completed, no-shows (by party), average session duration, revenue by category, platform net revenue, therapist earnings per period
-- [ ] Admin dashboard: new "Therapy" tab — bookings queue, session status, payout status, dispute queue, revenue split chart
-- [ ] Therapist dashboard: earnings summary, upcoming sessions, completed session history, payout history
+### 37.1 — Teardown of Old Module
 
-**Phase 37 complete when:**
-- User can browse by category, filter, book, and join a session without leaving the app
-- Therapist contact details are never exposed in any API response
-- Escrow releases only after verified session completion
-- Platform fee is configurable from admin without a deploy
+- [x] Delete `src/frontend/src/screens/therapist/TherapistIntakeScreen.jsx`
+- [x] Delete `src/frontend/src/screens/therapist/TherapistListScreen.jsx`
+- [x] Delete `src/frontend/src/screens/therapist/TherapistConfirmScreen.jsx`
+- [x] Delete `src/frontend/src/screens/therapist/TherapistStatusScreen.jsx`
+- [x] Delete `src/frontend/src/screens/ReferralScreen.jsx` (dead screen, never linked from current UI)
+- [x] Remove routes `/therapists`, `/therapists/browse`, `/therapists/confirm`, `/therapists/status`, `/referral` from `src/frontend/src/App.jsx`
+- [x] Remove imports for all deleted screens from `App.jsx`
+- [x] Remove `routes/referrals.js` mount from `src/backend/app.js` — old referral flow is replaced entirely
+- [x] Verify `therapist_interests` table data can be dropped (no production data expected); write migration to DROP `therapist_interests` table
+- [x] Verify `therapist_referrals` data — confirm with admin whether any live referrals need manual resolution before dropping; write migration to DROP `therapist_referrals` table after confirmation
+- [x] Remove `POST /referrals`, `GET /referrals/my`, `POST /referrals/:id/interests` from `routes/referrals.js`; delete the file after verifying no remaining imports
+- [x] Remove admin routes `PATCH /admin/referrals/:id`, `PATCH /admin/therapist-interests/:id/status` from `admin.js` — these endpoints are obsolete
+- [x] Update `ReferralsTab.jsx` in admin panel: repurpose or remove (interests column no longer relevant)
+- [ ] Update `GRAPH_REPORT.md` to reflect deleted files and routes (deferred — update after phase complete)
+
+---
+
+### 37.2 — Database Migrations (Run in Order)
+
+#### Schema additions to existing tables
+- [x] Migration: ALTER `users` — add `therapy_consent_version VARCHAR(10) NULL`, `therapy_consented_at TIMESTAMPTZ NULL`, `last_therapy_nudge_at TIMESTAMPTZ NULL` → `076_therapy_users_columns.sql`
+- [x] Migration: ALTER TYPE `notification_type` ADD VALUE IF NOT EXISTS `'therapist_nudge'` → `077_notification_type_therapist_nudge.sql`
+- [x] Migration: DROP `therapist_interests` (replaced by category_ids) → `078_drop_therapist_interests.sql`
+- [x] Migration: DROP `therapist_referrals` + enum types → `079_drop_therapist_referrals.sql`
+- [x] Migration: ALTER `therapist_profiles` — add all Phase 37 columns, DROP `specializations`, ADD CHECK on session_formats, ADD `category_ids UUID[]` → `080_therapist_profiles_phase37.sql`
+
+#### New tables
+- [x] Migration: CREATE `therapist_categories` + seed 8 categories + RLS → `081_therapist_categories.sql`
+- [x] Migration: CREATE `therapist_availability` + RLS → `082_therapist_availability.sql`
+- [x] Migration: CREATE `booking_slot_locks` + RLS → `083_booking_slot_locks.sql`
+- [x] Migration: CREATE `therapist_bookings` + indexes + RLS → `084_therapist_bookings.sql`
+- [x] Migration: CREATE `therapy_sessions` + RLS → `085_therapy_sessions.sql`
+- [x] Migration: CREATE `therapy_session_notes` + RLS → `086_therapy_session_notes.sql`
+- [x] Migration: CREATE `therapist_payouts` + RLS → `087_therapist_payouts.sql`
+- [x] Migration: CREATE `therapy_disputes` + RLS → `088_therapy_disputes.sql`
+- [x] Migration: CREATE `therapist_ratings` + RLS → `089_therapist_ratings.sql`
+- [x] Migration: GIN indexes on therapist_profiles for discovery queries → `090_therapist_discovery_indexes.sql`
+- [x] Fixed `migrations/run.js` to exclude `_rollback.sql` files from auto-apply
+- [x] Run `npm run migrate` — 15 applied, 0 failures. All tables and columns confirmed applied to Supabase.
+
+---
+
+### 37.3 — Backend Middleware & Infrastructure
+
+- [x] Create `src/backend/middleware/therapistAuth.js` — DB-verified role='therapist' + suspended=false check; same pattern as adminAuth.js
+- [x] Create `src/backend/utils/turnCredentials.js` — Twilio NTS dynamic token via REST API; per-session, not cached
+- [x] Create `src/backend/utils/therapistPayout.js` — B2C initiatePayout + retryFailedPayout + parseB2CCallback; idempotency-safe
+- [x] Create `src/backend/utils/therapyRefund.js` — issueFullRefund + issuePartialRefund; uses refundCredit + Daraja Reversal API
+- [x] `refundCredit` verified in creditDeductor.js — supports any channel string including 'therapy_booking'
+- [x] Migration 091: platform_config therapy keys seeded (fee_pct=20, credit_cost=1, grace minutes, dispute window, payout hold)
+- [x] Therapist professional-only encoded in therapistAuth.js (role+suspended DB check blocks all member routes)
+- [x] Extend `ws/signaling.js` — therapy: namespace isolated; DB validation on join; therapist 'end' signal closes room + sets ended_at; peer rooms unaffected
+- [x] `last_therapy_nudge_at` already added in migration 076 (users columns)
+- [x] Update `.env.example`: replaced openrelay static TURN vars with `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN`; added `DARAJA_B2C_*` vars; updated ENCRYPTION_KEY comment
+
+---
+
+### 37.4 — Admin Panel: Therapist Verification & Category Management
+
+- [ ] Add `CategoriesPanel` to `TherapistsTab.jsx` — list all `therapist_categories`; create/edit/reorder/deactivate; icon name input (Phosphor slug); condition tags input (comma-separated); sort order drag or up/down buttons
+- [ ] `GET /admin/therapist-categories` — all categories ordered by sort_order
+- [ ] `POST /admin/therapist-categories` — create category; validate name unique, icon_name provided
+- [ ] `PATCH /admin/therapist-categories/:id` — update name, description, icon_name, condition_tags, sort_order, is_active
+- [ ] Update `POST /admin/therapists` — add fields: `gender`, `age`, `rate_per_session_kes`, `mpesa_number`, `registration_number`, `kcpa_level`; remove `specializations` (replaced by category_ids); keep invite email flow; set `is_verified = false` on creation (admin must verify separately)
+- [ ] Update `PATCH /admin/therapists/:id` — support all new fields; if `credentials`, `registration_number`, or `kcpa_level` is edited, automatically set `is_verified = false` and log in `admin_audit_log` with reason 'credentials_edited — re-verification required'
+- [ ] Add `PATCH /admin/therapists/:id/verify` — 6-step verification checklist in request body: `{ kcpa_confirmed, credentials_confirmed, good_conduct_confirmed, indemnity_confirmed, teletherapy_agreement_signed, agreement_signed_at }`; sets `is_verified = true` only when all 6 are true; stores `credentials_verified_by = req.user.id`, `credentials_verified_at = NOW()`; logs in `admin_audit_log`
+- [ ] Add `PATCH /admin/therapists/:id/suspend` — sets `therapist_profiles.suspended = true`, `is_active = false`; finds all future `therapist_bookings` with `status IN ('pending','confirmed')` for this therapist; auto-cancels each with `cancelled_by = 'admin'`; triggers full M-Pesa refund + credit refund for each; notifies each affected member via in-app notification; logs in `admin_audit_log`
+- [ ] Update `TherapistsTab.jsx` — add verification checklist panel (6 checkboxes per therapist, shown when `is_verified = false`); add "Suspend" button (red, requires confirmation dialog: "This will cancel all future bookings and refund all affected members"); add `is_verified` badge on each row; add category assignment multi-select
+- [ ] Add `VerificationQueueTab` or section within `TherapistsTab` — lists therapists with `is_verified = false` sorted by `created_at ASC`; each row shows: name, email, registration_number, days_since_created; one-click to open full verification panel
+- [ ] Add float management widget to `OverviewTab.jsx` — shows: current Paybill balance (manual input field, admin-updated), total `therapist_payouts` WHERE `status = 'pending'` sum in KES, total `therapist_payouts` WHERE `status = 'processing'` sum in KES, warning banner if pending + processing obligations exceed Paybill balance threshold (configurable, default KES 50,000)
+- [ ] Add `TherapyMarketplaceTab` to admin panel — platform-wide metrics: total bookings, completed sessions, cancelled sessions, therapist no-show count, member no-show count, gross revenue (KES), platform fees collected (KES), total payouts (KES), active therapists, unique members who booked; per-therapist table: name, sessions, rating, earnings, disputes, payout status; dispute queue (open disputes with resolve actions); pending verification queue count; **partial sessions queue** — list of completed bookings where `duration_billed_minutes < booking.duration_minutes * 0.8`, showing both parties' aliases, duration, and "Release payout" / "Issue refund" action buttons (admin decides outcome for short sessions)
+- [ ] Add to `admin.js`: `GET /admin/therapy/bookings`, `GET /admin/therapy/disputes`, `PATCH /admin/therapy/disputes/:id/resolve` — resolve with outcome: `full_refund | partial_refund | release`; on `full_refund`: refund member M-Pesa + credit, set booking `payment_status = 'refunded'`, `escrow_status = 'refunded'`; on `release`: trigger `initiatePayout`; on `partial_refund`: calculate partial amounts, issue partial M-Pesa refund to member, release remainder to therapist
+- [ ] Add `GET /admin/therapy/stats` — daily series: bookings, completions, revenue, disputes; used by `TherapyMarketplaceTab` chart
+
+---
+
+### 37.5 — Backend: Core Therapy API Routes
+
+- [x] Create `src/backend/routes/therapy.js` — mount at `/api/therapy` in `app.js`
+- [x] `GET /therapy/categories` — list active `therapist_categories` ordered by sort_order; include `therapist_count` computed via `array_length` / unnest query; cache 600s per category list
+- [x] `GET /therapy/therapists` — list `is_active = true AND is_verified = true AND suspended = false`; filters: `category_id` (ANY in category_ids), `language` (ANY in languages), `session_format` (ANY in session_formats), `gender`, `min_rate`/`max_rate` (rate_per_session_kes BETWEEN), `available_day` (join therapist_availability); return: id, display_name, photo_url, credentials, years_experience, languages, session_formats, rate_per_session_kes, average_rating, total_ratings_count, total_sessions, availability_status, category_ids; sort: by availability_status (available first), then average_rating DESC; paginated 20/page; no caching (live availability matters)
+- [x] `GET /therapy/therapists/:id` — full profile; same auth requirement; includes `therapist_availability` rows; verifies `is_active AND is_verified AND NOT suspended`; does NOT return: mpesa_number, full_name, user_id, registration_number, any internal admin fields
+- [x] `GET /therapy/therapists/:id/availability` — returns available slots for next 14 days based on `therapist_availability`; excludes slots already booked (`therapist_bookings` WHERE `scheduled_at` overlaps AND status NOT IN ('cancelled')); excludes slots with active `booking_slot_locks`; returns array of ISO datetime strings
+- [x] `POST /therapy/slot-lock` — auth required; body: `{ therapist_id, scheduled_at }`; acquire lock (INSERT into `booking_slot_locks`, expires_at = NOW() + 5min); if UNIQUE violation return 409 'slot taken'; return `{ lock_id, expires_at }`
+- [x] `DELETE /therapy/slot-lock/:id` — release lock on back-navigation; only lock owner can delete
+- [x] `POST /therapy/consent` — auth required; body: `{ consent_version: '2.0' }`; UPDATE users SET therapy_consent_version, therapy_consented_at; return `{ consented_at }`; required before booking is allowed
+- [x] `POST /therapy/bookings` — auth required; therapy consent check (therapy_consent_version must be '2.0' else 403 with code 'THERAPY_CONSENT_REQUIRED'); verify slot lock exists and belongs to user; deduct 1 credit (`channel = 'therapy_booking'`); compute `platform_fee_kes = CEIL(rate_kes * 0.20)`, `therapist_payout_kes = rate_kes - platform_fee_kes`; INSERT `therapist_bookings` (status='pending', payment_status='unpaid', escrow_status='held'); initiate Daraja STK Push for `rate_kes` amount; release slot lock; notify therapist: new booking request (in-app + push); return `{ booking_id, checkout_request_id, message }`
+- [x] `POST /therapy/mpesa-callback` — public, signature-verified; on ResultCode=0: UPDATE `therapist_bookings SET payment_status='paid'`; notify member: payment confirmed, awaiting therapist confirmation; notify therapist: new confirmed booking with member alias and session details (no member identity beyond alias)
+- [x] `PATCH /therapy/bookings/:id/confirm` — therapistAuth required; verify booking belongs to this therapist; UPDATE status='confirmed'; notify member: session confirmed, date/time, format; return `{ confirmed_at }`
+- [x] `PATCH /therapy/bookings/:id/decline` — therapistAuth required; UPDATE status='cancelled', cancelled_by='therapist'; trigger full refund (credit + M-Pesa); notify member: booking declined, full refund issued; no penalty on first decline; admin flagged on second decline within 30 days
+- [x] `PATCH /therapy/bookings/:id/cancel` — member auth required; enforce cancellation policy: >24hr before `scheduled_at` → full credit refund + full M-Pesa refund; 2–24hr → credit non-refundable, 50% M-Pesa refund; <2hr → no refund (first lifetime cancellation <2hr: full refund grace, store grace used flag on member); UPDATE status='cancelled', cancelled_by='member'; notify therapist
+- [x] `GET /therapy/bookings` — member auth; returns member's bookings ordered scheduled_at DESC; filters: status; includes therapist display_name, photo_url, scheduled_at, format, status, payment_status
+- [x] `POST /therapy/sessions/start` — therapistAuth required; verify booking status='confirmed' AND scheduled_at within 15min; generate TURN credentials via `turnCredentials.js`; generate two unique session tokens (UUID); encrypt both tokens via `encryption.js`; INSERT `therapy_sessions` with `therapist_joined_at = NOW()`; UPDATE booking `status = 'in_progress'`; return `{ session_id, room_token_therapist, turn_credentials }`
+- [x] `GET /therapy/sessions/:booking_id/join` — member auth; verify booking status='in_progress'; verify member is the booking owner; UPDATE `therapy_sessions.member_joined_at = NOW()`; return `{ session_id, room_token_member, turn_credentials }` — token is single-use: return it only once, null it after retrieval if already served
+- [x] `POST /therapy/sessions/:id/end` — therapistAuth required; verify session belongs to therapist; compute `duration_billed_minutes`; UPDATE `therapy_sessions` ended_at, duration_billed_minutes; if `duration_billed_minutes >= booking.duration_minutes * 0.8`: UPDATE booking `status = 'completed'`, `escrow_status = 'held'` (stays held, payout job runs after dispute window); if `duration_billed_minutes < 0.8`: UPDATE booking `status = 'completed'`, flag for admin review (partial session — admin decides payout); schedule post-session prompts (notify member: rate session; notify therapist: add session notes); increment `therapist_profiles.total_sessions += 1`
+- [x] `POST /therapy/ratings` — member auth; verify booking status='completed' AND booking belongs to member AND no existing rating for this booking_id (UNIQUE enforced); INSERT `therapist_ratings`; compute new Bayesian average: `new_avg = (C * platform_mean + sum_ratings) / (C + count)` where C=10; UPDATE `therapist_profiles` SET `average_rating = new_avg`, `total_ratings_count += 1`; check for fraud signals (account age < 7 days, this is first action, IP matches prior flag) — if suspicious set `flagged = true` and exclude from average computation
+- [x] `POST /therapy/session-notes` — therapistAuth required; verify booking belongs to therapist; UPSERT `therapy_session_notes`; member cannot access this endpoint or data under any circumstance
+- [x] `POST /therapy/disputes` — member auth; body: `{ booking_id, reason }`; verify booking `status = 'completed'` AND `ended_at > NOW() - INTERVAL '24 hours'`; verify no existing open dispute for this booking; INSERT `therapy_disputes`; UPDATE booking `escrow_status = 'disputed'`; freeze payout: UPDATE `therapist_payouts SET status = 'pending'` if already initiated; notify admin (emergency-level alert); return `{ dispute_id }`
+- [x] `GET /therapy/bookings/:id` — member or therapistAuth; return booking detail appropriate to role (member sees no internal fields; therapist sees member alias + notes only)
+
+---
+
+### 37.6 — Cron Jobs & Background Jobs
+
+- [ ] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `slotLockCleanupJob`: DELETE FROM `booking_slot_locks` WHERE `expires_at < NOW()`
+- [ ] Add to `server.js`: cron `*/10 * * * *` (every 10 min) — `therapistNoShowJob`: SELECT `therapist_bookings` WHERE `status = 'confirmed'` AND `scheduled_at < NOW() - INTERVAL '10 minutes'`; for each: check if `therapy_sessions.therapist_joined_at` is NULL; if NULL: UPDATE booking `status = 'therapist_no_show'`; trigger full refund (credit + M-Pesa); notify member: "Your therapist did not join. Full refund issued."; notify admin; UPDATE `therapist_profiles.no_show_count += 1`; if `no_show_count >= 3`: set `suspended = true, is_active = false`, notify admin for review
+- [ ] Add to `server.js`: cron `0 2 * * *` (02:00 EAT daily) — `payoutReconciliationJob`: SELECT `therapist_payouts` WHERE `status = 'processing'` AND `initiated_at < NOW() - INTERVAL '2 hours'`; for each: call Daraja Transaction Status API; on confirmed: UPDATE `status = 'completed'`, `completed_at = NOW()`, store `mpesa_reference`; on failed: call `retryFailedPayout`; on unresolved after 1 retry: notify admin
+- [ ] Add to `server.js`: cron `0 * * * *` (hourly) — `escrowReleaseJob`: SELECT `therapist_bookings` WHERE `status = 'completed'` AND `escrow_status = 'held'` AND `ended_at < NOW() - INTERVAL '24 hours'`; for each: check no open `therapy_disputes` with `status = 'open'`; if clear: INSERT `therapist_payouts`, call `initiatePayout`, UPDATE booking `escrow_status = 'released'`; notify therapist: payout initiated
+- [ ] Add to `server.js`: cron `*/5 * * * *` (every 5 min, slot fine enough for 30-min window) — `preSessionCheckinJob`: SELECT `therapist_bookings` WHERE `status = 'confirmed'` AND `scheduled_at BETWEEN NOW() + INTERVAL '29 minutes' AND NOW() + INTERVAL '31 minutes'` AND `pre_session_checkin IS NULL`; for each: send 5-question mood + safety check to member as in-app notification with inline response (1=crisis, 2=struggling, 3=low, 4=okay, 5=good); member response stored as `pre_session_checkin JSONB` on the booking row; if response score=1 (crisis flag): immediately fire `POST /emergency/trigger` (source='pre_session_checkin', booking_id), send Befrienders Kenya number to member, notify admin, set booking status='cancelled' with `cancellation_reason='crisis_detected'`, issue full refund — session does not proceed
+- [ ] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `preSessionReminderJob`: SELECT `therapist_bookings` WHERE `status = 'confirmed'` AND `scheduled_at BETWEEN NOW() + INTERVAL '14 minutes' AND NOW() + INTERVAL '16 minutes'`; for each: notify member (push + in-app): "Your session starts in 15 minutes. Tap to join."; notify therapist (push + in-app): "Session in 15 minutes — your client is [alias]."
+- [ ] Add to `server.js`: cron `0 3 * * *` (03:00 EAT daily) — `payoutRetryJob`: SELECT `therapist_payouts` WHERE `status = 'failed'` AND `retry_count <= 1` AND `next_retry_at < NOW()`; for each: call `retryFailedPayout`
+- [ ] Add to `server.js`: cron `*/10 * * * *` (every 10 min) — `memberNoShowJob`: SELECT `therapist_bookings` WHERE `status = 'in_progress'` AND `therapist_joined_at IS NOT NULL` AND `member_joined_at IS NULL` AND `therapist_joined_at < NOW() - INTERVAL '15 minutes'`; for each: UPDATE booking `status = 'member_no_show'`; therapist is owed full payout (they joined — escrow release proceeds normally after dispute window); notify therapist: "Your client did not join. You will be paid for this session."; notify member: "You missed your session. No refund is available."; no credit refund; no M-Pesa refund (therapist showed up)
+
+---
+
+### 37.7 — Member App: Therapy Module Frontend
+
+#### Therapy Consent (gate before any therapist access)
+- [ ] Create `TherapyConsentScreen.jsx` — shown on first tap of Therapist dashboard tile if `therapy_consent_version != '2.0'`; explicit consent to: session data access by therapist, therapist independence from PeerPal, no recording, crisis escalation possible, cancellation policy, data retention 7 years; two required checkboxes; on confirm: POST `/api/therapy/consent`; navigate to category grid
+
+#### Category Grid
+- [ ] Create `TherapistCategoryScreen.jsx` at `/therapists` — 3-column grid of category cards; each card: Phosphor icon (48px) + category name + therapist count + short description; tap navigates to `/therapists/category/:id`; skeleton loading; empty state if all categories inactive; hide BottomNav on this route
+- [ ] Add route `/therapists` to `App.jsx` mapped to `TherapistCategoryScreen`; add to `HIDE_NAV_ON`
+
+#### Therapist List & Filters
+- [ ] Create `TherapistListScreen.jsx` at `/therapists/category/:id` — filter sheet: language (multi-select), gender (multi-select), session format (text/voice/video chips), rate slider (KES, min/max from actual DB range not hardcoded), available day (day-of-week chips); therapist cards: photo + display_name + credentials + rating stars + total_sessions + languages + formats offered + rate/session in KES + "View Profile" button; pagination (20/page, load more); staggered card entrance animation; filter sheet slides up from bottom
+- [ ] Therapist card "View Profile" → opens `ProfileSheet` (full-screen bottom sheet): large photo, display_name, credentials, registration_number (trust signal), years_experience, bio, plain_language_intro, approach_plain, cultural_competencies, languages, session_formats, rate_per_session_kes, availability days, Bayesian average rating (only shown if `total_ratings_count >= 5`), recent anonymous comments (max 5, sorted by created_at DESC, no name shown); "Book a Session" primary CTA
+- [ ] Add route `/therapists/category/:id` to `App.jsx`; add to `HIDE_NAV_ON`
+
+#### Booking Flow
+- [ ] Create `TherapistBookingScreen.jsx` at `/therapists/book/:therapistId` — session format selector (only formats therapist offers); date/time picker (fetches GET `/therapy/therapists/:id/availability`, shows only open slots, disables past times); notes field optional max 200 chars; cost summary card: "Session rate: KES [X] | Platform fee (20%): KES [X] | Total: KES [X] | 1 credit will also be deducted"; "Confirm Booking" button; on tap: acquire slot lock (POST `/therapy/slot-lock`), show 5-min countdown on button; on confirm: POST `/therapy/bookings`; if payment_status remains 'unpaid' after 3 min: show "Waiting for M-Pesa confirmation" with cancel option
+- [ ] `BookingConfirmScreen.jsx` at `/therapists/booking/:id/confirm` — booking received state; therapist name + scheduled_at + format; "Back to home" and "View my bookings" buttons; no auto-navigate
+- [ ] Add routes to `App.jsx`; add to `HIDE_NAV_ON`
+
+#### My Bookings & Session Status
+- [ ] Create `MyTherapyScreen.jsx` at `/therapy/my` — tabbed: Upcoming / Past; upcoming bookings: therapist photo + name + scheduled_at + format + status badge + "Join Session" button (enabled only when status='in_progress' and within session window); past bookings: status + rating prompt if no rating yet; "Cancel" on upcoming bookings (enforces policy, shows refund amount before confirming); link from BottomNav Profile screen or Dashboard
+- [ ] "Join Session" → `TherapySessionScreen.jsx` — for video: full-screen WebRTC video component (local + remote video elements); camera toggle; mute toggle; session timer counting down from `duration_minutes`; red timer at <5 min; "End Session" button (member side ends gracefully, prompts rating after); for voice: same but no video element, waveform animation; for text: chat interface with WebSocket (therapy channel type), auto-close on `ended_at` set by therapist; all formats: no recording controls, no screenshare, no file upload
+- [ ] WebRTC session screen: call `GET /therapy/sessions/:booking_id/join` to get TURN credentials + room token; construct RTCPeerConnection with Twilio NTS TURN servers; member is non-owner; therapist is owner and initiates offer; existing `ws/signaling.js` handles offer/answer/ICE relay — extend to support `session_type = 'therapy'` rooms (separate namespace from peer rooms)
+- [ ] Off-platform contact filter for text sessions: add regex patterns (phone numbers, email addresses, WhatsApp references, social media handles) to text session message content; flag message and show warning: "Sharing contact information outside the platform is not permitted" — same filter pattern as peer text screening in `signaling.js`
+- [ ] Post-session rating prompt: shown after session ends if member has not rated this booking; 5-star tap + optional comment (max 300 chars); submit POST `/therapy/ratings`; skip option (no rating submitted)
+- [ ] Add route `/therapy/my`, `/therapy/session/:bookingId` to `App.jsx`; add to `HIDE_NAV_ON`
+
+#### Low-Mood Therapist Funnel
+- [ ] In `routes/moods.js` `POST /` handler: after INSERT, if `mood_level = 'very_low'`: run two checks in sequence:
+  1. Active booking check: `SELECT id FROM therapist_bookings WHERE member_user_id = $1 AND status IN ('pending','confirmed')` — if row exists, skip nudge (member already has care in progress)
+  2. Nudge window check: `WHERE users.last_therapy_nudge_at < NOW() - INTERVAL '7 days' OR last_therapy_nudge_at IS NULL` — 7-day throttle prevents nudge spam
+  3. If both pass: `writeNotification(userId, 'therapist_nudge', { message: "Talking to a professional can help. A verified therapist is available now.", action: '/therapists' }, 'in_app')`; then `UPDATE users SET last_therapy_nudge_at = NOW() WHERE id = $1`
+- [ ] Update `NotificationsScreen.jsx` `TYPE_META` map: add `therapist_nudge` → icon: stethoscope or person, label: "Therapist available", route: `/therapists`
+- [ ] Update `DashboardScreen.jsx` Therapist tile: navigate to `/therapists` (replacing old `/referral`); gate on `therapy_consent_version` — if not `'2.0'`, navigate to `TherapyConsentScreen` first
+- [ ] Update `NotificationsScreen.jsx` TYPE_META map: add therapy nudge action → navigates to `/therapists`
+- [ ] Update `DashboardScreen.jsx` Therapist tile: navigate to `/therapists` (not `/referral`); check `therapy_consent_version` on load; if not '2.0' navigate to consent screen first
+
+---
+
+### 37.8 — Therapist Portal (src/therapist/)
+
+#### Scaffold
+- [ ] Create `src/therapist/` directory with Vite + React setup: copy `src/admin/` config pattern; `vite.config.js`, `package.json`, `index.html`; title: "PeerPal — Therapist Portal"
+- [ ] Add PWA manifest (`public/manifest.json`): name "PeerPal Therapist", short_name "PT Portal", start_url "/", display "standalone", background_color and theme_color matching admin palette; add `<link rel="manifest">` to `index.html`
+- [ ] Create `src/therapist/src/main.jsx`, `App.jsx`, `context/AuthContext.jsx` — JWT storage, role check on load: fetch user from `/api/profile`, if `role !== 'therapist'` redirect to login; if `suspended = true` show suspension notice
+- [ ] Create `src/therapist/src/components/LoginScreen.jsx` — same pattern as admin login; POST `/api/auth/login`; after login verify `role = 'therapist'` client-side; if not therapist: logout + show error
+- [ ] Create `src/therapist/src/api/client.js` — Axios with baseURL from `VITE_API_URL` env; attach JWT from localStorage; 401 → redirect to login
+- [ ] Create `src/therapist/src/styles/globals.css` — professional palette (admin base); Inter font only (no Lora); denser layout; no blob, no emotional design moments
+- [ ] Create navigation: mobile-first bottom nav for mobile (Sessions, Dashboard, Schedule, Payments, Profile); sidebar for desktop (768px+); Ratings as sidebar item on desktop, bottom nav item on mobile
+
+#### Dashboard Tab (mobile-first)
+- [ ] `DashboardTab.jsx` — upcoming sessions next 7 days (card list: member alias, scheduled_at, format, status badge, join button if in_progress or within 10min of start); pending booking requests (confirm/decline action inline); earnings this month in KES; average rating; today's session count; GET `/api/therapy/therapist/dashboard` (new endpoint)
+- [ ] `GET /api/therapy/therapist/dashboard` — therapistAuth; returns: upcoming_sessions (next 7 days, status IN confirmed/in_progress), pending_requests (status=pending), earnings_this_month (SUM therapist_payout_kes WHERE status=completed AND scheduled_at >= start of month), average_rating, total_sessions
+
+#### Sessions Tab (mobile-first)
+- [ ] `SessionsTab.jsx` — filter tabs: Upcoming / Pending / Completed / Cancelled; each booking card: member alias, scheduled_at (formatted in EAT), format badge, status badge, duration, notes from member (if provided); Confirm / Decline buttons on pending; "Join Session" button when status=in_progress or within 15min of scheduled_at; "Mark Complete" button (if started and not yet ended — fallback for session that ended outside app); "Add Notes" button on completed sessions
+- [ ] Therapist video/voice session screen: same WebRTC stack as member; therapist role = owner (initiates offer); therapist sees member alias only; "End Session" button (therapist controls end); session timer; no recording controls; mute + camera toggle; crisis escalation button (one tap) — POST `/api/emergency/trigger` with `source = 'therapist'`, `booking_id` — fires admin alert immediately
+- [ ] Therapist text session screen: WebSocket chat (therapy namespace); auto-close when therapist ends; same off-platform contact filter applies to therapist messages too
+- [ ] "Add Notes" → slide panel with textarea (private, encrypted server-side); POST `/api/therapy/session-notes`; note: label prominently "Private — not visible to client"
+- [ ] GET `/api/therapy/therapist/bookings` — therapistAuth; paginated; filters by status; returns member alias, scheduled_at, format, status, member notes
+
+#### Schedule Tab (mobile-first)
+- [ ] `ScheduleTab.jsx` — weekly calendar grid (Mon–Sun, rows = time blocks); therapist's availability slots highlighted; confirmed bookings shown as blocks; tap day/time to toggle availability; PATCH `/api/therapy/therapist/availability` — upsert availability row; bookings cannot be moved (immutable once confirmed)
+- [ ] `GET /api/therapy/therapist/availability` — therapistAuth; returns all availability rows + confirmed bookings for next 4 weeks
+- [ ] `PATCH /api/therapy/therapist/availability` — therapistAuth; body: array of `{ day_of_week, start_time, end_time, is_active }`; UPSERT; cannot deactivate slot that has a confirmed booking
+
+#### Payments Tab (desktop-optimised)
+- [ ] `PaymentsTab.jsx` — earnings summary card: this month (KES), lifetime (KES), pending payouts (KES), completed payouts (KES); per-session breakdown table: member alias (anonymous), date, format, duration, session rate, platform fee, therapist payout, payout status, M-Pesa reference; payout schedule explainer: "Sessions are paid out 24 hours after completion, pending any disputes"; export to CSV button (frontend-only, formats displayed data)
+- [ ] `GET /api/therapy/therapist/payments` — therapistAuth; returns `therapist_payouts` joined with `therapist_bookings`; paginated; filter by status
+
+#### Ratings Tab (desktop-optimised)
+- [ ] `RatingsTab.jsx` — average rating display with star breakdown (1–5 distribution bar chart); total ratings count; note if count < 5: "Your rating will appear publicly once you have 5 or more reviews"; anonymous comment list (no member alias, no date beyond month/year); flagged comments hidden from view (flagged=true)
+- [ ] `GET /api/therapy/therapist/ratings` — therapistAuth; returns own ratings (anonymous — no member_user_id in response); filters out flagged; includes rating, comment, created_at (month/year only)
+
+#### Profile Tab
+- [ ] `ProfileTab.jsx` — view and edit: photo_url, bio, plain_language_intro, approach_plain, cultural_competencies, languages (comma-separated), session_formats (checkbox), rate_per_session_kes, availability_status; PATCH `/api/therapy/therapist/profile`
+- [ ] `PATCH /api/therapy/therapist/profile` — therapistAuth; allows: photo_url, bio, plain_language_intro, approach_plain, cultural_competencies, languages, session_formats, rate_per_session_kes, availability_status; if `credentials` (display_name, credentials field) is edited: set `is_verified = false`, notify admin for re-verification; M-Pesa number editable for payout; display read-only: display_name, full_name (immutable after admin sets), registration_number, kcpa_level, total_sessions, average_rating
+- [ ] Therapist notifications: new booking request (push + in-app), booking cancelled by member (push + in-app), session starting in 15 min (push + in-app), payout processed (in-app), new rating received (in-app), account suspended (in-app + email)
+
+---
+
+### 37.9 — Safety, Quality & Compliance Implementation
+
+- [ ] Verify zero third-party analytics events fire on any screen in the therapist module (no `events` table inserts, no Sentry breadcrumbs containing booking_id or member alias on therapy screens)
+- [ ] Verify `GET /therapy/therapists/:id` response contains zero: mpesa_number, full_name, user_id, email, registration_number — run manual API check against response payload
+- [ ] Verify `GET /therapy/sessions/:booking_id/join` returns `room_token_member` only once — token is nulled in DB after first retrieval; second call returns 404
+- [ ] Verify therapist session screen shows member alias only — no full name, no email, no phone reachable from any client-visible API
+- [ ] Verify `therapy_session_notes` RLS: attempt SELECT as anon role → 0 rows; attempt SELECT as member JWT → 0 rows; SELECT as therapist JWT → own notes only; SELECT as admin → all (for dispute resolution only)
+- [ ] Add Sentry `beforeSend` scrubber: strip any field named `booking_id`, `member_alias`, `therapist_id`, `room_token`, `mpesa_number` from error payloads before they leave the client
+- [ ] Therapy consent gate: verify that any unauthenticated or pre-consent member hitting `/therapists/*` is redirected to consent screen; test with a new account that has not yet consented
+- [ ] Cancellation policy: write unit test for each band (>24hr, 2–24hr, <2hr, grace case) against the cancellation handler logic
+- [ ] Verify B2C idempotency: simulate duplicate payout trigger for same `idempotency_key` — second call must be rejected without initiating a second Daraja request
+- [ ] Verify slot lock: simulate two concurrent booking confirmations for the same slot — second must receive 409; only one booking created
+- [ ] Bayesian rating: verify formula output with known inputs (C=10, platform_mean=3.5, 2 five-star reviews → result should be ~3.73, not 5.0)
+- [ ] Therapist no-show: simulate therapist not joining within 10 min — verify auto-cancel fires, refund issued, no_show_count incremented, admin notified
+- [ ] Crisis escalation from therapist portal: tap crisis button during session → verify emergency_log INSERT, admin in-app notification, Befrienders Kenya number surfaces to therapist
+
+---
+
+### 37.10 — End-to-End Verification
+
+Run full flow manually before marking Phase 37 complete:
+
+**Happy path (video session)**
+- [ ] Admin creates therapist category via admin panel — visible in member category grid
+- [ ] Admin onboards NGO therapist (invite email sent) — therapist sets password via link; logs into therapist portal; role verified as 'therapist' from DB (not JWT)
+- [ ] Therapist completes profile in therapist portal (bio, rate, availability, session formats); profile NOT visible to members (is_verified still false)
+- [ ] Admin runs 6-point verification checklist — `is_verified` set to true — profile now appears in member browse with correct rating threshold (hidden if total_ratings_count < 5)
+- [ ] Member (18+, therapy_consent_version NOT set) taps Therapist tile → consent screen shown → member consents → `therapy_consent_version = '2.0'` stored → category grid loads
+- [ ] Member browses category → applies filters → views full profile via ProfileSheet — API response verified to contain zero: mpesa_number, full_name, email, registration_number
+- [ ] Member books session: slot lock acquired, 1 credit deducted, M-Pesa STK Push fires, member receives M-Pesa prompt; therapist notified of pending booking
+- [ ] STK Push callback fires → booking `payment_status = 'paid'`; member notified; therapist notified of confirmed booking
+- [ ] Therapist confirms booking in portal — member notified; booking `status = 'confirmed'`
+- [ ] T-30min: pre-session checkin fires to member; member responds with score ≥ 2 (no crisis); `pre_session_checkin` stored on booking
+- [ ] T-15min: reminder notification fires to both parties
+- [ ] Therapist starts session (video) — WebRTC connects via Twilio NTS TURN servers — member joins; both in separate therapy namespace on signaling server
+- [ ] Session runs 50+ min (≥80% threshold met) — therapist ends session; `duration_billed_minutes` computed; `total_sessions` incremented on therapist profile
+- [ ] Member rates session → Bayesian average computes correctly; rating hidden publicly until therapist has ≥5 ratings
+- [ ] Therapist adds session notes → verify notes return 0 rows when queried by member JWT
+- [ ] 24hr dispute window passes with no dispute → escrow release cron fires → `therapist_payouts` row created → B2C initiated → `status = 'processing'`
+- [ ] Nightly reconciliation cron (02:00 EAT) confirms payout via Daraja Transaction Status → `status = 'completed'`, `mpesa_reference` stored
+- [ ] Payout visible in therapist Payments tab; visible in admin TherapyMarketplaceTab; admin float widget reflects reduced pending obligations
+
+**Failure path tests (run separately)**
+- [ ] **Therapist no-show**: Book confirmed session → therapist does not join within 10 min of scheduled_at → `status = 'therapist_no_show'`, full refund issued, no_show_count incremented, admin notified; verify if no_show_count reaches 3: therapist auto-suspended, all future bookings cascade-cancelled
+- [ ] **Member cancellation refund bands**: Cancel >24hr before → full credit + M-Pesa refund; cancel 2–24hr → no credit refund + 50% M-Pesa refund; cancel <2hr → no refund (first time grace fires correctly)
+- [ ] **Dispute flow**: Complete session → member raises dispute within 24hr → booking `escrow_status = 'disputed'`, payout frozen; admin opens dispute in TherapyMarketplaceTab → resolves as full_refund → member M-Pesa refund issued, therapist payout cancelled
+- [ ] **Crisis at pre-session checkin**: Member responds to T-30min checkin with score=1 → emergency flow fires, admin alerted, Befrienders Kenya number shown to member, booking cancelled with full refund, session does not proceed
+
+**Phase 37 complete when all 22 verification steps pass.**
 
 ---
 

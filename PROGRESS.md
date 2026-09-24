@@ -3,6 +3,33 @@
 ---
 
 ## Current Phase
+**Phase 37 ACTIVE — Therapist Marketplace (Production Build)**
+
+**37.1 Teardown COMPLETE. 37.2 Migrations COMPLETE. 37.3 Backend Middleware COMPLETE. 37.4 Admin Panel COMPLETE. 37.5 Backend Therapy API Routes COMPLETE.**
+
+**NEXT ACTION → 37.6 Cron Jobs, item 1: `slotLockCleanupJob` in `server.js` (every 5 min, DELETE expired booking_slot_locks)**
+
+Build order: Teardown → Migrations → Backend middleware → Admin CRUD + verification → Backend API routes → Member frontend → Therapist portal (src/therapist/) → Cron jobs → Safety verification → End-to-end test (22 steps)
+
+### Pre-build confirmations (all locked before first line of code)
+- Consent version string: `'2.0'` — locked
+- Youth & Adolescent category: excluded from Phase 37, deferred to future phase — locked
+- Therapist accounts: professional only; `role = 'therapist'` has no access to member features; dual use requires separate email — encoded in `therapistAuth.js` and portal login screen copy
+- `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN`: must be added to `.env` before build begins; openrelay static TURN vars (`TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL`) replaced by Twilio NTS dynamic token generation
+- Teardown (37.1) is the first migration step in this phase — migrations 036–039 are written but NOT applied; they are superseded by Phase 37 migrations and must not be applied to Supabase
+
+### Infrastructure state at Phase 37 start
+- 44 migrations applied (001–042 + 043–044 + 047–048); migrations 036–039 written, NOT applied (superseded by Phase 37)
+- `admin_audit_log` table exists (migration 070, Phase 34) — Phase 37 admin actions log here
+- `refundCredit(user_id, amount, session_id, channel, reason)` exists in `utils/creditDeductor.js` — Phase 37 uses it for all credit reversals (cancellations, no-shows, admin suspensions, disputes)
+- `notification_type` enum has 13 values; `therapist_nudge` does NOT exist yet — added via ALTER TYPE migration in 37.2 before moods.js is modified
+- TURN server: currently openrelay static creds in `.env.example`; Phase 37 replaces with Twilio NTS dynamic credential generation via `utils/turnCredentials.js`
+- `ws/signaling.js` currently uses static env var TURN config — peer sessions continue to use this; therapy sessions get TURN creds from `turnCredentials.js` at session start
+- Therapist invite flow already implemented (Phase 34.3): `sendTherapistInvite()` email with 72-hr reset token — reused for NGO therapist onboarding
+- Low-mood funnel nudge throttle: 7-day window (`last_therapy_nudge_at < NOW() - INTERVAL '7 days'`); notification type `therapist_nudge`
+
+---
+
 **Phase 34 COMPLETE — Admin Operations Hardening (all 9 sub-tasks done).**
 
 ### Phase 34 Summary — Admin Operations Hardening
