@@ -550,7 +550,7 @@ router.get('/therapists', async (req, res) => {
             tp.teletherapy_agreement_signed_at, tp.credentials_verified_at, tp.credentials_verified_by,
             tp.mpesa_number, tp.average_rating, tp.total_ratings_count, tp.total_sessions,
             tp.created_at,
-            u.email, u.alias, u.suspended AS account_suspended
+            u.email, u.alias
      FROM therapist_profiles tp
      JOIN users u ON u.id = tp.user_id
      ORDER BY tp.created_at DESC`
@@ -684,13 +684,18 @@ router.patch('/therapists/:id', async (req, res) => {
   if (params.length === 0) return res.status(400).json({ error: 'No fields to update', code: 'MISSING_FIELDS' });
 
   params.push(req.params.id);
-  const { rowCount } = await query(
-    `UPDATE therapist_profiles SET ${setClauses.join(', ')} WHERE id = $${idx}`,
-    params
-  );
-  if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
-  await auditLog(req.user.id, 'therapist.edit', 'therapist', req.params.id, null, null, null);
-  return res.status(200).json({ updated: true });
+  try {
+    const { rowCount } = await query(
+      `UPDATE therapist_profiles SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+      params
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+    await auditLog(req.user.id, 'therapist.edit', 'therapist', req.params.id, null, null, null);
+    return res.status(200).json({ updated: true });
+  } catch (err) {
+    console.error('[therapist.edit]', err.message);
+    return res.status(500).json({ error: 'Failed to update therapist', code: 'QUERY_ERROR' });
+  }
 });
 
 // ─── PATCH /admin/therapists/:id/availability ─────────────────────────────────
@@ -737,37 +742,42 @@ router.patch('/therapists/:id/verify', async (req, res) => {
   if (params.length === 0) return res.status(400).json({ error: 'No verification fields provided', code: 'MISSING_FIELDS' });
 
   params.push(req.params.id);
-  await query(`UPDATE therapist_profiles SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+  try {
+    await query(`UPDATE therapist_profiles SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
 
-  // Auto-promote to verified when all 6 checklist items are complete
-  const { rows } = await query(
-    `SELECT kcpa_level, registration_number, kmpdc_number,
-            indemnity_verified, good_conduct_verified, teletherapy_agreement_signed_at
-     FROM therapist_profiles WHERE id = $1`,
-    [req.params.id]
-  );
-  if (!rows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
-
-  const tp = rows[0];
-  const allVerified =
-    tp.kcpa_level &&
-    tp.registration_number &&
-    tp.kmpdc_number &&
-    tp.indemnity_verified &&
-    tp.good_conduct_verified &&
-    tp.teletherapy_agreement_signed_at;
-
-  if (allVerified) {
-    await query(
-      `UPDATE therapist_profiles
-       SET is_verified = true, credentials_verified_by = $1, credentials_verified_at = NOW(), updated_at = NOW()
-       WHERE id = $2`,
-      [req.user.id, req.params.id]
+    // Auto-promote to verified when all 6 checklist items are complete
+    const { rows } = await query(
+      `SELECT kcpa_level, registration_number, kmpdc_number,
+              indemnity_verified, good_conduct_verified, teletherapy_agreement_signed_at
+       FROM therapist_profiles WHERE id = $1`,
+      [req.params.id]
     );
-  }
+    if (!rows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
 
-  await auditLog(req.user.id, 'therapist.verify', 'therapist', req.params.id, null, null, allVerified ? 'verified' : 'partial');
-  return res.status(200).json({ updated: true, is_verified: Boolean(allVerified) });
+    const tp = rows[0];
+    const allVerified =
+      tp.kcpa_level &&
+      tp.registration_number &&
+      tp.kmpdc_number &&
+      tp.indemnity_verified &&
+      tp.good_conduct_verified &&
+      tp.teletherapy_agreement_signed_at;
+
+    if (allVerified) {
+      await query(
+        `UPDATE therapist_profiles
+         SET is_verified = true, credentials_verified_by = $1, credentials_verified_at = NOW(), updated_at = NOW()
+         WHERE id = $2`,
+        [req.user.id, req.params.id]
+      );
+    }
+
+    await auditLog(req.user.id, 'therapist.verify', 'therapist', req.params.id, null, null, allVerified ? 'verified' : 'partial');
+    return res.status(200).json({ updated: true, is_verified: Boolean(allVerified) });
+  } catch (err) {
+    console.error('[therapist.verify]', err.message);
+    return res.status(500).json({ error: err.message, code: 'QUERY_ERROR' });
+  }
 });
 
 // ─── PATCH /admin/therapists/:id/suspend ─────────────────────────────────────
@@ -780,62 +790,68 @@ router.patch('/therapists/:id/suspend', async (req, res) => {
     return res.status(400).json({ error: 'reason is required', code: 'MISSING_FIELDS' });
   }
 
-  // Fetch therapist profile to confirm existence
-  const { rows: tpRows } = await query(
-    'SELECT id, user_id FROM therapist_profiles WHERE id = $1',
-    [req.params.id]
-  );
-  if (!tpRows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+  try {
+    const { rows: tpRows } = await query(
+      'SELECT id, user_id FROM therapist_profiles WHERE id = $1',
+      [req.params.id]
+    );
+    if (!tpRows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
 
-  // Suspend the therapist profile
-  await query(
-    `UPDATE therapist_profiles
-     SET suspended = true, availability_status = 'unavailable', updated_at = NOW()
-     WHERE id = $1`,
-    [req.params.id]
-  );
-
-  // Cancel all future bookings that are still pending or confirmed
-  const { rows: bookings } = await query(
-    `UPDATE therapist_bookings
-     SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = 'therapist_suspended', updated_at = NOW()
-     WHERE therapist_profile_id = $1
-       AND status IN ('pending', 'confirmed')
-       AND scheduled_start > NOW()
-     RETURNING id, member_user_id, credits_held`,
-    [req.params.id]
-  );
-
-  // Refund credits and notify each affected member
-  await Promise.all(bookings.map(async (b) => {
-    if (!b.member_user_id) return;
-    if (b.credits_held > 0) {
-      await refundCredit(b.member_user_id, b.credits_held, `booking_cancelled:${b.id}`).catch(
-        (e) => console.error('[suspend.refund]', b.id, e.message)
-      );
-    }
     await query(
-      `INSERT INTO notifications (user_id, type, payload, channel)
-       VALUES ($1, 'therapist_update', $2, 'in_app')`,
-      [b.member_user_id, JSON.stringify({ message: 'Your upcoming therapy session was cancelled. Any credits held have been returned to your balance.' })]
-    ).catch(() => {});
-  }));
+      `UPDATE therapist_profiles
+       SET suspended = true, availability_status = 'unavailable', updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id]
+    );
 
-  await auditLog(req.user.id, 'therapist.suspend', 'therapist', req.params.id, null, null, reason.trim());
-  return res.status(200).json({ suspended: true, bookings_cancelled: bookings.length });
+    const { rows: bookings } = await query(
+      `UPDATE therapist_bookings
+       SET status = 'cancelled', cancellation_reason = 'therapist_suspended', updated_at = NOW()
+       WHERE therapist_id = $1
+         AND status IN ('pending', 'confirmed')
+         AND scheduled_at > NOW()
+       RETURNING id, member_user_id, credit_charged`,
+      [req.params.id]
+    );
+
+    await Promise.all(bookings.map(async (b) => {
+      if (!b.member_user_id) return;
+      if (b.credit_charged > 0) {
+        await refundCredit(b.member_user_id, b.credit_charged, `booking_cancelled:${b.id}`).catch(
+          (e) => console.error('[suspend.refund]', b.id, e.message)
+        );
+      }
+      await query(
+        `INSERT INTO notifications (user_id, type, payload, channel)
+         VALUES ($1, 'therapist_update', $2, 'in_app')`,
+        [b.member_user_id, JSON.stringify({ message: 'Your upcoming therapy session was cancelled. Any credits held have been returned to your balance.' })]
+      ).catch(() => {});
+    }));
+
+    await auditLog(req.user.id, 'therapist.suspend', 'therapist', req.params.id, null, null, reason.trim());
+    return res.status(200).json({ suspended: true, bookings_cancelled: bookings.length });
+  } catch (err) {
+    console.error('[therapist.suspend]', err.message);
+    return res.status(500).json({ error: 'Failed to suspend therapist', code: 'QUERY_ERROR' });
+  }
 });
 
 // ─── PATCH /admin/therapists/:id/unsuspend ───────────────────────────────────
 router.patch('/therapists/:id/unsuspend', async (req, res) => {
-  const { rowCount } = await query(
-    `UPDATE therapist_profiles
-     SET suspended = false, availability_status = 'available', updated_at = NOW()
-     WHERE id = $1`,
-    [req.params.id]
-  );
-  if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
-  await auditLog(req.user.id, 'therapist.unsuspend', 'therapist', req.params.id, null, null, null);
-  return res.status(200).json({ unsuspended: true });
+  try {
+    const { rowCount } = await query(
+      `UPDATE therapist_profiles
+       SET suspended = false, availability_status = 'available', updated_at = NOW()
+       WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+    await auditLog(req.user.id, 'therapist.unsuspend', 'therapist', req.params.id, null, null, null);
+    return res.status(200).json({ unsuspended: true });
+  } catch (err) {
+    console.error('[therapist.unsuspend]', err.message);
+    return res.status(500).json({ error: 'Failed to unsuspend therapist', code: 'QUERY_ERROR' });
+  }
 });
 
 // ─── GET /admin/peer-requests ────────────────────────────────────────────────
