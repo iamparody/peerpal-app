@@ -37,7 +37,7 @@ async function notifyUser(user_id, type, payload) {
 router.get('/categories', auth, async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT tc.id, tc.name, tc.description, tc.icon, tc.tags, tc.sort_order,
+      `SELECT tc.id, tc.name, tc.description, tc.icon_name, tc.condition_tags, tc.sort_order,
               (SELECT COUNT(*) FROM therapist_profiles tp
                WHERE tp.is_active = true AND tp.is_verified = true AND tp.suspended = false
                  AND tc.id::text = ANY(tp.category_ids::text[])) AS therapist_count
@@ -271,7 +271,7 @@ router.post('/bookings', auth, async (req, res) => {
   try {
     // Therapy consent check
     const { rows: userRows } = await query(
-      'SELECT therapy_consent_version, credit_balance FROM users WHERE id = $1',
+      'SELECT therapy_consent_version FROM users WHERE id = $1',
       [req.user.id]
     );
     if (!userRows.length) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
