@@ -1,8 +1,13 @@
 const { WebSocketServer, WebSocket } = require('ws');
+const { query } = require('../db');
 
 // In-process room map: session_id → WebSocket[]
 // Rooms have at most 2 peers (requester + responder).
 const rooms = new Map();
+
+// Therapy room map: booking_id → { member: WebSocket|null, therapist: WebSocket|null }
+// Isolated from peer rooms — prefixed 'therapy:' in session_id.
+const therapyRooms = new Map();
 
 // Contact-info screening — warn both parties, never block the message.
 const CONTACT_PATTERNS = [
@@ -24,6 +29,109 @@ function createSignalingServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws/signal' });
   console.log('[signal] server ready — ICE servers:', JSON.stringify(ICE_SERVERS.map(s => s.urls)));
 
+  // ─── Therapy room handler ─────────────────────────────────────────────────
+  async function handleTherapyJoin(ws, booking_id, participant_role) {
+    // Validate booking exists and is in a joinable state
+    const { rows } = await query(
+      `SELECT id, status, ended_at FROM therapy_sessions ts
+       JOIN therapist_bookings tb ON tb.id = ts.booking_id
+       WHERE ts.booking_id = $1
+         AND tb.status IN ('confirmed','in_progress')`,
+      [booking_id]
+    );
+
+    if (!rows.length) {
+      ws.send(JSON.stringify({ type: 'error', code: 'INVALID_ROOM', message: 'Booking not found or not joinable' }));
+      ws.close();
+      return;
+    }
+
+    if (rows[0].ended_at) {
+      ws.send(JSON.stringify({ type: 'error', code: 'SESSION_ENDED', message: 'Session has already ended' }));
+      ws.close();
+      return;
+    }
+
+    if (!therapyRooms.has(booking_id)) {
+      therapyRooms.set(booking_id, { member: null, therapist: null });
+    }
+
+    const room = therapyRooms.get(booking_id);
+    const short = booking_id.slice(0, 8);
+
+    if (participant_role !== 'member' && participant_role !== 'therapist') {
+      ws.close();
+      return;
+    }
+
+    if (room[participant_role]) {
+      // Already connected — replace stale connection
+      try { room[participant_role].close(); } catch {}
+    }
+
+    room[participant_role] = ws;
+    const other_role = participant_role === 'member' ? 'therapist' : 'member';
+    console.log(`[therapy] room=${short} ${participant_role} joined`);
+
+    // Notify other participant if connected
+    if (room[other_role]?.readyState === WebSocket.OPEN) {
+      room[other_role].send(JSON.stringify({ type: 'peer_joined', role: participant_role }));
+    }
+
+    ws.send(JSON.stringify({ type: 'joined', role: participant_role, other_connected: Boolean(room[other_role]) }));
+
+    ws.on('message', (data) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+
+      // Therapist sends 'end' to close the room immediately
+      if (msg.type === 'end' && participant_role === 'therapist') {
+        console.log(`[therapy] room=${short} ended by therapist`);
+        // Notify member
+        if (room.member?.readyState === WebSocket.OPEN) {
+          room.member.send(JSON.stringify({ type: 'session_ended' }));
+          room.member.close();
+        }
+        // Update ended_at in DB (best-effort — cron also closes stale sessions)
+        query(
+          'UPDATE therapy_sessions SET ended_at = NOW() WHERE booking_id = $1 AND ended_at IS NULL',
+          [booking_id]
+        ).catch((err) => console.error('[therapy] ended_at update failed:', err.message));
+        ws.close();
+        therapyRooms.delete(booking_id);
+        return;
+      }
+
+      // Relay offer / answer / ICE / chat to the other participant only
+      const other = room[other_role];
+      if (other?.readyState === WebSocket.OPEN) {
+        other.send(JSON.stringify(msg));
+      }
+    });
+
+    ws.on('close', () => {
+      const current = therapyRooms.get(booking_id);
+      if (!current) return;
+      if (current[participant_role] === ws) {
+        current[participant_role] = null;
+        console.log(`[therapy] room=${short} ${participant_role} disconnected`);
+        if (current[other_role]?.readyState === WebSocket.OPEN) {
+          current[other_role].send(JSON.stringify({ type: 'peer_left', role: participant_role }));
+        }
+        // Clean up empty rooms
+        if (!current.member && !current.therapist) {
+          therapyRooms.delete(booking_id);
+          console.log(`[therapy] room=${short} empty — deleted`);
+        }
+      }
+    });
+
+    ws.on('error', (err) => {
+      console.log(`[therapy] ws error room=${short}:`, err.message);
+    });
+  }
+
+  // ─── Peer + therapy connection handler ────────────────────────────────────
   wss.on('connection', (ws, req) => {
     let sessionId = null;
     console.log('[signal] new connection from', req.socket.remoteAddress);
@@ -36,6 +144,17 @@ function createSignalingServer(httpServer) {
       if (!sessionId) {
         if (msg.type !== 'join' || !msg.session_id) { ws.close(); return; }
         sessionId = msg.session_id;
+
+        // Route therapy rooms to isolated namespace — requires booking_id + role
+        if (sessionId.startsWith('therapy:')) {
+          const booking_id = sessionId.slice('therapy:'.length);
+          const participant_role = msg.role; // 'member' or 'therapist'
+          handleTherapyJoin(ws, booking_id, participant_role).catch((err) => {
+            console.error('[therapy] join error:', err.message);
+            ws.close();
+          });
+          return; // therapy handler owns this connection from here on
+        }
         const short = sessionId.slice(0, 8);
 
         if (!rooms.has(sessionId)) rooms.set(sessionId, []);

@@ -103,7 +103,7 @@ export default function PrivacyPolicyScreen({ embedded = false }) {
           <P>We apply the following protections:</P>
           <UL items={[
             'All data in transit: TLS 1.3 encryption.',
-            'Sensitive fields at rest: AES-256 encryption (safety plan contacts, therapist referral phone numbers).',
+            'Sensitive fields at rest: AES-256 encryption (safety plan contacts, therapy session tokens).',
             'Passwords: bcrypt hashed with cost factor 12. We never store plain-text passwords.',
             'Access: authenticated via signed JWT tokens with blacklisting on logout.',
           ]} />

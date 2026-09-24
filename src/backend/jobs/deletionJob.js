@@ -42,7 +42,10 @@ async function runDeletionJob() {
     // Step 8: Delete personal data (all CASCADE on user_id — explicit for clarity)
     await query('DELETE FROM journals            WHERE user_id = $1', [id]);
     await query('DELETE FROM moods               WHERE user_id = $1', [id]);
-    await query('DELETE FROM therapist_referrals WHERE user_id = $1', [id]);
+    // therapist_referrals dropped in Phase 37 teardown.
+    // therapist_bookings.member_user_id → ON DELETE SET NULL (financial records preserved, member anonymised)
+    // therapist_ratings.member_user_id  → ON DELETE SET NULL (ratings preserved anonymously)
+    // therapy_disputes.raised_by        → ON DELETE SET NULL (dispute records preserved for audit)
     await query('DELETE FROM safety_plans        WHERE user_id = $1', [id]);
     await query('DELETE FROM notifications       WHERE user_id = $1', [id]);
     await query('DELETE FROM credit_transactions WHERE user_id = $1', [id]);

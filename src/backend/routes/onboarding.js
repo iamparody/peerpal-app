@@ -113,16 +113,20 @@ router.post('/condition', auth, async (req, res) => {
     [condition_category]
   );
 
-  let group_id = null;
-  if (groupRows.length) {
-    group_id = groupRows[0].id;
-    await query(
-      `INSERT INTO group_memberships (group_id, user_id, status, agreed_at)
-       VALUES ($1, $2, 'active', NOW())
-       ON CONFLICT (group_id, user_id) DO UPDATE SET status = 'active', agreed_at = NOW()`,
-      [group_id, req.user.id]
-    );
+  if (!groupRows.length) {
+    return res.status(503).json({
+      error: 'No active group found for this category. Please try again or contact support.',
+      code: 'GROUP_NOT_FOUND',
+    });
   }
+
+  const group_id = groupRows[0].id;
+  await query(
+    `INSERT INTO group_memberships (group_id, user_id, status, agreed_at)
+     VALUES ($1, $2, 'active', NOW())
+     ON CONFLICT (group_id, user_id) DO UPDATE SET status = 'active', agreed_at = NOW()`,
+    [group_id, req.user.id]
+  );
 
   return res.status(200).json({ condition_category, group_id });
 });

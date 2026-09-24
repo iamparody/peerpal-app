@@ -29,10 +29,10 @@ async function run() {
     );
     const appliedSet = new Set(applied.map((r) => r.filename));
 
-    // Read all .sql files sorted by name
+    // Read forward migration files only (exclude _rollback.sql files)
     const files = fs
       .readdirSync(MIGRATIONS_DIR)
-      .filter((f) => f.endsWith('.sql'))
+      .filter((f) => f.endsWith('.sql') && !f.includes('_rollback'))
       .sort();
 
     if (files.length === 0) {
