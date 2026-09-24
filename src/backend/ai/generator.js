@@ -4,9 +4,9 @@ const { v4: uuidv4 }      = require('uuid');
 const Groq                 = require('groq-sdk');
 const { sanitize, stripHtml } = require('../utils/sanitizer');
 
-const GENERATION_MODEL    = process.env.GROQ_PRIMARY_MODEL  || 'llama-3.3-70b-versatile';
-const FALLBACK_MODEL      = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-8b-instant';
-const GENERATION_MODEL_ID = 'groq/llama-3.3-70b-versatile@1.0.0';
+const GENERATION_MODEL    = process.env.GROQ_PRIMARY_MODEL  || 'openai/gpt-oss-120b';
+const FALLBACK_MODEL      = process.env.GROQ_FALLBACK_MODEL || 'qwen/qwen3.8-27b';
+const GENERATION_MODEL_ID = 'groq/gpt-oss-120b@1.0.0';
 const SCHEMA_VERSION      = '1.0.0';
 
 // Crisis response template — governed policy artefact (Section 3.6).
@@ -131,13 +131,15 @@ async function generate(decided, { systemPrompt, messages = [], userMessage }) {
 
   let rawContent = '';
   try {
-    const primary = await getGroq().chat.completions.create({ model: GENERATION_MODEL, messages: groqMessages, max_tokens: maxTokens });
+    const primary = await getGroq().chat.completions.create({ model: GENERATION_MODEL, messages: groqMessages, max_tokens: maxTokens, reasoning_effort: 'low' });
     rawContent = primary.choices[0]?.message?.content?.trim() || '';
-  } catch {
+  } catch (primaryErr) {
+    console.error('[generator] primary model failed:', primaryErr?.status, primaryErr?.message);
     try {
       const fb = await getGroq().chat.completions.create({ model: FALLBACK_MODEL, messages: groqMessages, max_tokens: maxTokens });
       rawContent = fb.choices[0]?.message?.content?.trim() || '';
-    } catch {
+    } catch (fallbackErr) {
+      console.error('[generator] fallback model failed:', fallbackErr?.status, fallbackErr?.message);
       return failedRecord(decided.decision_id);
     }
   }
