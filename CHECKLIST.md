@@ -2089,14 +2089,14 @@ Failure modes to cover:
 
 ### 37.6 — Cron Jobs & Background Jobs
 
-- [ ] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `slotLockCleanupJob`: DELETE FROM `booking_slot_locks` WHERE `expires_at < NOW()`
-- [ ] Add to `server.js`: cron `*/10 * * * *` (every 10 min) — `therapistNoShowJob`: SELECT `therapist_bookings` WHERE `status = 'confirmed'` AND `scheduled_at < NOW() - INTERVAL '10 minutes'`; for each: check if `therapy_sessions.therapist_joined_at` is NULL; if NULL: UPDATE booking `status = 'therapist_no_show'`; trigger full refund (credit + M-Pesa); notify member: "Your therapist did not join. Full refund issued."; notify admin; UPDATE `therapist_profiles.no_show_count += 1`; if `no_show_count >= 3`: set `suspended = true, is_active = false`, notify admin for review
-- [ ] Add to `server.js`: cron `0 2 * * *` (02:00 EAT daily) — `payoutReconciliationJob`: SELECT `therapist_payouts` WHERE `status = 'processing'` AND `initiated_at < NOW() - INTERVAL '2 hours'`; for each: call Daraja Transaction Status API; on confirmed: UPDATE `status = 'completed'`, `completed_at = NOW()`, store `mpesa_reference`; on failed: call `retryFailedPayout`; on unresolved after 1 retry: notify admin
-- [ ] Add to `server.js`: cron `0 * * * *` (hourly) — `escrowReleaseJob`: SELECT `therapist_bookings` WHERE `status = 'completed'` AND `escrow_status = 'held'` AND `ended_at < NOW() - INTERVAL '24 hours'`; for each: check no open `therapy_disputes` with `status = 'open'`; if clear: INSERT `therapist_payouts`, call `initiatePayout`, UPDATE booking `escrow_status = 'released'`; notify therapist: payout initiated
-- [ ] Add to `server.js`: cron `*/5 * * * *` (every 5 min, slot fine enough for 30-min window) — `preSessionCheckinJob`: SELECT `therapist_bookings` WHERE `status = 'confirmed'` AND `scheduled_at BETWEEN NOW() + INTERVAL '29 minutes' AND NOW() + INTERVAL '31 minutes'` AND `pre_session_checkin IS NULL`; for each: send 5-question mood + safety check to member as in-app notification with inline response (1=crisis, 2=struggling, 3=low, 4=okay, 5=good); member response stored as `pre_session_checkin JSONB` on the booking row; if response score=1 (crisis flag): immediately fire `POST /emergency/trigger` (source='pre_session_checkin', booking_id), send Befrienders Kenya number to member, notify admin, set booking status='cancelled' with `cancellation_reason='crisis_detected'`, issue full refund — session does not proceed
-- [ ] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `preSessionReminderJob`: SELECT `therapist_bookings` WHERE `status = 'confirmed'` AND `scheduled_at BETWEEN NOW() + INTERVAL '14 minutes' AND NOW() + INTERVAL '16 minutes'`; for each: notify member (push + in-app): "Your session starts in 15 minutes. Tap to join."; notify therapist (push + in-app): "Session in 15 minutes — your client is [alias]."
-- [ ] Add to `server.js`: cron `0 3 * * *` (03:00 EAT daily) — `payoutRetryJob`: SELECT `therapist_payouts` WHERE `status = 'failed'` AND `retry_count <= 1` AND `next_retry_at < NOW()`; for each: call `retryFailedPayout`
-- [ ] Add to `server.js`: cron `*/10 * * * *` (every 10 min) — `memberNoShowJob`: SELECT `therapist_bookings` WHERE `status = 'in_progress'` AND `therapist_joined_at IS NOT NULL` AND `member_joined_at IS NULL` AND `therapist_joined_at < NOW() - INTERVAL '15 minutes'`; for each: UPDATE booking `status = 'member_no_show'`; therapist is owed full payout (they joined — escrow release proceeds normally after dispute window); notify therapist: "Your client did not join. You will be paid for this session."; notify member: "You missed your session. No refund is available."; no credit refund; no M-Pesa refund (therapist showed up)
+- [x] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `slotLockCleanupJob`
+- [x] Add to `server.js`: cron `*/10 * * * *` (every 10 min) — `therapistNoShowJob`
+- [x] Add to `server.js`: cron `0 2 * * *` (02:00 EAT daily) — `payoutReconciliationJob`
+- [x] Add to `server.js`: cron `0 * * * *` (hourly) — `escrowReleaseJob`
+- [x] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `preSessionCheckinJob`
+- [x] Add to `server.js`: cron `*/5 * * * *` (every 5 min) — `preSessionReminderJob`
+- [x] Add to `server.js`: cron `0 3 * * *` (03:00 EAT daily) — `payoutRetryJob`
+- [x] Add to `server.js`: cron `*/10 * * * *` (every 10 min) — `memberNoShowJob`
 
 ---
 
