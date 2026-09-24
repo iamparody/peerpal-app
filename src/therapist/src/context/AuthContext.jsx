@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
       throw new Error('This account does not have therapist access.');
     }
     const userData = {
-      id:          data.id,
+      id:          data.userId || data.id,
       alias:       data.alias,
       role:        data.role,
       suspended:   data.suspended || false,
