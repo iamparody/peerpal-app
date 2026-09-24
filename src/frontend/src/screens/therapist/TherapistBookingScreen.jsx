@@ -113,13 +113,30 @@ export default function TherapistBookingScreen() {
     setSubmitting(true);
     setError('');
     try {
+      // category_id comes from therapist's first category
+      const categoryId = (therapist.category_ids ?? [])[0] ?? null;
+
+      // phone — fetch from user profile if not cached
+      let phone;
+      try {
+        const { data: profileData } = await client.get('/api/profile');
+        phone = profileData?.user?.phone ?? profileData?.phone ?? null;
+      } catch { /* will fall through to prompt */ }
+
+      if (!phone) {
+        phone = window.prompt('Enter your M-Pesa phone number (e.g. 0712345678):');
+        if (!phone) { setSubmitting(false); return; }
+      }
+
       const { data } = await client.post('/api/therapy/bookings', {
         therapist_id: therapistId,
-        slot_lock_id: slotLockId,
+        category_id: categoryId,
+        lock_id: slotLockId,
         session_format: selectedFormat,
         scheduled_at: `${selectedSlot.date}T${selectedSlot.start_time}:00`,
         duration_minutes: selectedDuration,
-        member_notes: notes.trim() || null,
+        phone,
+        notes: notes.trim() || null,
       });
       const bookingId = data.booking_id;
       // Poll for payment confirmation (max 3 min = 36 × 5s)

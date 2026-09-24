@@ -65,6 +65,7 @@ import PeerVoiceCallScreen from './screens/peer/PeerVoiceCallScreen';
 import TherapyConsentScreen      from './screens/therapist/TherapyConsentScreen';
 import TherapistCategoryScreen   from './screens/therapist/TherapistCategoryScreen';
 import TherapistListScreen       from './screens/therapist/TherapistListScreen';
+import TherapistProfileScreen    from './screens/therapist/TherapistProfileScreen';
 import TherapistBookingScreen    from './screens/therapist/TherapistBookingScreen';
 import BookingConfirmScreen      from './screens/therapist/BookingConfirmScreen';
 import MyTherapyScreen           from './screens/therapist/MyTherapyScreen';
@@ -322,6 +323,7 @@ function Layout() {
         <Route path="/therapy/consent"                       element={<ProtectedRoute><TherapyConsentScreen /></ProtectedRoute>} />
         <Route path="/therapists"                            element={<ProtectedRoute><TherapistCategoryScreen /></ProtectedRoute>} />
         <Route path="/therapists/category/:id"               element={<ProtectedRoute><TherapistListScreen /></ProtectedRoute>} />
+        <Route path="/therapists/profile/:id"               element={<ProtectedRoute><TherapistProfileScreen /></ProtectedRoute>} />
         <Route path="/therapists/book/:therapistId"          element={<ProtectedRoute><TherapistBookingScreen /></ProtectedRoute>} />
         <Route path="/therapists/booking/:id/confirm"        element={<ProtectedRoute><BookingConfirmScreen /></ProtectedRoute>} />
         <Route path="/therapy/my"                            element={<ProtectedRoute><MyTherapyScreen /></ProtectedRoute>} />

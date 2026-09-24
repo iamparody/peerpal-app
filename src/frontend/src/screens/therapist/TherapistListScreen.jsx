@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Star, SlidersHorizontal, X, User, ArrowLeft } from '@phosphor-icons/react';
+import { Star, SlidersHorizontal, User, ArrowLeft } from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const FORMAT_LABELS = { video: 'Video', voice: 'Voice', text: 'Text' };
@@ -88,7 +88,7 @@ function TherapistCard({ therapist, onViewProfile, index }) {
       <button
         className="btn btn--primary"
         style={{ width: '100%', fontSize: '0.88rem', padding: '10px' }}
-        onClick={() => onViewProfile(therapist)}
+        onClick={() => onViewProfile(therapist.id)}
       >
         View Profile
       </button>
@@ -382,7 +382,6 @@ export default function TherapistListScreen() {
   const [allTherapists, setAllTherapists] = useState([]);
   const [filters, setFilters] = useState({ languages: [], genders: [], formats: [], days: [], maxRate: null });
   const [showFilter, setShowFilter] = useState(false);
-  const [selectedTherapist, setSelectedTherapist] = useState(null);
   const [rateRange, setRateRange] = useState({ min: 0, max: 10000 });
   const [hasMore, setHasMore] = useState(false);
   const prevKeyRef = useRef('');
@@ -470,7 +469,7 @@ export default function TherapistListScreen() {
         )}
 
         {allTherapists.map((t, i) => (
-          <TherapistCard key={t.id} therapist={t} index={i} onViewProfile={setSelectedTherapist} />
+          <TherapistCard key={t.id} therapist={t} index={i} onViewProfile={id => navigate(`/therapists/profile/${id}`)} />
         ))}
 
         {hasMore && (
@@ -487,14 +486,6 @@ export default function TherapistListScreen() {
 
       {showFilter && (
         <FilterSheet filters={filters} setFilters={handleSetFilters} rateRange={rateRange} onClose={() => setShowFilter(false)} />
-      )}
-
-      {selectedTherapist && (
-        <ProfileSheet
-          therapist={selectedTherapist}
-          onClose={() => setSelectedTherapist(null)}
-          onBook={id => { setSelectedTherapist(null); navigate(`/therapists/book/${id}`); }}
-        />
       )}
 
       <style>{`
