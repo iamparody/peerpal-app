@@ -854,6 +854,48 @@ router.patch('/therapists/:id/unsuspend', async (req, res) => {
   }
 });
 
+// ─── DELETE /admin/therapists/:id ────────────────────────────────────────────
+router.delete('/therapists/:id', async (req, res) => {
+  try {
+    const { rows } = await query(
+      'SELECT user_id FROM therapist_profiles WHERE id = $1',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+    const userId = rows[0].user_id;
+    await query('DELETE FROM therapist_profiles WHERE id = $1', [req.params.id]);
+    if (userId) await query('DELETE FROM users WHERE id = $1', [userId]);
+    await auditLog(req.user.id, 'therapist.delete', 'therapist', req.params.id, null, null, null);
+    return res.status(200).json({ deleted: true });
+  } catch (err) {
+    console.error('[therapist.delete]', err.message);
+    return res.status(500).json({ error: 'Failed to delete therapist', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── POST /admin/therapists/:id/reset-password ───────────────────────────────
+router.post('/therapists/:id/reset-password', async (req, res) => {
+  const crypto = require('crypto');
+  try {
+    const { rows } = await query(
+      'SELECT u.id, u.email FROM therapist_profiles tp JOIN users u ON u.id = tp.user_id WHERE tp.id = $1',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+    const token = crypto.randomBytes(32).toString('hex');
+    const hash  = crypto.createHash('sha256').update(token).digest('hex');
+    await query(
+      `UPDATE users SET reset_token_hash = $1, reset_token_expires = NOW() + INTERVAL '72 hours' WHERE id = $2`,
+      [hash, rows[0].id]
+    );
+    await auditLog(req.user.id, 'therapist.reset_password', 'therapist', req.params.id, null, null, null);
+    return res.status(200).json({ reset_token: token, email: rows[0].email });
+  } catch (err) {
+    console.error('[therapist.reset-password]', err.message);
+    return res.status(500).json({ error: 'Failed to generate reset link', code: 'QUERY_ERROR' });
+  }
+});
+
 // ─── GET /admin/peer-requests ────────────────────────────────────────────────
 // Live view of all peer requests from the last 24 hours — open, stuck,
 // escalated, and completed — so admins can see what's happening in the queue.

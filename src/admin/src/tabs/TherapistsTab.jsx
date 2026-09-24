@@ -55,6 +55,22 @@ export default function TherapistsTab() {
     } catch (err) { setError(err.response?.data?.error || 'Failed to unsuspend.'); }
   }
 
+  async function handleDelete(t) {
+    if (!window.confirm(`Permanently delete ${t.display_name}? This removes their profile and login account. This cannot be undone.`)) return;
+    try {
+      await client.delete(`/api/admin/therapists/${t.id}`);
+      load();
+    } catch (err) { setError(err.response?.data?.error || 'Failed to delete.'); }
+  }
+
+  async function handleResetPassword(t) {
+    try {
+      const { data } = await client.post(`/api/admin/therapists/${t.id}/reset-password`);
+      const link = `${window.location.origin.replace('5175', '3001').replace('peerpaladmin.vercel.app', 'peerpal.onrender.com')}/reset-password?token=${data.reset_token}`;
+      window.prompt(`Reset link for ${data.email} (valid 72 hrs) — copy this:`, `https://app.peer-pal.com/reset-password?token=${data.reset_token}`);
+    } catch (err) { setError(err.response?.data?.error || 'Failed to generate reset link.'); }
+  }
+
   function categoryName(id) {
     return categories.find((c) => c.id === id)?.name ?? id;
   }
@@ -113,6 +129,8 @@ export default function TherapistsTab() {
           onEdit={(t) => setPanel({ mode: 'edit', data: t })}
           onVerify={(t) => setPanel({ mode: 'verify', data: t })}
           onSuspend={(t) => setPanel({ mode: 'suspend', data: t })}
+          onDelete={handleDelete}
+          onResetPassword={handleResetPassword}
         />
       )}
 
@@ -150,7 +168,7 @@ export default function TherapistsTab() {
 }
 
 // ─── Therapists table ─────────────────────────────────────────────────────────
-function TherapistsTable({ therapists, categories, categoryName, onAvailability, onToggleActive, onUnsuspend, onEdit, onVerify, onSuspend }) {
+function TherapistsTable({ therapists, categories, categoryName, onAvailability, onToggleActive, onUnsuspend, onEdit, onVerify, onSuspend, onDelete, onResetPassword }) {
   if (!therapists.length) {
     return (
       <div className="card">
@@ -279,6 +297,12 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
                           Suspend
                         </button>
                       )}
+                      <button className="btn btn--ghost btn--sm" onClick={() => onResetPassword(t)} style={{ fontSize: 11 }} title="Generate a password reset link">
+                        Reset PW
+                      </button>
+                      <button className="btn btn--danger btn--sm" onClick={() => onDelete(t)} style={{ fontSize: 11, opacity: 0.75 }} title="Permanently delete therapist and their login">
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
