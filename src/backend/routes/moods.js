@@ -87,6 +87,37 @@ router.post('/', auth, async (req, res) => {
     bonusCredited = true;
   }
 
+  // ── Low-mood therapy nudge ────────────────────────────────────────────────
+  if (mood_level === 'very_low') {
+    try {
+      const { rows: activeBookings } = await query(
+        `SELECT id FROM therapist_bookings WHERE member_user_id = $1 AND status IN ('pending','confirmed','paid') LIMIT 1`,
+        [req.user.id]
+      );
+      if (activeBookings.length === 0) {
+        const { rows: nudgeRows } = await query(
+          `SELECT last_therapy_nudge_at FROM users WHERE id = $1`,
+          [req.user.id]
+        );
+        const lastNudge = nudgeRows[0]?.last_therapy_nudge_at;
+        const nudgeStale = !lastNudge || (Date.now() - new Date(lastNudge).getTime()) > 7 * 24 * 3600 * 1000;
+        if (nudgeStale) {
+          await query(
+            `INSERT INTO notifications (user_id, type, payload, channel)
+             VALUES ($1, 'therapist_nudge', $2, 'in_app')`,
+            [req.user.id, JSON.stringify({ message: 'Talking to a professional can help. A verified therapist is available now.', action: '/therapists' })]
+          );
+          await query(
+            `UPDATE users SET last_therapy_nudge_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [req.user.id]
+          );
+        }
+      }
+    } catch (nudgeErr) {
+      console.error('[moods] nudge error:', nudgeErr.message);
+    }
+  }
+
   await cache.del(`analytics:${req.user.id}`);
   return res.status(201).json({ mood_id: moodId, streak_count: newStreak, bonus_credited: bonusCredited });
 });

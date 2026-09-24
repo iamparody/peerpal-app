@@ -220,30 +220,55 @@ export default function DashboardScreen() {
           What would you like to do?
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
-          {TILES.map(({ label, Icon, to, desc, emergency }) => (
-            <Link
-              key={to}
-              to={to}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 6, padding: '16px 12px',
-                background: emergency ? 'var(--color-danger-bg)' : 'var(--color-surface-card)',
-                border: `1px solid ${emergency ? 'rgba(179,92,92,0.40)' : 'var(--color-border)'}`,
-                borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)',
-                textDecoration: 'none', color: emergency ? 'var(--color-danger)' : '#F5EDE4',
-                transition: 'transform var(--duration-fast), box-shadow var(--duration-fast)',
-                minHeight: 80,
-              }}
-              onMouseDown={e => e.currentTarget.style.transform = 'scale(0.985)'}
-              onMouseUp={e => e.currentTarget.style.transform = ''}
-              onTouchStart={e => e.currentTarget.style.transform = 'scale(0.985)'}
-              onTouchEnd={e => e.currentTarget.style.transform = ''}
-            >
-              <Icon size={28} weight="duotone" aria-hidden="true" color={emergency ? 'var(--color-danger)' : 'var(--color-accent)'} />
-              <span style={{ fontWeight: 600, fontSize: 13 }}>{label}</span>
-              <span style={{ fontSize: 11, color: emergency ? 'rgba(179,92,92,0.80)' : 'rgba(245,237,228,0.55)', textAlign: 'center', lineHeight: 1.3 }}>{desc}</span>
-            </Link>
-          ))}
+          {TILES.map(({ label, Icon, to, desc, emergency }) => {
+            const tileStyle = {
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 6, padding: '16px 12px',
+              background: emergency ? 'var(--color-danger-bg)' : 'var(--color-surface-card)',
+              border: `1px solid ${emergency ? 'rgba(179,92,92,0.40)' : 'var(--color-border)'}`,
+              borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)',
+              textDecoration: 'none', color: emergency ? 'var(--color-danger)' : '#F5EDE4',
+              transition: 'transform var(--duration-fast), box-shadow var(--duration-fast)',
+              minHeight: 80, cursor: 'pointer',
+            };
+            const pressHandlers = {
+              onMouseDown: e => e.currentTarget.style.transform = 'scale(0.985)',
+              onMouseUp:   e => e.currentTarget.style.transform = '',
+              onTouchStart: e => e.currentTarget.style.transform = 'scale(0.985)',
+              onTouchEnd:   e => e.currentTarget.style.transform = '',
+            };
+            const content = (
+              <>
+                <Icon size={28} weight="duotone" aria-hidden="true" color={emergency ? 'var(--color-danger)' : 'var(--color-accent)'} />
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{label}</span>
+                <span style={{ fontSize: 11, color: emergency ? 'rgba(179,92,92,0.80)' : 'rgba(245,237,228,0.55)', textAlign: 'center', lineHeight: 1.3 }}>{desc}</span>
+              </>
+            );
+            // Therapist tile: gate on therapy_consent_version
+            if (to === '/therapists') {
+              return (
+                <button
+                  key={to}
+                  style={{ ...tileStyle, fontFamily: 'inherit', border: `1px solid var(--color-border)` }}
+                  onClick={() => {
+                    if (user?.therapy_consent_version === '2.0') {
+                      navigate('/therapists');
+                    } else {
+                      navigate('/therapy/consent');
+                    }
+                  }}
+                  {...pressHandlers}
+                >
+                  {content}
+                </button>
+              );
+            }
+            return (
+              <Link key={to} to={to} style={tileStyle} {...pressHandlers}>
+                {content}
+              </Link>
+            );
+          })}
         </div>
       </div>
 

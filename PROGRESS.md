@@ -5,9 +5,9 @@
 ## Current Phase
 **Phase 37 ACTIVE — Therapist Marketplace (Production Build)**
 
-**37.1 Teardown COMPLETE. 37.2 Migrations COMPLETE. 37.3 Backend Middleware COMPLETE. 37.4 Admin Panel COMPLETE. 37.5 Backend Therapy API Routes COMPLETE.**
+**37.1 Teardown COMPLETE. 37.2 Migrations COMPLETE. 37.3 Backend Middleware COMPLETE. 37.4 Admin Panel COMPLETE. 37.5 Backend Therapy API Routes COMPLETE. 37.6 Cron Jobs COMPLETE. 37.7 Member Frontend COMPLETE.**
 
-**NEXT ACTION → 37.7 Member Frontend, item 1: `TherapyConsentScreen.jsx`**
+**NEXT ACTION → 37.8 Therapist Portal: scaffold `src/therapist/` Vite app (item 1)**
 
 Build order: Teardown → Migrations → Backend middleware → Admin CRUD + verification → Backend API routes → Member frontend → Therapist portal (src/therapist/) → Cron jobs → Safety verification → End-to-end test (22 steps)
 

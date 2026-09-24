@@ -44,11 +44,6 @@ import GroupAgreementScreen from './screens/GroupAgreementScreen';
 import GroupChatScreen from './screens/GroupChatScreen';
 import EmergencyScreen from './screens/EmergencyScreen';
 import SafetyPlanScreen from './screens/SafetyPlanScreen';
-import ReferralScreen from './screens/ReferralScreen';
-import TherapistIntakeScreen  from './screens/therapist/TherapistIntakeScreen';
-import TherapistListScreen    from './screens/therapist/TherapistListScreen';
-import TherapistConfirmScreen from './screens/therapist/TherapistConfirmScreen';
-import TherapistStatusScreen  from './screens/therapist/TherapistStatusScreen';
 import ResourcesScreen from './screens/ResourcesScreen';
 import ArticleScreen from './screens/ArticleScreen';
 import BreathingScreen from './screens/BreathingScreen';
@@ -66,6 +61,15 @@ import PeerWaitingScreen    from './screens/peer/PeerWaitingScreen';
 import PeerTextChatScreen from './screens/peer/PeerTextChatScreen';
 import PeerVoiceCallScreen from './screens/peer/PeerVoiceCallScreen';
 
+// Therapist marketplace
+import TherapyConsentScreen      from './screens/therapist/TherapyConsentScreen';
+import TherapistCategoryScreen   from './screens/therapist/TherapistCategoryScreen';
+import TherapistListScreen       from './screens/therapist/TherapistListScreen';
+import TherapistBookingScreen    from './screens/therapist/TherapistBookingScreen';
+import BookingConfirmScreen      from './screens/therapist/BookingConfirmScreen';
+import MyTherapyScreen           from './screens/therapist/MyTherapyScreen';
+import TherapySessionScreen      from './screens/therapist/TherapySessionScreen';
+
 // Training
 import TrainingHomeScreen   from './screens/training/TrainingHomeScreen';
 import SkillDetailScreen    from './screens/training/SkillDetailScreen';
@@ -77,10 +81,11 @@ const HIDE_NAV_ON = [
   '/onboarding', '/welcome', '/ai-chat', '/peer/session', '/peer/waiting', '/peer/connecting',
   '/emergency', '/emergency-public',
   '/privacy-policy', '/terms-of-service', '/data-compliance',
-  '/therapists',
   '/persona/edit',
   '/credits',
   '/training/scenario',
+  '/therapists',
+  '/therapy',
 ];
 
 // Paths where the unverified banner should not appear
@@ -288,11 +293,6 @@ function Layout() {
         <Route path="/groups/:id/chat"  element={<ProtectedRoute><GroupChatScreen /></ProtectedRoute>} />
         <Route path="/emergency"   element={<ProtectedRoute><EmergencyScreen /></ProtectedRoute>} />
         <Route path="/safety-plan" element={<ProtectedRoute><SafetyPlanScreen /></ProtectedRoute>} />
-        <Route path="/referral"           element={<ProtectedRoute><ReferralScreen /></ProtectedRoute>} />
-        <Route path="/therapists"         element={<ProtectedRoute><TherapistIntakeScreen /></ProtectedRoute>} />
-        <Route path="/therapists/browse"  element={<ProtectedRoute><TherapistListScreen /></ProtectedRoute>} />
-        <Route path="/therapists/confirm" element={<ProtectedRoute><TherapistConfirmScreen /></ProtectedRoute>} />
-        <Route path="/therapists/status"  element={<ProtectedRoute><TherapistStatusScreen /></ProtectedRoute>} />
         <Route path="/resources"   element={<ProtectedRoute><ResourcesScreen /></ProtectedRoute>} />
         <Route path="/resources/:id" element={<ProtectedRoute><ArticleScreen /></ProtectedRoute>} />
         <Route path="/sounds"      element={<ProtectedRoute><CalmingSoundsScreen /></ProtectedRoute>} />
@@ -317,6 +317,15 @@ function Layout() {
         <Route path="/peer/waiting/:id"  element={<ProtectedRoute><PeerWaitingScreen /></ProtectedRoute>} />
         <Route path="/peer/session/:id/text"  element={<ProtectedRoute><PeerTextChatScreen /></ProtectedRoute>} />
         <Route path="/peer/session/:id/voice" element={<ProtectedRoute><PeerVoiceCallScreen /></ProtectedRoute>} />
+
+        {/* Therapist marketplace */}
+        <Route path="/therapy/consent"                       element={<ProtectedRoute><TherapyConsentScreen /></ProtectedRoute>} />
+        <Route path="/therapists"                            element={<ProtectedRoute><TherapistCategoryScreen /></ProtectedRoute>} />
+        <Route path="/therapists/category/:id"               element={<ProtectedRoute><TherapistListScreen /></ProtectedRoute>} />
+        <Route path="/therapists/book/:therapistId"          element={<ProtectedRoute><TherapistBookingScreen /></ProtectedRoute>} />
+        <Route path="/therapists/booking/:id/confirm"        element={<ProtectedRoute><BookingConfirmScreen /></ProtectedRoute>} />
+        <Route path="/therapy/my"                            element={<ProtectedRoute><MyTherapyScreen /></ProtectedRoute>} />
+        <Route path="/therapy/session/:bookingId"            element={<ProtectedRoute><TherapySessionScreen /></ProtectedRoute>} />
 
         {/* Admin */}
 
