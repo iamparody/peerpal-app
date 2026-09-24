@@ -119,8 +119,7 @@ router.get('/therapists/:id', auth, async (req, res) => {
               tp.location, tp.plain_language_intro, tp.approach_plain,
               tp.cultural_competencies, tp.availability_status, tp.average_rating,
               tp.total_ratings_count, tp.total_sessions, tp.rate_per_session_kes,
-              tp.gender, tp.age, tp.kcpa_level, tp.registration_number,
-              tp.show_rating, tp.bayesian_average
+              tp.gender, tp.age, tp.kcpa_level, tp.registration_number
        FROM therapist_profiles tp
        WHERE tp.id = $1 AND tp.is_active = true AND tp.is_verified = true AND tp.suspended = false`,
       [req.params.id]
