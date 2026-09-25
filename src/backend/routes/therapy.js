@@ -119,7 +119,7 @@ router.get('/therapists/:id', auth, async (req, res) => {
               tp.location, tp.plain_language_intro, tp.approach_plain,
               tp.cultural_competencies, tp.availability_status, tp.average_rating,
               tp.total_ratings_count, tp.total_sessions, tp.rate_per_session_kes,
-              tp.gender, tp.age, tp.kcpa_level, tp.registration_number
+              tp.gender, tp.age, tp.kcpa_level
        FROM therapist_profiles tp
        WHERE tp.id = $1 AND tp.is_active = true AND tp.is_verified = true AND tp.suspended = false`,
       [req.params.id]
@@ -303,7 +303,7 @@ router.post('/bookings', auth, async (req, res) => {
 
     // Deduct 1 credit
     const bookingId = uuidv4();
-    await deductCredit(req.user.id, 1, bookingId, 'therapy_booking');
+    await deductCredit(req.user.id, 1, null, 'therapy_booking');
 
     // Create booking (payment_status=unpaid until STK callback confirms)
     await query(
@@ -569,7 +569,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
     );
 
     if (creditRefund && b.credit_charged > 0) {
-      await refundCredit(req.user.id, b.credit_charged, b.id, 'therapy_booking_cancel').catch(
+      await refundCredit(req.user.id, b.credit_charged, null, 'therapy_booking_cancel').catch(
         (e) => console.error('[therapy.cancel.credit]', e.message)
       );
     }
@@ -1160,7 +1160,7 @@ router.patch('/therapist/availability', therapistAuth, async (req, res) => {
         `INSERT INTO therapist_availability (id, therapist_id, day_of_week, start_time, end_time, is_active)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (therapist_id, day_of_week, start_time)
-         DO UPDATE SET end_time = $5, is_active = $6, updated_at = NOW()`,
+         DO UPDATE SET end_time = $5, is_active = $6`,
         [uuidv4(), therapistId, slot.day_of_week, slot.start_time, slot.end_time, slot.is_active]
       );
     }
@@ -1203,8 +1203,8 @@ router.get('/therapist/payments', therapistAuth, async (req, res) => {
       ),
       query(
         `SELECT
-           COALESCE(SUM(CASE WHEN status = 'pending' THEN therapist_payout_kes ELSE 0 END), 0) AS pending_kes,
-           COALESCE(SUM(CASE WHEN status = 'completed' THEN therapist_payout_kes ELSE 0 END), 0) AS completed_kes
+           COALESCE(SUM(CASE WHEN p.status = 'pending' THEN b.therapist_payout_kes ELSE 0 END), 0) AS pending_kes,
+           COALESCE(SUM(CASE WHEN p.status = 'completed' THEN b.therapist_payout_kes ELSE 0 END), 0) AS completed_kes
          FROM therapist_payouts p
          JOIN therapist_bookings b ON b.id = p.booking_id
          WHERE b.therapist_id = $1`,

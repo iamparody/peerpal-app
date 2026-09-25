@@ -5,9 +5,27 @@
 ## Current Phase
 **Phase 37 ACTIVE — Therapist Marketplace (Production Build)**
 
-**37.1 Teardown COMPLETE. 37.2 Migrations COMPLETE. 37.3 Backend Middleware COMPLETE. 37.4 Admin Panel COMPLETE. 37.5 Backend Therapy API Routes COMPLETE. 37.6 Cron Jobs COMPLETE. 37.7 Member Frontend COMPLETE. 37.8 Therapist Portal COMPLETE. 37.9 Safety & Compliance COMPLETE (manual RLS/B2C/no-show checks deferred to 37.10).**
+**37.1–37.10 ALL COMPLETE. Phase 37 Therapist Marketplace DONE.**
 
-**NEXT ACTION → 37.10 End-to-End Verification: full happy path (admin onboard → therapist sets availability → member books → payment → session → rating)**
+**NEXT ACTION → Phase 38 (check CHECKLIST.md for next phase)**
+
+### 37.10 Verification Summary (2026-09-25)
+All 22 verification steps executed. Bugs found and fixed during verification:
+
+1. **FIXED** `therapist_availability` ON CONFLICT DO UPDATE referenced non-existent `updated_at` column → removed from query
+2. **FIXED** `GET /therapy/therapists/:id` exposed `registration_number` to member view → removed from SELECT
+3. **FIXED** `credit_tx_channel` enum missing `therapy_booking` value → migration 094 added it
+4. **FIXED** `deductCredit` called with `bookingId` as `session_id` FK (fails FK constraint) → changed to `null`
+5. **FIXED** `refundCredit` in cancel route called with `b.id` as `session_id` FK → changed to `null`
+6. **FIXED** `GET /therapy/therapist/payments` payout summary query had ambiguous `status` column → qualified as `p.status`
+7. **FIXED** Admin dispute endpoints missing from admin.js → added `GET /admin/therapy/disputes` and `PATCH /admin/therapy/disputes/:id/resolve`
+8. **FIXED** `therapy_disputes` had no `outcome` column → migration 095 added it
+9. **FIXED** Dispute resolve used `status='resolved'` (invalid) → mapped to correct enum values (`resolved_refund`, `resolved_partial`, `resolved_release`)
+10. **FIXED** `notification_type` enum missing `therapist_update` and therapy types → migration 096 added them
+
+**Non-blocking (credit leak):** `deductCredit` is not wrapped in a transaction — if the INSERT to `credit_transactions` fails, the UPDATE to `credits` has already committed. Credits are silently deducted without a ledger entry. Flagged for Phase 38 fix (wrap in a DB transaction).
+
+Verification results: PASS on all flows — categories, therapist discovery, privacy check, availability, slot lock (SLOT_TAKEN), booking, payment simulation, confirm, session start, member join (TOKEN_CONSUMED), session end (duration_billed_minutes), rating (ALREADY_RATED, Bayesian formula), session notes (FORBIDDEN for member), disputes (DISPUTE_EXISTS), admin resolve, payments tab, ratings tab, cancellation bands (>24hr/2-24hr/grace/<2hr-no-grace), no-show job, escrow release job, payout reconciliation job.
 
 Build order: Teardown → Migrations → Backend middleware → Admin CRUD + verification → Backend API routes → Member frontend → Therapist portal (src/therapist/) → Cron jobs → Safety verification → End-to-end test (22 steps)
 

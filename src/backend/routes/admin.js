@@ -1518,4 +1518,88 @@ router.patch('/config/:key', async (req, res) => {
   }
 });
 
+// ─── GET /admin/therapy/disputes ─────────────────────────────────────────────
+router.get('/therapy/disputes', async (req, res) => {
+  try {
+    const { status = 'open', limit = 50, offset = 0 } = req.query;
+    const { rows } = await query(
+      `SELECT td.id, td.booking_id, td.raised_by, td.raised_by_role, td.reason,
+              td.status, td.outcome, td.admin_notes, td.resolved_at, td.created_at,
+              tb.scheduled_at, tb.rate_kes, tb.escrow_status,
+              u.alias AS member_alias, tp.display_name AS therapist_name
+       FROM therapy_disputes td
+       JOIN therapist_bookings tb ON td.booking_id = tb.id
+       JOIN users u ON tb.member_user_id = u.id
+       JOIN therapist_profiles tp ON tb.therapist_id = tp.id
+       WHERE ($1 = 'all' OR td.status = $1)
+       ORDER BY td.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [status, parseInt(limit), parseInt(offset)]
+    );
+    return res.json({ disputes: rows, count: rows.length });
+  } catch (err) {
+    console.error('[admin.therapy.disputes.list]', err.message);
+    return res.status(500).json({ error: 'Failed to load disputes', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── PATCH /admin/therapy/disputes/:id/resolve ────────────────────────────────
+router.patch('/therapy/disputes/:id/resolve', async (req, res) => {
+  const { outcome, notes } = req.body;
+  if (!outcome) return res.status(400).json({ error: 'outcome is required', code: 'MISSING_FIELDS' });
+  const validOutcomes = ['full_refund', 'partial_refund', 'no_refund', 'therapist_penalty'];
+  if (!validOutcomes.includes(outcome)) {
+    return res.status(400).json({ error: `outcome must be one of: ${validOutcomes.join(', ')}`, code: 'INVALID_OUTCOME' });
+  }
+  try {
+    const { rows: dispRows } = await query(
+      `SELECT td.*, tb.member_user_id, tb.credit_charged, tb.rate_kes, tb.therapist_id
+       FROM therapy_disputes td JOIN therapist_bookings tb ON td.booking_id = tb.id
+       WHERE td.id = $1 AND td.status = 'open'`,
+      [req.params.id]
+    );
+    if (!dispRows.length) return res.status(404).json({ error: 'Dispute not found or already resolved', code: 'NOT_FOUND' });
+    const disp = dispRows[0];
+
+    // Map outcome to DB status
+    const statusMap = {
+      full_refund: 'resolved_refund',
+      partial_refund: 'resolved_partial',
+      no_refund: 'resolved_release',
+      therapist_penalty: 'resolved_release',
+    };
+    const newStatus = statusMap[outcome];
+
+    // Resolve dispute
+    await query(
+      `UPDATE therapy_disputes SET status=$1, outcome=$2, admin_notes=$3,
+       resolved_at=NOW(), resolved_by=$4 WHERE id=$5`,
+      [newStatus, outcome, notes || null, req.user.id, disp.id]
+    );
+
+    // Update escrow on booking
+    const newEscrow = outcome === 'no_refund' ? 'released' : 'refunded';
+    await query(
+      `UPDATE therapist_bookings SET escrow_status=$1, updated_at=NOW() WHERE id=$2`,
+      [newEscrow, disp.booking_id]
+    );
+
+    // Credit refund if applicable
+    if ((outcome === 'full_refund' || outcome === 'partial_refund') && disp.credit_charged > 0) {
+      const { refundCredit } = require('../utils/creditDeductor');
+      const refundAmt = outcome === 'full_refund' ? disp.credit_charged : Math.ceil(disp.credit_charged / 2);
+      await refundCredit(disp.member_user_id, refundAmt, null, 'therapy_dispute_refund',
+        `Dispute resolved: ${outcome}`).catch((e) => console.error('[admin.dispute.refund]', e.message));
+    }
+
+    await auditLog(req.user.id, 'therapy.dispute.resolve', 'dispute', disp.id, null, null,
+      JSON.stringify({ outcome, booking_id: disp.booking_id }));
+
+    return res.json({ resolved: true, outcome, dispute_id: disp.id });
+  } catch (err) {
+    console.error('[admin.therapy.disputes.resolve]', err.message);
+    return res.status(500).json({ error: 'Failed to resolve dispute', code: 'QUERY_ERROR' });
+  }
+});
+
 module.exports = router;
