@@ -9,7 +9,7 @@ const { deductCredit, refundCredit } = require('../utils/creditDeductor');
 const { stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund, issuePartialRefund } = require('../utils/therapyRefund');
-const { getTurnCredentials } = require('../utils/turnCredentials');
+const { getTurnCredentialsWithFallback } = require('../utils/turnCredentials');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { initiatePayout } = require('../utils/therapistPayout');
 
@@ -713,7 +713,7 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
       message: 'Your therapist has started the session. Tap to join.',
     });
 
-    const turnCredentials = await getTurnCredentials().catch(() => null);
+    const turnCredentials = await getTurnCredentialsWithFallback();
 
     return res.status(200).json({
       session_id:              sessionId,
@@ -744,7 +744,7 @@ router.get('/sessions/:booking_id/join', auth, async (req, res) => {
     }
 
     const rawToken = decrypt(session.room_token_member);
-    const turnCredentials = await getTurnCredentials().catch(() => null);
+    const turnCredentials = await getTurnCredentialsWithFallback();
 
     return res.status(200).json({
       session_id:       session.id,

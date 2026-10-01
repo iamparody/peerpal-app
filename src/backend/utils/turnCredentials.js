@@ -45,4 +45,29 @@ async function getTurnCredentials() {
   });
 }
 
-module.exports = { getTurnCredentials };
+// Builds ICE server list from Metered.ca static credentials (env fallback).
+function getStaticTurnCredentials() {
+  const username   = process.env.TURN_USERNAME;
+  const credential = process.env.TURN_CREDENTIAL;
+  if (!username || !credential) return null;
+  return {
+    ice_servers: [
+      { urls: 'stun:stun.relay.metered.ca:80' },
+      { urls: 'turn:global.relay.metered.ca:80',                 username, credential },
+      { urls: 'turn:global.relay.metered.ca:80?transport=tcp',   username, credential },
+      { urls: 'turn:global.relay.metered.ca:443',                username, credential },
+      { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username, credential },
+    ],
+  };
+}
+
+// Returns TURN credentials — tries Twilio NTS first, falls back to Metered.ca static creds.
+async function getTurnCredentialsWithFallback() {
+  try {
+    return await getTurnCredentials();
+  } catch {
+    return getStaticTurnCredentials();
+  }
+}
+
+module.exports = { getTurnCredentials, getTurnCredentialsWithFallback };
