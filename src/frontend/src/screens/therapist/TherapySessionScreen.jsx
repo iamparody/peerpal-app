@@ -112,6 +112,7 @@ function MediaSession({ booking, joinData, onEnd }) {
       const iceServers = joinData.turn_credentials?.ice_servers?.length
         ? joinData.turn_credentials.ice_servers
         : [{ urls: 'stun:stun.l.google.com:19302' }];
+      console.log('[TherapySession] ICE servers:', JSON.stringify(iceServers));
 
       const mediaConstraints = isVideo ? { audio: true, video: { facingMode: 'user' } } : { audio: true };
       let stream;

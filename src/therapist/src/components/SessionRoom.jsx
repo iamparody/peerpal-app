@@ -60,6 +60,7 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
       const iceServers = sessionData.turn_credentials?.ice_servers?.length
         ? sessionData.turn_credentials.ice_servers
         : [{ urls: 'stun:stun.l.google.com:19302' }];
+      console.log('[SessionRoom] ICE servers:', JSON.stringify(iceServers));
 
       const constraints = isVideo ? { audio: true, video: { facingMode: 'user' } } : { audio: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
