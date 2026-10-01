@@ -456,7 +456,7 @@ export default function TherapySessionScreen() {
     if (!booking || ended) return;
     const iv = setInterval(async () => {
       try {
-        const { data } = await client.get();
+        const { data } = await client.get(`/api/therapy/bookings/${booking.id}`);
         if (!['in_progress', 'confirmed'].includes(data.booking?.status)) {
           clearInterval(iv);
           setEnded(true);
