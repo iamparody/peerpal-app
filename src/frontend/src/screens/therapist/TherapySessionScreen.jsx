@@ -182,7 +182,7 @@ function MediaSession({ booking, joinData, onEnd }) {
       };
 
       ws.onopen = () => {
-        // Member is non-owner — therapist initiates the WebRTC offer
+        // Member is non-owner - therapist initiates the WebRTC offer
         ws.send(JSON.stringify({ type: 'join', session_id: `therapy:${booking.id}`, role: 'member' }));
       };
     }

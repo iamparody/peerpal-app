@@ -726,12 +726,11 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
   }
 });
 
-// ─── GET /therapy/sessions/:booking_id/join ───────────────────────────────────
-// Member joins an in-progress session. Token is single-use — nulled after delivery.
+// Member joins an in-progress session. Idempotent — member_joined_at is recorded by WS.
 router.get('/sessions/:booking_id/join', auth, async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT ts.id, ts.room_token_member, ts.member_joined_at
+      `SELECT ts.id, ts.room_token_member
        FROM therapy_sessions ts
        JOIN therapist_bookings b ON b.id = ts.booking_id
        WHERE ts.booking_id = $1 AND b.member_user_id = $2 AND b.status = 'in_progress'`,
@@ -741,25 +740,16 @@ router.get('/sessions/:booking_id/join', auth, async (req, res) => {
 
     const session = rows[0];
     if (!session.room_token_member) {
-      return res.status(410).json({ error: 'Session token already used', code: 'TOKEN_CONSUMED' });
+      return res.status(410).json({ error: 'Session token not available', code: 'TOKEN_UNAVAILABLE' });
     }
 
     const rawToken = decrypt(session.room_token_member);
-
-    // Null the token and record member join time
-    await query(
-      `UPDATE therapy_sessions
-       SET room_token_member = NULL, member_joined_at = COALESCE(member_joined_at, NOW())
-       WHERE id = $1`,
-      [session.id]
-    );
-
     const turnCredentials = await getTurnCredentials().catch(() => null);
 
     return res.status(200).json({
-      session_id:           session.id,
-      room_token_member:    rawToken,
-      turn_credentials:     turnCredentials,
+      session_id:       session.id,
+      room_token:       rawToken,
+      turn_credentials: turnCredentials,
     });
   } catch (err) {
     console.error('[therapy.sessions.join]', err.message);

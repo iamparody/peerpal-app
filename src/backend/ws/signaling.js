@@ -70,6 +70,11 @@ function createSignalingServer(httpServer) {
     }
 
     room[participant_role] = ws;
+    // Record when member first connects via WebRTC (source of billing truth)
+    if (participant_role === 'member') {
+      query('UPDATE therapy_sessions SET member_joined_at = COALESCE(member_joined_at, NOW()) WHERE booking_id = $1', [booking_id])
+        .catch(err => console.error('[therapy] member_joined_at update failed:', err.message));
+    }
     const other_role = participant_role === 'member' ? 'therapist' : 'member';
     console.log(`[therapy] room=${short} ${participant_role} joined`);
 

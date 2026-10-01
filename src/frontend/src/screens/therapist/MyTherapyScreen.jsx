@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Star, VideoCamera, Phone, ChatText, Warning } from '@phosphor-icons/react';
@@ -185,8 +185,8 @@ function BookingCard({ booking, tab, onCancel, onRate, onJoin }) {
       {/* Actions */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {canJoin && (
-          <button className="btn btn--primary" style={{ flex: 1, minWidth: 120, fontSize: '0.88rem' }} onClick={() => onJoin(booking)}>
-            Join Session
+          <button className="btn btn--primary" style={{ flex: 1, minWidth: 120, fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => onJoin(booking)}>
+            <VideoCamera size={16} weight="fill" /> Join Session
           </button>
         )}
         {needsRating && (
@@ -239,6 +239,29 @@ export default function MyTherapyScreen() {
   function handleJoin(booking) {
     navigate(`/therapy/session/${booking.id}`);
   }
+
+  // Ring tone when session goes live
+  const prevLiveCount = useRef(0);
+  useEffect(() => {
+    if (live.length > 0 && prevLiveCount.current === 0) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        function beep(startTime, freq, dur) {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.frequency.value = freq; osc.type = 'sine';
+          gain.gain.setValueAtTime(0.35, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+          osc.start(startTime); osc.stop(startTime + dur);
+        }
+        // Two-tone ring pattern: 880hz + 660hz, twice
+        const t = ctx.currentTime;
+        beep(t, 880, 0.18); beep(t + 0.22, 660, 0.18);
+        beep(t + 0.6, 880, 0.18); beep(t + 0.82, 660, 0.18);
+      } catch {}
+    }
+    prevLiveCount.current = live.length;
+  }, [live.length]);
 
   return (
     <div className="screen" style={{ overflowY: 'auto' }}>
