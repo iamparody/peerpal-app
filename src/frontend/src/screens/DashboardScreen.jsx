@@ -10,7 +10,7 @@ import MoodBlob from '../components/MoodBlob';
 const TILES = [
   { label: 'Peer Help',  Icon: Handshake,  to: '/peer',       desc: 'Talk to someone now' },
   { label: 'AI Chat',    Icon: Robot,       to: '/ai-chat',    desc: 'Your companion is here' },
-  { label: 'Therapist',  Icon: Stethoscope, to: '/therapists', desc: 'Find the right fit' },
+  { label: 'Therapist',  Icon: Stethoscope, to: '/therapy/my', desc: 'Your sessions' },
   { label: 'Journal',    Icon: Notebook,    to: '/journal',    desc: 'Write freely' },
   { label: 'Groups',     Icon: UsersThree,  to: '/groups',     desc: 'Peer communities' },
   { label: 'Emergency',  Icon: Siren,       to: '/emergency',  desc: 'Get help right now', emergency: true },
@@ -245,14 +245,14 @@ export default function DashboardScreen() {
               </>
             );
             // Therapist tile: gate on therapy_consent_version
-            if (to === '/therapists') {
+            if (to === '/therapy/my') {
               return (
                 <button
                   key={to}
                   style={{ ...tileStyle, fontFamily: 'inherit', border: `1px solid var(--color-border)` }}
                   onClick={() => {
                     if (user?.therapy_consent_version === '2.0') {
-                      navigate('/therapists');
+                      navigate('/therapy/my');
                     } else {
                       navigate('/therapy/consent');
                     }

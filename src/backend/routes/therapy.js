@@ -707,6 +707,12 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
       [booking_id]
     );
 
+    // Notify member so their booking list refreshes and Join button appears
+    await notifyUser(bookingRows[0].member_user_id, 'therapy_session_reminder', {
+      booking_id,
+      message: 'Your therapist has started the session. Tap to join.',
+    });
+
     const turnCredentials = await getTurnCredentials().catch(() => null);
 
     return res.status(200).json({

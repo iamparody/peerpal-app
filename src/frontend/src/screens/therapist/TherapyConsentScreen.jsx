@@ -19,7 +19,7 @@ export default function TherapyConsentScreen() {
     try {
       await client.post('/api/therapy/consent', { consent_version: '2.0' });
       updateUser({ therapy_consent_version: '2.0' });
-      navigate('/therapists', { replace: true });
+      navigate('/therapy/my', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save consent. Please try again.');
       setSubmitting(false);

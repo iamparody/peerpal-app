@@ -217,6 +217,8 @@ export default function MyTherapyScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ['therapy', 'my-bookings'],
     queryFn: () => client.get('/api/therapy/bookings').then(r => r.data),
+    // Poll every 15s so the Join button appears when therapist starts the session
+    refetchInterval: 15000,
   });
 
   const all = data?.bookings ?? [];
@@ -245,7 +247,13 @@ export default function MyTherapyScreen() {
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-primary)', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Back">
           <ArrowLeft size={22} />
         </button>
-        <span style={{ fontWeight: 700, fontSize: 17 }}>My Therapy</span>
+        <span style={{ fontWeight: 700, fontSize: 17, flex: 1 }}>My Therapy</span>
+        <button
+          className="btn btn--primary btn--sm"
+          onClick={() => navigate('/therapists')}
+        >
+          Find a Therapist
+        </button>
       </div>
 
       {/* Tabs */}
