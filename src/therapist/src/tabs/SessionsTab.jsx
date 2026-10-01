@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import SessionRoom from '../components/SessionRoom';
 import { X } from '@phosphor-icons/react';
 import client from '../api/client';
 
@@ -123,6 +124,7 @@ export default function SessionsTab() {
   const [hasMore, setHasMore]     = useState(false);
   const [actionBusy, setActionBusy] = useState({});
   const [notesFor, setNotesFor]   = useState(null);
+  const [activeSession, setActiveSession] = useState(null); // { booking, sessionData }
 
   const load = useCallback(async (status, pg) => {
     setLoading(true);
@@ -169,10 +171,26 @@ export default function SessionsTab() {
     }
   }
 
+  async function startSession(booking) {
+    try {
+      const res = await client.post('/api/therapy/sessions/start', { booking_id: booking.id });
+      setActiveSession({ booking, sessionData: res.data });
+    } catch (err) {
+      alert(err.response?.data?.error || 'Could not start session. Check the booking is confirmed and within 15 minutes of the scheduled time.');
+    }
+  }
+
   return (
     <div>
+      {activeSession && (
+        <SessionRoom
+          booking={activeSession.booking}
+          sessionData={activeSession.sessionData}
+          onEnd={() => { setActiveSession(null); load(filter, 1); }}
+        />
+      )}
       {notesFor && (
-        <NotesPanel booking={notesFor} onClose={() => setNotesFor(null)} />
+        <NotesPanel booking={notesFor} onClose={() => { setNotesFor(null); load(filter, 1); }} />
       )}
 
       <div className="page-header">
@@ -250,8 +268,11 @@ export default function SessionsTab() {
                     </>
                   )}
                   {(b.status === 'confirmed' || b.status === 'upcoming') && (
-                    <button className="btn btn--ghost btn--sm" disabled>
-                      Session room coming soon
+                    <button
+                      className="btn btn--primary btn--sm"
+                      onClick={() => startSession(b)}
+                    >
+                      Start Session
                     </button>
                   )}
                   {b.status === 'completed' && (

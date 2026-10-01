@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import client from '../api/client';
 
-const SESSION_FORMATS  = ['text', 'voice', 'video'];
+const SESSION_FORMATS  = ['video', 'in_person'];
 const AVAILABILITY_OPT = ['available', 'limited', 'unavailable'];
 
 const AVAIL_BADGE = {

@@ -105,8 +105,8 @@ function MediaSession({ booking, joinData, onEnd }) {
     let pc;
 
     async function init() {
-      const iceServers = joinData.ice_servers?.length
-        ? joinData.ice_servers
+      const iceServers = joinData.turn_credentials?.ice_servers?.length
+        ? joinData.turn_credentials.ice_servers
         : [{ urls: 'stun:stun.l.google.com:19302' }];
 
       const mediaConstraints = isVideo ? { audio: true, video: { facingMode: 'user' } } : { audio: true };
@@ -182,8 +182,8 @@ function MediaSession({ booking, joinData, onEnd }) {
       };
 
       ws.onopen = () => {
-        // Member is non-owner â€” therapist initiates offer
-        ws.send(JSON.stringify({ type: 'join', role: 'member' }));
+        // Member is non-owner — therapist initiates the WebRTC offer
+        ws.send(JSON.stringify({ type: 'join', session_id: `therapy:${booking.id}`, role: 'member' }));
       };
     }
 

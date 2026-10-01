@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Clock, VideoCamera, Phone, ChatText } from '@phosphor-icons/react';
+import { ArrowLeft, Clock, VideoCamera, MapPin } from '@phosphor-icons/react';
 import client from '../../api/client';
 
-const FORMAT_ICONS = { video: VideoCamera, voice: Phone, text: ChatText };
-const FORMAT_LABELS = { video: 'Video', voice: 'Voice', text: 'Text' };
+const FORMAT_ICONS  = { video: VideoCamera, in_person: MapPin };
+const FORMAT_LABELS = { video: 'Video Call', in_person: 'In Person' };
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

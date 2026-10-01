@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 
-const FORMAT_OPTIONS = ['video', 'voice', 'text'];
+const FORMAT_OPTIONS = ['video', 'in_person'];
 const AVAILABILITY_OPTIONS = ['available', 'busy', 'on_leave'];
 
 export default function ProfileTab() {

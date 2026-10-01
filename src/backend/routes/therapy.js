@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const express  = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -23,7 +23,7 @@ const DISPUTE_WINDOW_HOURS     = 24;
 const BAYESIAN_C               = 10;
 const BAYESIAN_MEAN            = 3.5;
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function notifyUser(user_id, type, payload) {
   await query(
@@ -33,7 +33,7 @@ async function notifyUser(user_id, type, payload) {
   ).catch((e) => console.error('[therapy:notify]', e.message));
 }
 
-// â”€â”€â”€ GET /therapy/categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/categories ─────────────────────────────────────────────────
 router.get('/categories', auth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -52,8 +52,8 @@ router.get('/categories', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ DELETE /therapy/slot-lock/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Release lock on back-navigation â€” only lock owner can delete.
+// ─── DELETE /therapy/slot-lock/:id ───────────────────────────────────────────
+// Release lock on back-navigation — only lock owner can delete.
 router.delete('/slot-lock/:id', auth, async (req, res) => {
   try {
     const { rowCount } = await query(
@@ -68,8 +68,8 @@ router.delete('/slot-lock/:id', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Discovery list â€” verified, active, non-suspended therapists.
+// ─── GET /therapy/therapists ──────────────────────────────────────────────────
+// Discovery list — verified, active, non-suspended therapists.
 // Filters: category_id, session_format, language, gender, max_rate_kes
 router.get('/therapists', auth, async (req, res) => {
   try {
@@ -110,7 +110,7 @@ router.get('/therapists', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapists/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapists/:id ─────────────────────────────────────────────
 router.get('/therapists/:id', auth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -132,7 +132,7 @@ router.get('/therapists/:id', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapists/:id/availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapists/:id/availability ─────────────────────────────────
 // Returns available ISO datetime slots for the next 14 days based on
 // therapist_availability weekly schedule, minus already-booked and locked slots.
 router.get('/therapists/:id/availability', auth, async (req, res) => {
@@ -203,7 +203,7 @@ router.get('/therapists/:id/availability', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/slot-lock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/slot-lock ──────────────────────────────────────────────────
 // Acquires a 5-min lock on a slot. Returns 409 if taken.
 router.post('/slot-lock', auth, async (req, res) => {
   const { therapist_id, scheduled_at } = req.body;
@@ -228,7 +228,7 @@ router.post('/slot-lock', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/consent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/consent ────────────────────────────────────────────────────
 router.post('/consent', auth, async (req, res) => {
   const { consent_version } = req.body;
   if (consent_version !== THERAPY_CONSENT_VERSION) {
@@ -252,7 +252,7 @@ router.post('/consent', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/bookings ───────────────────────────────────────────────────
 // Creates a booking, deducts 1 credit, initiates Daraja STK Push.
 router.post('/bookings', auth, async (req, res) => {
   const {
@@ -266,6 +266,10 @@ router.post('/bookings', auth, async (req, res) => {
       error: 'therapist_id, category_id, session_format, scheduled_at, lock_id, and phone are required',
       code: 'MISSING_FIELDS',
     });
+  }
+
+  if (!['video', 'in_person'].includes(session_format)) {
+    return res.status(400).json({ error: 'session_format must be video or in_person', code: 'INVALID_FORMAT' });
   }
 
   try {
@@ -322,7 +326,7 @@ router.post('/bookings', auth, async (req, res) => {
     // Release slot lock
     await query('DELETE FROM booking_slot_locks WHERE id = $1', [lock_id]).catch(() => {});
 
-    // Initiate STK Push â€” store checkout_request_id in payment_reference
+    // Initiate STK Push — store checkout_request_id in payment_reference
     let checkoutRequestId = null;
     try {
       const normalisedPhone = normalisePhone(phone);
@@ -339,7 +343,7 @@ router.post('/bookings', auth, async (req, res) => {
       );
     } catch (stkErr) {
       console.error('[therapy.booking.stk]', stkErr.message);
-      // Booking created, STK failed â€” member can retry payment; booking stays unpaid
+      // Booking created, STK failed — member can retry payment; booking stays unpaid
     }
 
     // Notify therapist
@@ -362,8 +366,8 @@ router.post('/bookings', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/mpesa-callback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Public â€” called by Safaricom. Respond immediately, process async.
+// ─── POST /therapy/mpesa-callback ────────────────────────────────────────────
+// Public — called by Safaricom. Respond immediately, process async.
 router.post('/mpesa-callback', async (req, res) => {
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
@@ -420,8 +424,8 @@ router.post('/mpesa-callback', async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/b2c-callback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Public â€” Daraja B2C result callback for therapist payouts.
+// ─── POST /therapy/b2c-callback ───────────────────────────────────────────────
+// Public — Daraja B2C result callback for therapist payouts.
 router.post('/b2c-callback', async (req, res) => {
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
@@ -452,7 +456,7 @@ router.post('/b2c-callback', async (req, res) => {
   }
 });
 
-// â”€â”€â”€ PATCH /therapy/bookings/:id/confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /therapy/bookings/:id/confirm ─────────────────────────────────────
 router.patch('/bookings/:id/confirm', therapistAuth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -476,7 +480,7 @@ router.patch('/bookings/:id/confirm', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ PATCH /therapy/bookings/:id/decline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /therapy/bookings/:id/decline ─────────────────────────────────────
 router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -503,7 +507,7 @@ router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
       [req.therapist.profile_id]
     );
     if (parseInt(recentDeclines[0].cnt) >= 2) {
-      console.warn('[therapy.decline] Therapist flagged â€” 2+ declines in 30 days:', req.therapist.profile_id);
+      console.warn('[therapy.decline] Therapist flagged — 2+ declines in 30 days:', req.therapist.profile_id);
       // Admin notification via notifications to all admins would go here
     }
 
@@ -514,7 +518,7 @@ router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ PATCH /therapy/bookings/:id/cancel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /therapy/bookings/:id/cancel ──────────────────────────────────────
 // Member cancellation with tiered refund policy.
 router.patch('/bookings/:id/cancel', auth, async (req, res) => {
   try {
@@ -531,7 +535,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
     const hoursUntil   = (scheduledAt - Date.now()) / (1000 * 60 * 60);
 
     let creditRefund = false;
-    let mpesaRefundPct = 0; // 0â€“100
+    let mpesaRefundPct = 0; // 0–100
 
     if (hoursUntil > 24) {
       creditRefund = true;
@@ -540,7 +544,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
       creditRefund = false;
       mpesaRefundPct = 50;
     } else {
-      // <2hr â€” check lifetime grace (first cancellation <2hr gets full refund)
+      // <2hr — check lifetime grace (first cancellation <2hr gets full refund)
       const { rows: graceRows } = await query(
         `SELECT COUNT(*) AS cnt FROM therapist_bookings
          WHERE member_user_id = $1
@@ -602,7 +606,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/bookings ────────────────────────────────────────────────────
 router.get('/bookings', auth, async (req, res) => {
   try {
     const { status } = req.query;
@@ -632,7 +636,7 @@ router.get('/bookings', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/bookings/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/bookings/:id ────────────────────────────────────────────────
 // Member: full booking view. Therapist: includes member alias + notes.
 router.get('/bookings/:id', auth, async (req, res) => {
   try {
@@ -657,7 +661,7 @@ router.get('/bookings/:id', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/sessions/start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/sessions/start ────────────────────────────────────────────
 // Therapist starts the session. Generates TURN credentials and encrypted tokens.
 router.post('/sessions/start', therapistAuth, async (req, res) => {
   const { booking_id } = req.body;
@@ -716,8 +720,8 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/sessions/:booking_id/join â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Member joins an in-progress session. Token is single-use â€” nulled after delivery.
+// ─── GET /therapy/sessions/:booking_id/join ───────────────────────────────────
+// Member joins an in-progress session. Token is single-use — nulled after delivery.
 router.get('/sessions/:booking_id/join', auth, async (req, res) => {
   try {
     const { rows } = await query(
@@ -757,7 +761,7 @@ router.get('/sessions/:booking_id/join', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/sessions/:id/end â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/sessions/:id/end ──────────────────────────────────────────
 router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
   try {
     const { rows: sessionRows } = await query(
@@ -797,7 +801,7 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
         [session.booking_id]
       );
     } else {
-      // Partial session â€” flag for admin review; escrow stays held
+      // Partial session — flag for admin review; escrow stays held
       await query(
         `UPDATE therapist_bookings
          SET status = 'completed', escrow_status = 'held',
@@ -836,7 +840,7 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/ratings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/ratings ────────────────────────────────────────────────────
 router.post('/ratings', auth, async (req, res) => {
   const { booking_id, rating, comment } = req.body;
 
@@ -844,7 +848,7 @@ router.post('/ratings', auth, async (req, res) => {
     return res.status(400).json({ error: 'booking_id and rating are required', code: 'MISSING_FIELDS' });
   }
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return res.status(400).json({ error: 'rating must be an integer 1â€“5', code: 'INVALID_RATING' });
+    return res.status(400).json({ error: 'rating must be an integer 1–5', code: 'INVALID_RATING' });
   }
 
   try {
@@ -894,8 +898,8 @@ router.post('/ratings', auth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/session-notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Therapist only â€” member cannot access this endpoint or data.
+// ─── POST /therapy/session-notes ─────────────────────────────────────────────
+// Therapist only — member cannot access this endpoint or data.
 router.post('/session-notes', therapistAuth, async (req, res) => {
   const { booking_id, content } = req.body;
   if (!booking_id || !content?.trim()) {
@@ -921,7 +925,7 @@ router.post('/session-notes', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ POST /therapy/disputes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── POST /therapy/disputes ───────────────────────────────────────────────────
 router.post('/disputes', auth, async (req, res) => {
   const { booking_id, reason } = req.body;
   if (!booking_id || !reason?.trim()) {
@@ -973,7 +977,7 @@ router.post('/disputes', auth, async (req, res) => {
       [booking_id]
     ).catch(() => {});
 
-    console.warn('[therapy.disputes] New dispute raised â€” admin alert needed:', disputeId);
+    console.warn('[therapy.disputes] New dispute raised — admin alert needed:', disputeId);
 
     return res.status(201).json({ dispute_id: disputeId });
   } catch (err) {
@@ -982,11 +986,11 @@ router.post('/disputes', auth, async (req, res) => {
   }
 });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════════════════════
 // THERAPIST-SIDE ENDPOINTS  (all require therapistAuth)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// â”€â”€â”€ GET /therapy/therapist/dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapist/dashboard ────────────────────────────────────────
 router.get('/therapist/dashboard', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   try {
@@ -1043,7 +1047,7 @@ router.get('/therapist/dashboard', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapist/bookings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapist/bookings ─────────────────────────────────────────
 router.get('/therapist/bookings', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   const { status, page = 1, limit = 20 } = req.query;
@@ -1093,7 +1097,7 @@ router.get('/therapist/bookings', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapist/availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapist/availability ─────────────────────────────────────
 router.get('/therapist/availability', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   try {
@@ -1125,7 +1129,7 @@ router.get('/therapist/availability', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ PATCH /therapy/therapist/availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /therapy/therapist/availability ────────────────────────────────────
 router.patch('/therapist/availability', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   const { slots } = req.body; // [{ day_of_week, start_time, end_time, is_active }]
@@ -1149,7 +1153,7 @@ router.patch('/therapist/availability', therapistAuth, async (req, res) => {
       const key = `${slot.day_of_week}::${slot.start_time}`;
       if (!slot.is_active && bookedKeys.has(key)) {
         return res.status(409).json({
-          error: `Cannot deactivate slot ${slot.start_time} on day ${slot.day_of_week} â€” a confirmed booking exists`,
+          error: `Cannot deactivate slot ${slot.start_time} on day ${slot.day_of_week} — a confirmed booking exists`,
           code: 'SLOT_HAS_BOOKING',
         });
       }
@@ -1172,7 +1176,7 @@ router.patch('/therapist/availability', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapist/payments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapist/payments ─────────────────────────────────────────
 router.get('/therapist/payments', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   const { page = 1, limit = 20 } = req.query;
@@ -1228,7 +1232,7 @@ router.get('/therapist/payments', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapist/ratings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapist/ratings ──────────────────────────────────────────
 router.get('/therapist/ratings', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   try {
@@ -1273,7 +1277,7 @@ router.get('/therapist/ratings', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ GET /therapy/therapist/profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GET /therapy/therapist/profile ──────────────────────────────────────────
 router.get('/therapist/profile', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   try {
@@ -1296,7 +1300,7 @@ router.get('/therapist/profile', therapistAuth, async (req, res) => {
   }
 });
 
-// â”€â”€â”€ PATCH /therapy/therapist/profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PATCH /therapy/therapist/profile ────────────────────────────────────────
 router.patch('/therapist/profile', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   const EDITABLE = [
