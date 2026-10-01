@@ -9,26 +9,29 @@ import client from '../api/client';
 
 const LANES = [
   { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'peer_matching_update', 'session_confirmation', 'journal_prompt'] },
-  { key: 'support',  label: 'Support',   types: ['therapist_update', 'referral_status', 'admin_message'] },
+  { key: 'therapy',  label: 'Therapy',   types: ['therapist_update', 'therapist_nudge', 'therapy_booking_confirmed', 'therapy_session_reminder', 'therapy_dispute_update', 'referral_status', 'admin_message'] },
   { key: 'payments', label: 'Payments',  types: ['credit_low', 'payment_confirmed'] },
   { key: 'system',   label: 'System',    types: ['account_notice', 'generic'] },
 ];
 
 const TYPE_META = {
-  milestone:              { Icon: Trophy,       label: 'Milestone',            route: '/analytics' },
-  peer_broadcast:         { Icon: Handshake,    label: 'Peer update',           route: '/peer' },
-  peer_request_broadcast: { Icon: Handshake,    label: 'Someone needs support', route: '/peer' },
-  peer_matching_update:   { Icon: Handshake,    label: 'Peer request update',   route: '/calm-space' },
-  session_confirmation:   { Icon: CheckCircle,  label: 'Session confirmed',     route: '/peer' },
-  journal_prompt:         { Icon: BookOpen,     label: 'Journal prompt',        route: '/journal' },
-  therapist_update:       { Icon: Stethoscope,  label: 'Therapist update',      route: '/therapists' },
-  therapist_nudge:        { Icon: Stethoscope,  label: 'Talk to a therapist',   route: '/therapists' },
-  referral_status:        { Icon: Clipboard,    label: 'Referral update',       route: '/therapists' },
-  admin_message:          { Icon: ChatText,     label: 'Message from admin',    route: null },
-  credit_low:             { Icon: Warning,      label: 'Low balance',           route: '/credits' },
-  payment_confirmed:      { Icon: CheckCircle,  label: 'Payment confirmed',     route: '/credits' },
-  account_notice:         { Icon: Info,         label: 'Account notice',        route: '/profile' },
-  generic:                { Icon: Bell,         label: 'Notification',          route: null },
+  milestone:                  { Icon: Trophy,       label: 'Milestone',              route: '/analytics' },
+  peer_broadcast:             { Icon: Handshake,    label: 'Peer update',            route: '/peer' },
+  peer_request_broadcast:     { Icon: Handshake,    label: 'Someone needs support',  route: '/peer' },
+  peer_matching_update:       { Icon: Handshake,    label: 'Peer request update',    route: '/calm-space' },
+  session_confirmation:       { Icon: CheckCircle,  label: 'Session confirmed',      route: '/peer' },
+  journal_prompt:             { Icon: BookOpen,     label: 'Journal prompt',         route: '/journal' },
+  therapist_update:           { Icon: Stethoscope,  label: 'Therapist update',       route: '/therapy/my' },
+  therapist_nudge:            { Icon: Stethoscope,  label: 'Talk to a therapist',    route: '/therapy/my' },
+  therapy_booking_confirmed:  { Icon: CheckCircle,  label: 'Booking confirmed',      route: '/therapy/my' },
+  therapy_session_reminder:   { Icon: Stethoscope,  label: 'Session starting',       route: '/therapy/my' },
+  therapy_dispute_update:     { Icon: Warning,      label: 'Dispute update',         route: '/therapy/my' },
+  referral_status:            { Icon: Clipboard,    label: 'Referral update',        route: '/therapy/my' },
+  admin_message:              { Icon: ChatText,     label: 'Message from admin',     route: null },
+  credit_low:                 { Icon: Warning,      label: 'Low balance',            route: '/credits' },
+  payment_confirmed:          { Icon: CheckCircle,  label: 'Payment confirmed',      route: '/credits' },
+  account_notice:             { Icon: Info,         label: 'Account notice',         route: '/profile' },
+  generic:                    { Icon: Bell,         label: 'Notification',           route: null },
 };
 
 function timeAgo(dateStr) {

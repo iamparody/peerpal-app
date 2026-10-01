@@ -217,11 +217,16 @@ export default function MyTherapyScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ['therapy', 'my-bookings'],
     queryFn: () => client.get('/api/therapy/bookings').then(r => r.data),
-    // Poll every 15s so the Join button appears when therapist starts the session
-    refetchInterval: 15000,
+    // Poll every 5s when there are confirmed bookings so Join button appears promptly
+    refetchInterval: (query) => {
+      const bookings = query.state.data?.bookings ?? [];
+      const hasActive = bookings.some(b => ['confirmed', 'in_progress'].includes(b.status));
+      return hasActive ? 5000 : 30000;
+    },
   });
 
   const all = data?.bookings ?? [];
+  const live = all.filter(b => b.status === 'in_progress');
   const upcoming = all.filter(b => ['pending', 'confirmed', 'paid', 'in_progress'].includes(b.status));
   const past = all.filter(b => ['completed', 'cancelled', 'member_no_show', 'therapist_no_show'].includes(b.status));
   const shown = tab === 'upcoming' ? upcoming : past;
@@ -237,6 +242,22 @@ export default function MyTherapyScreen() {
 
   return (
     <div className="screen" style={{ overflowY: 'auto' }}>
+      {/* Live session banner — appears as soon as therapist starts */}
+      {live.map(b => (
+        <button
+          key={b.id}
+          onClick={() => handleJoin(b)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            width: '100%', padding: '14px var(--space-md)',
+            background: '#1a6b3a', border: 'none', cursor: 'pointer',
+            color: '#fff', fontSize: '0.9rem', fontWeight: 600, gap: 12,
+          }}
+        >
+          <span>🟢 Your session with {b.therapist_display_name} has started</span>
+          <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 14px', borderRadius: 20, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>Join Now</span>
+        </button>
+      ))}
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,

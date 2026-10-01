@@ -780,18 +780,44 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
     if (!sessionRows.length) return res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
 
     const session = sessionRows[0];
+
+    // Member never joined — treat as therapist no-show of the other kind:
+    // room opened but member wasn't there. Refund credit, revert booking, notify member.
+    if (!session.member_joined_at) {
+      await query(
+        `UPDATE therapy_sessions SET ended_at = NOW(), duration_billed_minutes = 0 WHERE id = $1`,
+        [session.id]
+      );
+      const { rows: bk } = await query(
+        'SELECT member_user_id, credit_charged FROM therapist_bookings WHERE id = $1',
+        [session.booking_id]
+      );
+      await query(
+        `UPDATE therapist_bookings
+         SET status = 'cancelled', escrow_status = 'refunded',
+             cancellation_reason = 'member_did_not_join', updated_at = NOW()
+         WHERE id = $1`,
+        [session.booking_id]
+      );
+      if (bk[0]?.credit_charged > 0) {
+        await refundCredit(bk[0].member_user_id, bk[0].credit_charged, null, 'therapy_booking');
+      }
+      await notifyUser(bk[0].member_user_id, 'therapy_dispute_update', {
+        booking_id: session.booking_id,
+        message: 'Your session was cancelled — you did not join in time. Your credit has been refunded.',
+      });
+      return res.status(200).json({ ended: true, reason: 'member_did_not_join', credit_refunded: true });
+    }
+
     const now = new Date();
-    const startedAt = new Date(session.therapist_joined_at || session.started_at);
+    const startedAt = new Date(session.member_joined_at);
     const durationBilled = Math.floor((now - startedAt) / (1000 * 60));
 
     await query(
-      `UPDATE therapy_sessions
-       SET ended_at = NOW(), duration_billed_minutes = $1
-       WHERE id = $2`,
+      `UPDATE therapy_sessions SET ended_at = NOW(), duration_billed_minutes = $1 WHERE id = $2`,
       [durationBilled, session.id]
     );
 
-    // Fetch booking duration for partial-session check
     const { rows: bookingRows } = await query(
       'SELECT duration_minutes, member_user_id FROM therapist_bookings WHERE id = $1',
       [session.booking_id]
@@ -807,7 +833,6 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
         [session.booking_id]
       );
     } else {
-      // Partial session — flag for admin review; escrow stays held
       await query(
         `UPDATE therapist_bookings
          SET status = 'completed', escrow_status = 'held',
@@ -815,10 +840,9 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
          WHERE id = $1`,
         [session.booking_id]
       );
-      console.warn('[therapy.sessions.end] Partial session flagged for admin review:', session.booking_id);
+      console.warn('[therapy.sessions.end] Partial session:', session.booking_id, durationBilled, 'min');
     }
 
-    // Increment therapist total_sessions
     await query(
       `UPDATE therapist_profiles SET total_sessions = total_sessions + 1, updated_at = NOW()
        WHERE id = $1`,
