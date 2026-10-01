@@ -106,12 +106,21 @@ function MediaSession({ booking, joinData, onEnd }) {
     let pc;
 
     async function init() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw Object.assign(new Error('Media devices unavailable'), { name: 'NotSupportedError' });
+      }
       const iceServers = joinData.turn_credentials?.ice_servers?.length
         ? joinData.turn_credentials.ice_servers
         : [{ urls: 'stun:stun.l.google.com:19302' }];
 
       const mediaConstraints = isVideo ? { audio: true, video: { facingMode: 'user' } } : { audio: true };
-      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+      } catch (permErr) {
+        console.error('[TherapySession] getUserMedia failed:', permErr.name, permErr.message);
+        throw permErr;
+      }
       localStreamRef.current = stream;
 
       if (isVideo && localVideoRef.current) {
@@ -177,7 +186,9 @@ function MediaSession({ booking, joinData, onEnd }) {
           } else {
             iceCandidateQueue.current.push(msg.candidate);
           }
-        } else if (msg.type === 'session_ended') {
+        } else if (msg.type === 'session_ended' || msg.type === 'peer_left') {
+          // session_ended = therapist ended via WS; peer_left = therapist disconnected
+          if (msg.type === 'peer_left' && connState === 'active') return; // brief drop — let WebRTC handle reconnect
           endSession();
         }
       };
@@ -438,6 +449,22 @@ export default function TherapySessionScreen() {
     }
     init();
   }, [bookingId]);
+
+  // Poll booking status — if cancelled externally, close the room
+  useEffect(() => {
+    if (!booking || ended) return;
+    const iv = setInterval(async () => {
+      try {
+        const { data } = await client.get();
+        if (!['in_progress', 'confirmed'].includes(data.booking?.status)) {
+          clearInterval(iv);
+          setEnded(true);
+          navigate('/therapy/my', { replace: true });
+        }
+      } catch { /* best-effort */ }
+    }, 8000);
+    return () => clearInterval(iv);
+  }, [booking, ended]);
 
   function handleEnd() {
     setEnded(true);
