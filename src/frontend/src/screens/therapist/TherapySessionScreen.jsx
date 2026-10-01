@@ -90,6 +90,7 @@ function MediaSession({ booking, joinData, onEnd }) {
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
   const [connState, setConnState] = useState('connecting');
+  const [connError, setConnError] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(booking.duration_minutes * 60);
   const timerRef = useRef(null);
 
@@ -189,6 +190,10 @@ function MediaSession({ booking, joinData, onEnd }) {
 
     init().catch(err => {
       console.error('[TherapySession] init error', err);
+      const msg = err.name === 'NotAllowedError' ? 'Camera/microphone access denied. Allow permissions and rejoin.'
+        : err.name === 'NotFoundError' ? 'No camera or microphone found. Check your device and rejoin.'
+        : 'Connection failed. In Brave: brave://settings/privacy → set WebRTC to Default. Other: allow camera/mic.';
+      setConnError(msg);
       setConnState('error');
     });
 
@@ -229,7 +234,7 @@ function MediaSession({ booking, joinData, onEnd }) {
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', flexDirection: 'column', gap: 16 }}>
               <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #fff', borderTopColor: 'var(--color-calm)', animation: 'spin 1s linear infinite' }} />
               <p style={{ color: '#fff', fontSize: '0.88rem' }}>
-                {connState === 'error' ? 'Connection failed. Please leave and rejoin.' : 'Connecting to your therapist…'}
+                {connState === 'error' ? (connError || 'Connection failed.') : 'Connecting to your therapist…'}
               </p>
             </div>
           )}
