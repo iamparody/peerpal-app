@@ -682,6 +682,21 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
       });
     }
 
+    // Close any other in_progress bookings for this therapist — prevents concurrent sessions
+    await query(
+      `UPDATE therapy_sessions SET ended_at = NOW()
+       WHERE booking_id IN (
+         SELECT id FROM therapist_bookings
+         WHERE therapist_id = $1 AND status = 'in_progress' AND id != $2
+       ) AND ended_at IS NULL`,
+      [req.therapist.profile_id, booking_id]
+    );
+    await query(
+      `UPDATE therapist_bookings SET status = 'cancelled', updated_at = NOW()
+       WHERE therapist_id = $1 AND status = 'in_progress' AND id != $2`,
+      [req.therapist.profile_id, booking_id]
+    );
+
     // Check session not already started
     const { rows: existing } = await query(
       'SELECT id FROM therapy_sessions WHERE booking_id = $1',
