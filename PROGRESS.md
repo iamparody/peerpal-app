@@ -3,11 +3,12 @@
 ---
 
 ## Current Phase
-**Phase 37 ACTIVE — Therapist Marketplace (Production Build)**
+**Phase 40 ACTIVE — Therapist Marketplace v2: Booking Flow, History & Video Verification**
 
-**37.1–37.10 ALL COMPLETE. Phase 37 Therapist Marketplace DONE.**
+**40.1 COMPLETE. 40.5 COMPLETE (video session verified end-to-end, signaling fixed).**
+**40.2, 40.3, 40.4, 40.6 pending. 40.7 scoped and ready.**
 
-**NEXT ACTION → Phase 38 (check CHECKLIST.md for next phase)**
+**NEXT ACTION → Phase 40.7 — Session UX add-ons (repeating ring, quick-reply chips, 5-min warning, reconnect grace, remove ICE logs)**
 
 ### 37.10 Verification Summary (2026-09-25)
 All 22 verification steps executed. Bugs found and fixed during verification:
