@@ -33,7 +33,7 @@ function createSignalingServer(httpServer) {
   async function handleTherapyJoin(ws, booking_id, participant_role) {
     // Validate booking exists and is in a joinable state
     const { rows } = await query(
-      `SELECT id, status, ended_at FROM therapy_sessions ts
+      `SELECT ts.id, ts.ended_at FROM therapy_sessions ts
        JOIN therapist_bookings tb ON tb.id = ts.booking_id
        WHERE ts.booking_id = $1
          AND tb.status IN ('confirmed','in_progress')`,
