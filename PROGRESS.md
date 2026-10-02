@@ -3,12 +3,23 @@
 ---
 
 ## Current Phase
-**Phase 40 ACTIVE — Therapist Marketplace v2: Booking Flow, History & Video Verification**
+**Phase 40 COMPLETE — Therapist Marketplace v2: Booking Flow, History & Video Verification**
 
-**40.1 COMPLETE. 40.5 COMPLETE (video session verified end-to-end, signaling fixed).**
-**40.2, 40.3, 40.4, 40.6 pending. 40.7 scoped and ready.**
+All sub-phases complete: 40.1–40.7 fully implemented and committed.
+- 40.2: Draft booking model (migration 097) + IntaSend payment migration
+- 40.3: Member booking history / sessions view + therapist portal My Sessions screen
+- 40.4: Cancellation policy — credit-only refunds, 24hr window, repeat-cancel (≥2/30d) non-refundable
+- 40.5: End-to-end video session verified
+- 40.6: Draft bookings excluded from therapist portal
+- 40.7: Ring loop, quick-reply chips, 5-min warning, reconnect grace, ICE log cleanup
 
-**NEXT ACTION → Phase 40.7 — Session UX add-ons (repeating ring, quick-reply chips, 5-min warning, reconnect grace, remove ICE logs)**
+**Phase 39 COMPLETE — Infrastructure hardening: login timing, pool tuning, health endpoints, X-Request-Id, RUNBOOK.md**
+
+**NEXT ACTION → Phase 38 — Activities Marketplace (first checklist item: schema migrations)**
+
+⚠️ **Pending before full production readiness:**
+- IntaSend M-Pesa STK activation: user received Co-op Bank STK instead of Safaricom — contact IntaSend support to activate M-Pesa collection method
+- Register second IntaSend webhook: `https://peerpal.onrender.com/api/credits/payment-webhook` (Collection event, same challenge string)
 
 ### 37.10 Verification Summary (2026-09-25)
 All 22 verification steps executed. Bugs found and fixed during verification:

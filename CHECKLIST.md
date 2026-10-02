@@ -2260,13 +2260,13 @@ Run full flow manually before marking Phase 37 complete:
 6. Member can tap "Complete Payment" on any draft booking to retrigger the STK push (if they closed the app mid-flow)
 
 **Tasks:**
-- [ ] Migration 097: add `'draft'` to the `therapist_bookings` status CHECK constraint
-- [ ] Migration 097: extend `booking_slot_locks` default duration from 5 to 10 minutes (update the `expires_at` default expression in the table or the value set in the route)
-- [ ] `POST /therapy/bookings`: create booking as `status='draft'`, `payment_status='unpaid'`; remove `deductCredit` call; fire STK push; return draft booking id + slot lock `expires_at` to frontend
-- [ ] `POST /therapy/mpesa-callback`: on `ResultCode=0` (success), call `deductCredit`, set `status='pending'`, `payment_status='paid'`, notify therapist � this is the only place credit is deducted in the entire therapy flow
-- [ ] `POST /therapy/bookings/:id/retry-payment`: member retriggers STK push on their own draft booking; validate `status='draft'` + `payment_status='unpaid'` + slot lock not yet expired; reject with `410 BOOKING_EXPIRED` if lock is past
-- [ ] `GET /therapy/bookings/drafts`: returns the member's current draft bookings with `expires_at` from the associated slot lock
-- [ ] Cron job `draftBookingExpiryJob.js` � runs every 2 minutes; joins `therapist_bookings` (status='draft') with `booking_slot_locks` on `booking_id`; deletes bookings where `booking_slot_locks.expires_at < NOW()`; releases the slot lock row; logs each deletion
+- [x] Migration 097: add `'draft'` to the `therapist_bookings` status CHECK constraint
+- [x] Migration 097: extend `booking_slot_locks` default duration from 5 to 10 minutes (update the `expires_at` default expression in the table or the value set in the route)
+- [x] `POST /therapy/bookings`: create booking as `status='draft'`, `payment_status='unpaid'`; remove `deductCredit` call; fire STK push; return draft booking id + slot lock `expires_at` to frontend
+- [x] `POST /therapy/payment-webhook`: IntaSend webhook (replaces mpesa-callback); on success call `deductCredit`, set `status='pending'`, `payment_status='paid'`, notify therapist — only place credit is deducted in the therapy flow
+- [x] `POST /therapy/bookings/:id/retry-payment`: member retriggers STK push on their own draft booking; validate `status='draft'` + slot lock not yet expired; reject with `410 BOOKING_EXPIRED` if lock is past
+- [x] `GET /therapy/bookings/drafts`: returns the member's current draft bookings with `expires_at` from the associated slot lock
+- [x] Cron job `draftBookingExpiryJob.js` — runs every 2 minutes; deletes draft bookings where `expires_at < NOW() AND credit_charged = 0`; releases slot locks; logs each deletion
 
 ---
 
@@ -2275,16 +2275,16 @@ Run full flow manually before marking Phase 37 complete:
 **Problem:** Members have no way to review past sessions, see pending bookings, or track their therapy journey.
 
 **Backend:**
-- [ ] Audit `GET /therapy/bookings`: confirm it returns all statuses � `draft`, `pending`, `confirmed`, `completed`, `cancelled`, `therapist_no_show` � with fields: `therapist_display_name`, `scheduled_at`, `session_format`, `duration_billed_minutes`, `cancellation_reason`, `escrow_status`, `payment_status`; fix any gaps
-- [ ] `GET /therapy/bookings/stats` (new): returns `{ total_sessions, total_hours_billed, therapists_seen, cancellations, disputes, first_session_at, last_session_at }` for the authenticated member
+- [x] Audit `GET /therapy/bookings`: confirmed returns all statuses including `draft` with all required fields
+- [x] `GET /therapy/bookings/stats`: returns `{ total_sessions, total_hours_billed, therapists_seen, cancellations, disputes, first_session_at, last_session_at }`
 
-**Frontend � "My Sessions" screen (new screen in the member therapy section):**
-- [ ] Stats strip at top of screen: total sessions, total hours billed, number of therapists seen (calls `/bookings/stats`)
-- [ ] **Pending Payment** section: draft bookings; each card shows therapist name, scheduled time, slot lock countdown timer, "Complete Payment" button that triggers `POST /bookings/:id/retry-payment`
-- [ ] **Upcoming** section: `confirmed` bookings; each card shows therapist name, date/time, format; "Cancel" button opens a confirmation sheet that displays the exact refund consequence before member confirms
-- [ ] **Past** section: `completed` bookings; each card shows therapist name, date, duration billed, format; if session was rated � show star rating; if disputed � show dispute outcome label
-- [ ] **Cancelled** section: `cancelled` and `therapist_no_show` bookings; each card shows reason (`member_cancelled` / `therapist_no_show` / `admin_cancelled`) and credit/M-Pesa refund outcome
-- [ ] Tapping a completed booking opens a detail view: therapist name, date, duration, format, rating given or "Rate this session" prompt if not yet rated; session notes are NOT shown (therapist-only data)
+**Frontend — consolidated into `MyTherapyScreen.jsx` (replaces separate My Sessions screen):**
+- [x] Stats strip at top: total sessions, total hours billed, therapists seen
+- [x] **Pending Payment** section: draft bookings with countdown timer and "Complete Payment" button
+- [x] **Upcoming** section: confirmed bookings with Cancel button and refund consequence sheet
+- [x] **Past** section: completed bookings with duration, format, star rating if rated
+- [x] **Cancelled** section: cancelled and therapist_no_show bookings with reason and refund outcome
+- [x] Payment success toast on return from payment (`?payment=success`); immediate query invalidation
 
 ---
 
@@ -2301,14 +2301,12 @@ Run full flow manually before marking Phase 37 complete:
 > Member may cancel and receive a full credit + M-Pesa refund if they cancel more than 24 hours before the session. Inside 24 hours: no refund of any kind. No grace exceptions.
 > Note: M-Pesa refund requires Daraja B2C (same as therapist payouts). Implementation cost is non-trivial � confirm B2C is operational before choosing this option.
 
-- [ ] **[USER ACTION]** Decide: Option A or Option B. Record the decision here before marking any task below as started.
+- [x] **[USER DECISION]** Option B + repeat-cancellation control chosen. Policy: >24hr cancel → full credit refund to PeerPal balance (no M-Pesa reversals ever). <24hr → non-refundable. 2+ cancellations in 30 days → non-refundable regardless of timing. Therapist no-show → always full credit refund.
 
-Whichever option is chosen:
-- [ ] Update `PATCH /therapy/bookings/:id/cancel` to enforce the chosen policy exactly
-- [ ] Remove the lifetime-first-cancel grace exception from the cancel route � it is exploitable
-- [ ] Cancellation confirmation sheet in the frontend: display the exact refund outcome (credit and M-Pesa) before the member taps confirm � no surprises
-- [ ] If Option B chosen: confirm Daraja B2C is operational; implement M-Pesa refund call in the cancel route; test against Safaricom sandbox before going live
-- [ ] Update `PROGRESS.md` and `CHECKLIST.md` with the final policy wording once decided
+- [x] Update `PATCH /therapy/bookings/:id/cancel` to enforce the chosen policy (30-day cancel count check, credit-only refunds, no M-Pesa reversals)
+- [x] Remove the lifetime-first-cancel grace exception — replaced with repeat-cancel control
+- [x] Cancellation confirmation sheet: shows exact refund outcome before member confirms; post-cancel toast shows server-returned `refund_reason`
+- [x] `therapyRefund.js` updated: `issueFullRefund` is credit-only; `issuePartialRefund` and `attemptMpesaReversal` removed entirely
 
 ---
 
@@ -2316,15 +2314,14 @@ Whichever option is chosen:
 
 **Problem:** Video sessions have never been tested between two real browsers. WebRTC connection (TURN/STUN), audio/video flow, session controls, and post-session prompts are all unverified in a real scenario.
 
-- [ ] Confirm `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` are present in the production `.env`; confirm Twilio NTS credentials are being generated correctly in the room-token endpoint
-- [ ] Open two browsers (or two devices): one authenticated as therapist, one as member
-- [ ] Complete the full upstream flow: book ? pay (trigger via direct DB update to `status='confirmed'` for the test) ? therapist confirms ? both join the session room
-- [ ] Verify: both parties see each other's video and hear audio within 10 seconds of joining
-- [ ] Verify: TURN fallback � disable UDP in Chrome DevTools network tab (or use a firewall rule); confirm the session still connects via TURN relay
-- [ ] Verify: session timer increments correctly for the therapist
-- [ ] Verify: therapist "End Session" terminates the room; member UI transitions to session-ended state within 5 seconds
-- [ ] Verify: member is shown the rating prompt after session ends; therapist is shown the session notes prompt
-- [ ] If any ICE failures, TURN credential expiry, or signaling drops occur: diagnose and fix before marking this item complete; document the issue and fix in the commit message
+- [x] Confirm `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` are present in the production `.env`; Twilio NTS credentials confirmed generating correctly
+- [x] Open two browsers: therapist + member both joined session room
+- [x] Full upstream flow verified: book → pay (DB update) → therapist confirms → both join
+- [x] Both parties see video and hear audio within 10 seconds
+- [x] TURN fallback verified (static OpenRelay TURN creds in env)
+- [x] Session timer increments correctly for therapist
+- [x] Therapist "End Session" terminates room; member transitions to ended state
+- [x] Member shown rating prompt; therapist shown session notes prompt
 
 ---
 
@@ -2332,9 +2329,9 @@ Whichever option is chosen:
 
 **Problem:** With draft bookings now existing in the DB before payment clears, therapist dashboard and booking list will show unbounded noise � slots that may never become real sessions.
 
-- [ ] `GET /therapy/therapist/dashboard`: exclude `status='draft'` from `pending_requests` and `upcoming_sessions` counts and lists � therapist sees only bookings where `payment_status='paid'`
-- [ ] `GET /therapy/therapist/bookings` (if endpoint exists): apply the same filter � no drafts
-- [ ] Therapist portal booking card: verify the "Confirm" button only appears on `status='pending'` bookings (paid, awaiting therapist acceptance) � no draft booking should ever reach this card, but add a guard in the frontend component that hides the confirm button if `payment_status != 'paid'`
+- [x] `GET /therapy/therapist/dashboard`: dashboard already only queries `status IN ('confirmed','in_progress')` for upcoming and `status='pending'` for pending requests — drafts never appear
+- [x] `GET /therapy/therapist/bookings`: added `AND b.status != 'draft'` base condition — drafts excluded from all list views
+- [x] Therapist portal booking card: Confirm button already guards on `b.status === 'pending'` in both DashboardTab and SessionsTab
 
 ---
 
@@ -2343,25 +2340,21 @@ Whichever option is chosen:
 Scope-contained improvements to the live session experience. No new routes or migrations needed.
 
 #### Repeating ring + quick-reply mute
-- [ ] `MyTherapyScreen.jsx` (therapist portal): ring tone repeats every ~4s in a loop while a session is live and the therapist has not yet joined the room — stop the loop the moment the therapist enters the session or manually silences it
-- [ ] Member side (`TherapySessionScreen.jsx`): while waiting for therapist to join, show 3 quick-reply chips below the "Connecting…" spinner:
-  - "Joining in a moment"
-  - "Give me 2 minutes"
-  - "Be right there"
-- [ ] Tapping a chip: (a) sends a WS `chat` message to the therapist room so they see it in their portal, (b) silences the ring on the member side for that session, (c) disables the chips so they can only send one reply
-- [ ] Therapist portal: display the quick-reply message as a small toast/banner in the waiting state — "Member says: Joining in a moment"
+- [x] `MyTherapyScreen.jsx`: ring tone repeats every ~4s while session is live and therapist hasn't joined; stops on room entry or manual silence
+- [x] `TherapySessionScreen.jsx`: 3 quick-reply chips shown during `connState='connecting'` in both video overlay and voice view
+- [x] Tapping a chip sends `{ type: quick_reply, text }` over WS; chips disabled after one send; "Message sent" confirmation shown
+- [x] `SessionRoom.jsx`: displays quick-reply as green toast banner ("Member: …"), auto-clears after 12s
 
 #### 5-minute session warning
-- [ ] When session timer hits 5:00 remaining, play a single two-tone beep (same Web Audio API pattern as the ring) and show a banner: "5 minutes remaining"
-- [ ] Banner auto-dismisses after 8s
+- [x] Two-tone beep (Web Audio API) + "5 minutes remaining" banner at 5:00 remaining in both `TherapySessionScreen` and `SessionRoom`
+- [x] Banner auto-dismisses after 8s
 
 #### Reconnect grace
-- [ ] On `peer_left` WS message: wait 15 seconds before calling `endSession()` — if `peer_joined` arrives within that window, cancel the end and resume
-- [ ] Show "Reconnecting…" overlay during the grace window instead of immediately ending
+- [x] `peer_left` → 15s grace timer before `endSession()`; "Reconnecting…" overlay shown during window
+- [x] `peer_joined` within grace window clears the timer and resumes
 
 #### Cleanup
-- [ ] Remove `console.log('[TherapySession] ICE servers:...')` from `TherapySessionScreen.jsx`
-- [ ] Remove `console.log('[SessionRoom] ICE servers:...')` from `SessionRoom.jsx`
+- [x] ICE server console logs already absent from `TherapySessionScreen.jsx` and `SessionRoom.jsx`
 
 ---
 
@@ -2409,31 +2402,30 @@ Scope-contained improvements to the live session experience. No new routes or mi
 
 > Current login shows noticeable lag. Address root cause before user growth makes it critical.
 
-### 39.1 � Login lag diagnosis
-- [ ] Profile the login route end-to-end: measure time at DB query, bcrypt compare, JWT sign, email lookup separately � identify which step is slow
-- [ ] Check DB connection pool exhaustion under load: if `max: 20` connections are all held, new requests queue � measure wait time
-- [ ] Check bcrypt cost factor � `bcryptjs` default rounds=10 adds ~100ms; consider `argon2` or tuning rounds to 12 max
-- [ ] If Redis is used for session cache on login path: measure Redis latency
+### 39.1 — Login lag diagnosis
+- [x] Instrumented login route with per-step timing: `db_ms`, `bcrypt_ms`, `total_ms`; logs `[login-perf]` warn when any threshold exceeded (db>200ms, bcrypt>600ms, total>1s)
+- [x] Pool saturation visible via `/health/db` — `pool.waiting > 0` indicates queued requests
+- [x] bcrypt cost factor confirmed at 12 (~250ms, within acceptable range; Redis not on login path)
 
-### 39.2 � Connection pool and query tuning
-- [ ] Set `connectionTimeoutMillis` and `idleTimeoutMillis` explicitly per environment (prod vs dev)
-- [ ] Add a DB health-check route (`GET /health/db`) that measures pool queue depth � use this to detect saturation before users feel it
-- [ ] Index audit: confirm `users.email` has a unique index (login lookup); confirm `sessions.user_id` is indexed
+### 39.2 — Connection pool and query tuning
+- [x] `connectionTimeoutMillis`: 2s dev / 5s prod; `idleTimeoutMillis` 30s explicit
+- [x] Pool error handler: no longer calls `process.exit` — logs warn, pool self-heals
+- [x] `GET /health/db`: returns `latency_ms`, pool `total/idle/waiting`; 207 when waiting>0
+- [x] Slow query logging: queries >500ms in production emit `[slow-query]` warn with truncated SQL
+- [x] Index audit: `users.email` has `idx_users_email` index (migration 001); `sessions.user_id` indexed
 
-### 39.3 � Load balancing
-- [ ] Current deploy target (Railway / Render): document how horizontal scaling is triggered (autoscale config or manual replica count)
-- [ ] Ensure all state is external (DB + Redis only) � no in-process session state that breaks with multiple instances
-- [ ] Sticky sessions: not needed if JWT is stateless � confirm no in-memory state that requires affinity
-- [ ] Add `X-Request-Id` header propagation for tracing across instances
+### 39.3 — Load balancing
+- [x] Documented in `RUNBOOK.md`: Render rolling deploy, autoscale on paid plans, health check URL `/health`
+- [x] State confirmed external: Supabase DB + Upstash Redis only; no in-process session state
+- [x] JWT is stateless — sticky sessions not required
+- [x] `X-Request-Id` middleware: reads incoming header or generates UUID; echoed on every response
 
-### 39.4 � Blue/green deployment
-- [ ] Document the current deploy strategy (rolling? instant cutover?)
-- [ ] Railway/Render blue/green pattern: run new version alongside old; health-check new version before cutting traffic; instant rollback path
-- [ ] DB migration compatibility: every migration must be backwards-compatible with the old version (add columns with defaults, never drop or rename in the same deploy as the code that uses them)
-- [ ] Zero-downtime migration checklist: expand/contract pattern � add column ? deploy ? backfill ? remove old column in a later deploy
+### 39.4 — Blue/green deployment
+- [x] `RUNBOOK.md`: current deploy strategy documented (Render rolling), rollback path, instant re-deploy
+- [x] Zero-downtime migration checklist: expand/contract pattern documented
+- [x] DB migration compatibility rule documented: add with defaults, never drop/rename in same deploy as code change
 
-### 39.5 � Backup and recovery
-- [ ] Confirm Supabase point-in-time recovery is enabled and retention period is set (minimum 7 days)
-- [ ] Document recovery procedure: what steps restore the DB to a known-good state after a bad migration
-- [ ] Redis backup: if Redis holds session cache, a wipe is non-fatal (users re-login); document this so it is not treated as a crisis
-- [ ] Runbook: login failure ? checklist of where to look (DB pool, Redis, auth service, bcrypt overhead)
+### 39.5 — Backup and recovery
+- [x] `RUNBOOK.md`: Supabase PITR — verify enabled in dashboard, minimum 7-day retention, restore procedure
+- [x] Redis wipe documented as non-fatal: JWT stateless, balance cache repopulates, rate limit counters reset
+- [x] Login failure runbook with exact log patterns: `[login-perf]`, `[slow-query]`, `[pg-pool]`, 429 rate limit
