@@ -1,16 +1,10 @@
 ﻿const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
-const { PACKAGES, getPackages, stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
+const { PACKAGES, getPackages } = require('../utils/daraja');
+const { initiatePayment, verifyWebhook } = require('../services/payment');
 const cache = require('../services/cache');
-
-const DARAJA_LIVE = !!(
-  process.env.DARAJA_CONSUMER_KEY &&
-  process.env.DARAJA_CONSUMER_SECRET &&
-  process.env.DARAJA_BUSINESS_SHORT_CODE &&
-  process.env.DARAJA_PASSKEY &&
-  process.env.DARAJA_CALLBACK_URL
-);
+const { randomUUID } = require('crypto');
 
 const router = express.Router();
 
@@ -56,9 +50,8 @@ router.get('/transactions', auth, async (req, res) => {
 });
 
 // ─── POST /credits/purchase ───────────────────────────────────────────────────
-// Initiates an M-Pesa STK Push. Requires user.phone to be set (or phone in body).
-// Returns { pending: true, checkout_request_id } when Daraja is live.
-// Returns { payment_url: null } placeholder when credentials not yet configured.
+// Initiates an IntaSend M-Pesa STK Push for credit package purchase.
+// Phone number is normalised inside the payment adapter.
 router.post('/purchase', auth, async (req, res) => {
   const packageId = req.body.package || req.body.package_id;
   const PKGS = await getPackages();
@@ -71,149 +64,118 @@ router.post('/purchase', auth, async (req, res) => {
 
   const pkg = PKGS[packageId];
 
-  if (!DARAJA_LIVE) {
-    return res.status(200).json({
-      payment_url: null,
-      pending: false,
-      message: 'Payments coming soon via M-Pesa. Please check back or contact support.',
-    });
-  }
-
-  // Phone required in request body — used only for this STK Push, never stored
-  if (!req.body.phone) {
+  const phone = req.body.phone;
+  if (!phone) {
     return res.status(400).json({
       error: 'Phone number required for M-Pesa payment.',
       code: 'PHONE_REQUIRED',
     });
   }
 
-  let phone;
-  try {
-    phone = normalisePhone(req.body.phone);
-  } catch {
-    return res.status(400).json({
-      error: 'Please enter a valid Safaricom Kenya number (e.g. 0712 345 678).',
-      code: 'INVALID_PHONE',
-    });
-  }
+  // Pre-generate ID so we can reference it in the STK api_ref before inserting
+  const transactionId = randomUUID();
 
-  // Insert pending transaction — confirmed only after Safaricom callback
-  const { rows: txRows } = await query(
-    `INSERT INTO credit_transactions
-       (user_id, type, amount_credits, amount_currency, payment_method, channel, status)
-     VALUES ($1, 'purchase', $2, $3, 'mpesa', 'purchase', 'pending')
-     RETURNING id`,
-    [req.user.id, pkg.credits, pkg.price_ksh]
-  );
-  const transactionId = txRows[0].id;
-
-  let checkoutRequestId;
+  let paymentRef;
+  let checkoutUrl;
   try {
-    const result = await stkPush(
+    const result = await initiatePayment({
+      amount: pkg.price_ksh,
       phone,
-      pkg.price_ksh,
-      `PeerPal-${transactionId}`,
-      `${pkg.credits} credits`
-    );
-    checkoutRequestId = result.checkoutRequestId;
+      email: req.user.email,
+      bookingId: `CREDIT-${transactionId}`,
+    });
+    paymentRef = result.reference;
+    checkoutUrl = result.checkoutUrl;
   } catch (err) {
-    await query(`UPDATE credit_transactions SET status = 'failed' WHERE id = $1`, [transactionId]);
-    console.error('STK Push failed:', err.message);
+    console.error('Credits STK Push failed:', err.message);
     return res.status(502).json({ error: 'Could not send M-Pesa prompt. Please try again.', code: 'PAYMENT_ERROR' });
   }
 
-  // Store checkout_request_id for callback correlation
+  // Atomic insert — payment_reference is stored with the row from the start
   await query(
-    `UPDATE credit_transactions SET payment_reference = $1 WHERE id = $2`,
-    [checkoutRequestId, transactionId]
+    `INSERT INTO credit_transactions
+       (id, user_id, type, amount_credits, amount_currency, payment_method, channel, status, payment_reference)
+     VALUES ($1, $2, 'purchase', $3, $4, 'mpesa', 'purchase', 'pending', $5)`,
+    [transactionId, req.user.id, pkg.credits, pkg.price_ksh, paymentRef]
   );
+
+  if (checkoutUrl) {
+    return res.status(200).json({ checkout_url: checkoutUrl });
+  }
 
   return res.status(200).json({
     pending: true,
-    checkout_request_id: checkoutRequestId,
+    transaction_id: transactionId,
     message: 'Check your phone — enter your M-Pesa PIN to complete payment.',
   });
 });
 
-// ─── POST /credits/mpesa-callback ────────────────────────────────────────────
-// No auth — called by Safaricom. Must respond 200 quickly.
-router.post('/mpesa-callback', async (req, res) => {
-  // Acknowledge immediately — Safaricom times out after ~5 s
-  res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+// ─── POST /credits/payment-webhook ───────────────────────────────────────────
+// No auth — called by IntaSend. Challenge verification via verifyWebhook().
+router.post('/payment-webhook', async (req, res) => {
+  res.status(200).json({ status: 'ok' });
 
-  let parsed;
+  let event;
   try {
-    parsed = parseCallback(req.body);
+    event = verifyWebhook(req.rawBody, req.headers);
   } catch (err) {
-    console.error('Daraja callback parse error:', err.message);
+    console.error('[credits/payment-webhook] verification failed:', err.message);
     return;
   }
 
-  const { success, checkoutRequestId, phone, amount, mpesaReceiptNumber } = parsed;
+  const { success, reference: invoiceId } = event;
 
   if (!success) {
-    // Payment cancelled or failed — mark transaction failed
     await query(
       `UPDATE credit_transactions SET status = 'failed' WHERE payment_reference = $1 AND status = 'pending'`,
-      [checkoutRequestId]
-    ).catch((e) => console.error('Daraja fail-update error:', e.message));
+      [invoiceId]
+    ).catch((e) => console.error('[credits/payment-webhook] fail-update error:', e.message));
     return;
   }
 
-  // Find the pending transaction by checkout_request_id
+  // Find the pending transaction — idempotency: WHERE status='pending' exits on duplicate fires
   const { rows: txRows } = await query(
     `SELECT id, user_id, amount_credits FROM credit_transactions
      WHERE payment_reference = $1 AND status = 'pending' LIMIT 1`,
-    [checkoutRequestId]
+    [invoiceId]
   ).catch(() => ({ rows: [] }));
 
   if (!txRows.length) {
-    console.warn('Daraja callback: no pending transaction for checkout_request_id', checkoutRequestId);
+    console.warn('[credits/payment-webhook] no pending transaction for invoice', invoiceId);
     return;
   }
 
   const { id: transactionId, user_id, amount_credits } = txRows[0];
 
-  // Idempotency: skip if already confirmed
-  const { rows: existing } = await query(
-    `SELECT id FROM credit_transactions WHERE payment_reference = $1 AND status = 'confirmed'`,
-    [checkoutRequestId]
-  ).catch(() => ({ rows: [] }));
-  if (existing.length) return;
-
   // Credit the balance
   await query(
     'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
     [amount_credits, user_id]
-  ).catch((e) => console.error('Daraja credit error:', e.message));
+  ).catch((e) => console.error('[credits/payment-webhook] credit error:', e.message));
 
-  // Stack AI conversation allowance for the purchased bundle
+  // Award AI conversation allowance for the purchased bundle
   const purchasedPkg = Object.values(await getPackages()).find((p) => p.credits === amount_credits);
   if (purchasedPkg?.ai_conversations) {
     await query(
       'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
       [purchasedPkg.ai_conversations, user_id]
-    ).catch((e) => console.error('Daraja AI conv award error:', e.message));
+    ).catch((e) => console.error('[credits/payment-webhook] AI conv award error:', e.message));
   }
 
   await cache.del(`credits:${user_id}`);
 
-  // Confirm transaction, store receipt number
   await query(
-    `UPDATE credit_transactions
-       SET status = 'confirmed', payment_reference = $1
-     WHERE id = $2 AND user_id = $3`,
-    [mpesaReceiptNumber || checkoutRequestId, transactionId, user_id]
-  ).catch((e) => console.error('Daraja confirm error:', e.message));
+    `UPDATE credit_transactions SET status = 'confirmed' WHERE id = $1 AND user_id = $2`,
+    [transactionId, user_id]
+  ).catch((e) => console.error('[credits/payment-webhook] confirm error:', e.message));
 
-  // Notify user
-  const notifPayload = JSON.stringify({ credits_added: amount_credits, receipt: mpesaReceiptNumber });
+  const notifPayload = JSON.stringify({ credits_added: amount_credits });
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, 'credit_purchase_confirmed', $2, 'push'),
             ($1, 'credit_purchase_confirmed', $2, 'in_app')`,
     [user_id, notifPayload]
-  ).catch((e) => console.error('Daraja notify error:', e.message));
+  ).catch((e) => console.error('[credits/payment-webhook] notify error:', e.message));
 });
 
 module.exports = router;

@@ -241,12 +241,17 @@ export default function CreditsScreen() {
         package: pendingPkg.id,
         phone,
       });
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
       if (data.pending) {
         setPendingPkg(null);
         setPurchaseMessage(data.message || 'Check your phone for the M-Pesa prompt.');
         qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
+        qc.invalidateQueries({ queryKey: ['credits', 'transactions'] });
       } else {
-        setModalError(data.message || 'Payments coming soon. Please check back or contact support.');
+        setModalError(data.message || 'Could not initiate payment. Please try again.');
       }
     } catch (err) {
       setModalError(err.response?.data?.error || 'Could not initiate payment. Please try again.');
