@@ -1275,7 +1275,7 @@ router.get('/therapist/bookings', therapistAuth, async (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
-  const conditions = ['b.therapist_id = $1'];
+  const conditions = ["b.therapist_id = $1", "b.status != 'draft'"];
   const params = [therapistId];
   let idx = 2;
 
