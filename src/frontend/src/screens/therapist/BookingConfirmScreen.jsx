@@ -20,13 +20,19 @@ export default function BookingConfirmScreen() {
   const { id: bookingId } = useParams();
   const navigate = useNavigate();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['therapy', 'booking', bookingId],
     queryFn: () => client.get(`/api/therapy/bookings/${bookingId}`).then(r => r.data),
   });
 
   const booking = data?.booking;
   const FormatIcon = booking ? (FORMAT_ICONS[booking.session_format] ?? VideoCamera) : null;
+
+  const statusCopy = {
+    pending:    'Awaiting therapist confirmation. You\'ll be notified once confirmed.',
+    confirmed:  'Your session is confirmed.',
+    cancelled:  'This booking was cancelled.',
+  }[booking?.status] ?? 'Awaiting therapist confirmation. You\'ll be notified once confirmed.';
 
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-lg)', textAlign: 'center' }}>
@@ -36,6 +42,11 @@ export default function BookingConfirmScreen() {
           <div className="skeleton" style={{ width: 200, height: 24, margin: '0 auto 12px' }} />
           <div className="skeleton" style={{ width: 160, height: 16, margin: '0 auto' }} />
         </div>
+      ) : isError ? (
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: 'var(--color-error, #c0392b)', marginBottom: 16 }}>Could not load booking details.</p>
+          <button className="btn btn--primary" onClick={() => navigate('/therapy/my')}>View my bookings</button>
+        </div>
       ) : (
         <>
           <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--color-calm-light, #e8f4f8)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
@@ -44,7 +55,7 @@ export default function BookingConfirmScreen() {
 
           <h2 style={{ fontFamily: 'var(--font-editorial)', marginBottom: 8 }}>Booking Received</h2>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: 300, marginBottom: 28 }}>
-            Your booking is pending therapist confirmation. You'll be notified once it's confirmed.
+            {statusCopy}
           </p>
 
           {booking && (

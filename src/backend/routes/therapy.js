@@ -2,7 +2,7 @@
 
 const express  = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const auth     = require('../middleware/auth');
 const therapistAuth = require('../middleware/therapistAuth');
 const { deductCredit, refundCredit } = require('../utils/creditDeductor');
@@ -450,7 +450,8 @@ router.post('/bookings/:id/retry-payment', auth, async (req, res) => {
     }
     const b = rows[0];
 
-    if (b.lock_expires_at && new Date(b.lock_expires_at) < new Date()) {
+    // lock_expires_at is null when lock was already consumed (LEFT JOIN miss) — treat as still valid
+    if (b.lock_expires_at !== null && new Date(b.lock_expires_at) < new Date()) {
       return res.status(410).json({ error: 'Booking slot has expired — please rebook', code: 'BOOKING_EXPIRED' });
     }
 
@@ -754,6 +755,7 @@ router.get('/bookings/:id', auth, async (req, res) => {
               b.status, b.payment_status, b.escrow_status, b.cancellation_reason,
               b.credit_charged, b.notes, b.created_at,
               tp.display_name AS therapist_display_name, tp.photo_url AS therapist_photo_url,
+              tp.credentials AS therapist_credentials,
               u.alias AS member_alias
        FROM therapist_bookings b
        JOIN therapist_profiles tp ON tp.id = b.therapist_id
@@ -915,7 +917,7 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
       if (bk[0]?.credit_charged > 0) {
         await refundCredit(bk[0].member_user_id, bk[0].credit_charged, null, 'therapy_booking');
       }
-      await notifyUser(bk[0].member_user_id, 'therapy_dispute_update', {
+      await notifyUser(bk[0]?.member_user_id, 'therapy_dispute_update', {
         booking_id: session.booking_id,
         message: 'Your session was cancelled — you did not join in time. Your credit has been refunded.',
       });
@@ -1331,15 +1333,17 @@ router.patch('/therapist/availability', therapistAuth, async (req, res) => {
       }
     }
 
-    for (const slot of slots) {
-      await query(
-        `INSERT INTO therapist_availability (id, therapist_id, day_of_week, start_time, end_time, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (therapist_id, day_of_week, start_time)
-         DO UPDATE SET end_time = $5, is_active = $6`,
-        [uuidv4(), therapistId, slot.day_of_week, slot.start_time, slot.end_time, slot.is_active]
-      );
-    }
+    await transaction(async (client) => {
+      for (const slot of slots) {
+        await client.query(
+          `INSERT INTO therapist_availability (id, therapist_id, day_of_week, start_time, end_time, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (therapist_id, day_of_week, start_time)
+           DO UPDATE SET end_time = $5, is_active = $6`,
+          [uuidv4(), therapistId, slot.day_of_week, slot.start_time, slot.end_time, slot.is_active]
+        );
+      }
+    });
 
     return res.json({ updated: slots.length });
   } catch (err) {

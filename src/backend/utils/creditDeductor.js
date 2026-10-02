@@ -2,10 +2,10 @@ const { query } = require('../db');
 const cache = require('../services/cache');
 
 // Deducts `amount` credits for a user.
-// session_id may be NULL when no session exists yet (e.g. peer request submission).
+// session_id may be NULL when no session exists yet.
+// channel: 'therapy_booking' | 'peer_session' | 'ai_session' | 'purchase'
 // Returns: { blocked, balance }
 //   blocked: true if balance < amount (no deduction performed)
-//   balance: new balance after deduction (or current balance if blocked)
 async function deductCredit(user_id, amount, session_id, channel) {
   const { rows } = await query(
     'SELECT balance FROM credits WHERE user_id = $1',
@@ -32,7 +32,7 @@ async function deductCredit(user_id, amount, session_id, channel) {
   await query(
     `INSERT INTO credit_transactions
        (user_id, type, amount_credits, payment_method, session_id, channel, status)
-     VALUES ($1, 'debit', $2, 'bonus', $3, $4, 'confirmed')`,
+     VALUES ($1, 'debit', $2, 'platform', $3, $4, 'confirmed')`,
     [user_id, amount, session_id, channel]
   );
   await cache.del(`credits:${user_id}`);
@@ -57,7 +57,7 @@ async function refundCredit(user_id, amount, session_id, channel, reason) {
   await query(
     `INSERT INTO credit_transactions
        (user_id, type, amount_credits, payment_method, session_id, channel, status)
-     VALUES ($1, 'refund', $2, 'bonus', $3, $4, 'confirmed')`,
+     VALUES ($1, 'refund', $2, 'platform', $3, $4, 'confirmed')`,
     [user_id, amount, session_id, channel]
   );
   await cache.del(`credits:${user_id}`);
@@ -76,10 +76,4 @@ async function getCurrentBalance(user_id) {
   return rows[0]?.balance ?? 0;
 }
 
-async function getCreditCosts() {
-  const { getConfig } = require('./config');
-  const fromDb = await getConfig('credit_costs', null);
-  return fromDb || { text: 1, voice: 2, referral: 1 };
-}
-
-module.exports = { deductCredit, refundCredit, getCreditCosts };
+module.exports = { deductCredit, refundCredit };

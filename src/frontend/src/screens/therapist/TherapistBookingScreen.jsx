@@ -31,6 +31,7 @@ export default function TherapistBookingScreen() {
   const [notes, setNotes] = useState('');
   const [slotLockId, setSlotLockId] = useState(null);
   const [lockCountdown, setLockCountdown] = useState(null);
+  const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [waitingMpesa, setWaitingMpesa] = useState(false);
   const [error, setError] = useState('');
@@ -70,6 +71,14 @@ export default function TherapistBookingScreen() {
     slotsByDate[dateKey].push({ iso, dateKey, displayTime });
   }
   const dates = Object.keys(slotsByDate).sort();
+
+  // Pre-fill phone from profile
+  useEffect(() => {
+    client.get('/api/profile').then(r => {
+      const p = r.data?.user?.phone ?? r.data?.phone ?? '';
+      if (p) setPhone(p);
+    }).catch(() => {});
+  }, []);
 
   // Auto-select format when only one available
   useEffect(() => {
@@ -134,16 +143,16 @@ export default function TherapistBookingScreen() {
     if (!selectedFormat || !selectedSlot || !lockId) return;
     try {
       const categoryId = (therapist.category_ids ?? [])[0] ?? null;
+      if (!categoryId) {
+        setError('This therapist has no service categories configured. Please contact support.');
+        setSubmitting(false);
+        return;
+      }
 
-      // phone — fetch from user profile, prompt only if missing
-      let phone;
-      try {
-        const { data: profileData } = await client.get('/api/profile');
-        phone = profileData?.user?.phone ?? profileData?.phone ?? null;
-      } catch { /* fall through to prompt */ }
-      if (!phone) {
-        phone = window.prompt('Enter your M-Pesa number (e.g. 0712345678):');
-        if (!phone) { setSubmitting(false); return; }
+      if (!phone.trim()) {
+        setError('Please enter your M-Pesa phone number.');
+        setSubmitting(false);
+        return;
       }
 
       const { data } = await client.post('/api/therapy/bookings', {
@@ -217,7 +226,7 @@ export default function TherapistBookingScreen() {
     );
   }
 
-  const canSchedule = !!(selectedFormat && selectedSlot);
+  const canSchedule = !!(selectedFormat && selectedSlot && phone.trim());
 
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -368,6 +377,24 @@ export default function TherapistBookingScreen() {
             </div>
           </Section>
 
+          {/* M-Pesa number */}
+          <Section label="M-Pesa number">
+            <input
+              type="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="e.g. 0712 345 678"
+              style={{
+                width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)',
+                padding: '10px 12px', fontSize: '0.88rem', fontFamily: 'inherit',
+                background: 'var(--color-surface)', color: 'var(--color-text-primary)', boxSizing: 'border-box',
+              }}
+            />
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
+              Payment request will be sent to this number.
+            </p>
+          </Section>
+
           {/* Cost summary — shown once format + duration are chosen */}
           {selectedFormat && selectedDuration && (
             <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
@@ -430,11 +457,3 @@ function Section({ label, children }) {
   );
 }
 
-function CostRow({ label, value, bold }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: bold ? '0.92rem' : '0.86rem', fontWeight: bold ? 700 : 400, marginBottom: 6, color: bold ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}

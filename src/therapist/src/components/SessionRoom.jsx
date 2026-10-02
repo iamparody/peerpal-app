@@ -84,7 +84,7 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
           remoteVideoRef.current.srcObject = e.streams[0];
           remoteVideoRef.current.play().catch(() => {});
         }
-        setConnState('active');
+        setConnStateTracked('active');
         clearTimeout(reconnectTimerRef.current);
         timerRef.current = setInterval(() => {
           setElapsed(s => {
@@ -138,12 +138,21 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
         }));
       };
 
+      // connState is captured by closure — use a ref to read current value inside onmessage
+      const connStateRef = { current: 'waiting' };
+      const setConnStateTracked = (val) => {
+        connStateRef.current = typeof val === 'function' ? val(connStateRef.current) : val;
+        setConnState(val);
+      };
+
       ws.onmessage = async e => {
         const msg = JSON.parse(e.data);
         if (msg.type === 'joined') {
           if (msg.other_connected) await sendOffer();
         } else if (msg.type === 'peer_joined') {
-          await sendOffer();
+          clearTimeout(reconnectTimerRef.current);
+          if (connStateRef.current === 'reconnecting') setConnStateTracked('connecting');
+          else await sendOffer();
         } else if (msg.type === 'answer') {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
           await flushIce();
@@ -153,15 +162,12 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
           } else {
             iceQueueRef.current.push(msg.candidate);
           }
-        } else if (msg.type === 'peer_joined') {
-          clearTimeout(reconnectTimerRef.current);
-          if (connState === 'reconnecting') setConnState('connecting');
         } else if (msg.type === 'peer_left') {
-          if (connState === 'active') {
-            setConnState('reconnecting');
-            reconnectTimerRef.current = setTimeout(() => setConnState('waiting'), 15000);
+          if (connStateRef.current === 'active') {
+            setConnStateTracked('reconnecting');
+            reconnectTimerRef.current = setTimeout(() => setConnStateTracked('waiting'), 15000);
           } else {
-            setConnState('waiting');
+            setConnStateTracked('waiting');
           }
         } else if (msg.type === 'quick_reply') {
           setQuickReply(msg.text);
@@ -171,7 +177,7 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
         }
       };
 
-      ws.onerror = () => setConnState('error');
+      ws.onerror = () => setConnStateTracked('error');
     }
 
     init().catch(err => {
