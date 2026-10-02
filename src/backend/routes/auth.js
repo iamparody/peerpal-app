@@ -161,15 +161,18 @@ router.post('/resend-verification', auth, async (req, res) => {
 // ─── POST /auth/login ─────────────────────────────────────────────────────────
 router.post('/login', loginCooldownMiddleware, async (req, res) => {
   const { email, password } = req.body;
+  const t0 = Date.now();
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required', code: 'MISSING_FIELDS' });
   }
 
+  const t1 = Date.now();
   const { rows } = await query(
     'SELECT id, alias, role, password_hash, is_active, email_verified FROM users WHERE email = $1',
     [email.toLowerCase().trim()]
   );
+  const dbMs = Date.now() - t1;
 
   if (!rows.length) {
     recordFailedLogin(req.ip);
@@ -182,10 +185,17 @@ router.post('/login', loginCooldownMiddleware, async (req, res) => {
   }
 
   const user = rows[0];
+  const t2 = Date.now();
   const match = await bcrypt.compare(password, user.password_hash);
+  const bcryptMs = Date.now() - t2;
+
   if (!match) {
     recordFailedLogin(req.ip);
     return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+  }
+
+  if (dbMs > 200 || bcryptMs > 600 || (Date.now() - t0) > 1000) {
+    console.warn('[login-perf]', { db_ms: dbMs, bcrypt_ms: bcryptMs, total_ms: Date.now() - t0 });
   }
 
   clearLoginRecord(req.ip);

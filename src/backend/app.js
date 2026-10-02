@@ -38,17 +38,45 @@ app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; },
 }));
 
+// ─── Request ID — propagated in response for tracing across log lines ────────
+app.use((req, res, next) => {
+  const id = req.headers['x-request-id'] || require('crypto').randomUUID();
+  req.requestId = id;
+  res.setHeader('X-Request-Id', id);
+  next();
+});
+
 // ─── General rate limit ───────────────────────────────────────────────────────
 app.use('/api', apiLimiter);
 
-// ─── Health check ─────────────────────────────────────────────────────────────
+// ─── Health checks ────────────────────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
   try {
-    const { query } = require('./db');
+    const { query, poolMetrics } = require('./db');
+    const t0 = Date.now();
     await query('SELECT 1');
-    res.json({ status: 'ok', db: 'ok' });
+    res.json({ status: 'ok', db: 'ok', db_latency_ms: Date.now() - t0, pool: poolMetrics() });
   } catch (err) {
-    res.status(503).json({ status: 'ok', db: 'error', detail: err.message });
+    res.status(503).json({ status: 'degraded', db: 'error', detail: err.message });
+  }
+});
+
+// Detailed DB health — pool depth, latency, and a lightweight table ping
+app.get('/health/db', async (_req, res) => {
+  const { query, poolMetrics } = require('./db');
+  const t0 = Date.now();
+  try {
+    await query('SELECT 1');
+    const latency = Date.now() - t0;
+    const pool = poolMetrics();
+    const saturated = pool.waiting > 0;
+    res.status(saturated ? 207 : 200).json({
+      status: saturated ? 'saturated' : 'ok',
+      latency_ms: latency,
+      pool,
+    });
+  } catch (err) {
+    res.status(503).json({ status: 'error', latency_ms: Date.now() - t0, detail: err.message });
   }
 });
 

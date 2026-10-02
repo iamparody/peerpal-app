@@ -1,18 +1,23 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_POOLER_URL || process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: isProd ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: isProd ? 5000 : 2000,
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected pg pool error', err);
-  process.exit(-1);
+  // Log but don't exit — a single bad idle client shouldn't bring down the server.
+  // The pool will remove the client and open a fresh one on the next query.
+  console.error('[pg-pool] Unexpected client error', err.message);
 });
+
+const SLOW_QUERY_MS = 500;
 
 async function query(text, params) {
   const start = Date.now();
@@ -20,8 +25,18 @@ async function query(text, params) {
   const duration = Date.now() - start;
   if (process.env.NODE_ENV === 'development') {
     console.log('query', { text: text.slice(0, 80), duration, rows: res.rowCount });
+  } else if (duration > SLOW_QUERY_MS) {
+    console.warn('[slow-query]', { duration, query: text.slice(0, 120) });
   }
   return res;
+}
+
+function poolMetrics() {
+  return {
+    total:   pool.totalCount,
+    idle:    pool.idleCount,
+    waiting: pool.waitingCount,
+  };
 }
 
 async function getClient() {
@@ -45,4 +60,4 @@ async function transaction(fn) {
   }
 }
 
-module.exports = { query, getClient, transaction, pool };
+module.exports = { query, getClient, transaction, pool, poolMetrics };
