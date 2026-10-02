@@ -93,8 +93,17 @@ function MediaSession({ booking, joinData, onEnd }) {
   const [connError, setConnError] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(booking.duration_minutes * 60);
   const [showWarnBanner, setShowWarnBanner] = useState(false);
+  const [sentReply, setSentReply] = useState(false);
   const timerRef = useRef(null);
   const reconnectTimerRef = useRef(null);
+
+  const QUICK_REPLIES = ['Joining in a moment', 'Give me 2 minutes', 'Be right there'];
+
+  function sendQuickReply(text) {
+    if (sentReply || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'quick_reply', text }));
+    setSentReply(true);
+  }
 
   const endSession = useCallback(() => {
     clearInterval(timerRef.current);
@@ -265,13 +274,28 @@ function MediaSession({ booking, joinData, onEnd }) {
 
           {/* Connecting / reconnecting overlay */}
           {connState !== 'active' && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', flexDirection: 'column', gap: 16 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', flexDirection: 'column', gap: 16, padding: '0 24px' }}>
               <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #fff', borderTopColor: 'var(--color-calm)', animation: 'spin 1s linear infinite' }} />
-              <p style={{ color: '#fff', fontSize: '0.88rem' }}>
+              <p style={{ color: '#fff', fontSize: '0.88rem', textAlign: 'center' }}>
                 {connState === 'error' ? (connError || 'Connection failed.')
                   : connState === 'reconnecting' ? 'Reconnecting…'
                   : 'Connecting to your therapist…'}
               </p>
+              {connState === 'connecting' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 280 }}>
+                  {QUICK_REPLIES.map(text => (
+                    <button
+                      key={text}
+                      onClick={() => sendQuickReply(text)}
+                      disabled={sentReply}
+                      style={{ padding: '10px 16px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.35)', background: sentReply ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)', color: sentReply ? 'rgba(255,255,255,0.35)' : '#fff', fontSize: '0.82rem', cursor: sentReply ? 'default' : 'pointer', transition: 'background 0.15s' }}
+                    >
+                      {text}
+                    </button>
+                  ))}
+                  {sentReply && <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', textAlign: 'center', margin: 0 }}>Message sent to your therapist</p>}
+                </div>
+              )}
             </div>
           )}
 
@@ -304,6 +328,21 @@ function MediaSession({ booking, joinData, onEnd }) {
             </svg>
           </div>
           <p style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>{connState === 'active' ? 'In session' : 'Connecting…'}</p>
+          {connState === 'connecting' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 280, padding: '0 24px', boxSizing: 'border-box' }}>
+              {QUICK_REPLIES.map(text => (
+                <button
+                  key={text}
+                  onClick={() => sendQuickReply(text)}
+                  disabled={sentReply}
+                  style={{ padding: '10px 16px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.35)', background: sentReply ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)', color: sentReply ? 'rgba(255,255,255,0.35)' : '#fff', fontSize: '0.82rem', cursor: sentReply ? 'default' : 'pointer' }}
+                >
+                  {text}
+                </button>
+              ))}
+              {sentReply && <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', textAlign: 'center', margin: 0 }}>Message sent to your therapist</p>}
+            </div>
+          )}
           <div style={{ background: timerRed ? 'rgba(192,57,43,0.9)' : 'rgba(255,255,255,0.15)', color: '#fff', padding: '6px 20px', borderRadius: 20, fontSize: '1rem', fontWeight: 700 }}>
             {timerStr}
           </div>
