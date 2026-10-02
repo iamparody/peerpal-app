@@ -7,6 +7,7 @@ const auth     = require('../middleware/auth');
 const therapistAuth = require('../middleware/therapistAuth');
 const { deductCredit, refundCredit } = require('../utils/creditDeductor');
 const { stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
+const { initiatePayment, verifyWebhook } = require('../services/payment');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund, issuePartialRefund } = require('../utils/therapyRefund');
 const { getTurnCredentialsWithFallback } = require('../utils/turnCredentials');
@@ -254,7 +255,9 @@ router.post('/consent', auth, async (req, res) => {
 });
 
 // ─── POST /therapy/bookings ───────────────────────────────────────────────────
-// Creates a booking, deducts 1 credit, initiates Daraja STK Push.
+// Creates a draft booking and fires an M-Pesa STK push via IntaSend.
+// No credit deducted here — only on payment webhook success.
+// STK fires FIRST; booking is only inserted if STK succeeds (atomic, no orphans).
 router.post('/bookings', auth, async (req, res) => {
   const {
     therapist_id, category_id, session_format,
@@ -276,7 +279,7 @@ router.post('/bookings', auth, async (req, res) => {
   try {
     // Therapy consent check
     const { rows: userRows } = await query(
-      'SELECT therapy_consent_version FROM users WHERE id = $1',
+      'SELECT therapy_consent_version, email FROM users WHERE id = $1',
       [req.user.id]
     );
     if (!userRows.length) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
@@ -284,7 +287,7 @@ router.post('/bookings', auth, async (req, res) => {
       return res.status(403).json({ error: 'Therapy consent required', code: 'THERAPY_CONSENT_REQUIRED' });
     }
 
-    // Verify slot lock belongs to this user
+    // Verify slot lock belongs to this user and is still valid
     const { rows: lockRows } = await query(
       `SELECT id FROM booking_slot_locks
        WHERE id = $1 AND therapist_id = $2 AND scheduled_at = $3
@@ -297,73 +300,212 @@ router.post('/bookings', auth, async (req, res) => {
 
     // Fetch therapist rate
     const { rows: tpRows } = await query(
-      'SELECT rate_per_session_kes, user_id FROM therapist_profiles WHERE id = $1 AND is_active = true AND is_verified = true AND suspended = false',
+      'SELECT rate_per_session_kes FROM therapist_profiles WHERE id = $1 AND is_active = true AND is_verified = true AND suspended = false',
       [therapist_id]
     );
     if (!tpRows.length) return res.status(404).json({ error: 'Therapist not available', code: 'NOT_FOUND' });
-    const { rate_per_session_kes: rateKes, user_id: therapistUserId } = tpRows[0];
+    const { rate_per_session_kes: rateKes } = tpRows[0];
 
-    const platformFeeKes   = Math.ceil(rateKes * PLATFORM_FEE_RATE);
+    const platformFeeKes     = Math.ceil(rateKes * PLATFORM_FEE_RATE);
     const therapistPayoutKes = rateKes - platformFeeKes;
+    const bookingId          = uuidv4();
+    const draftExpiresAt     = new Date(Date.now() + 10 * 60 * 1000); // 10-minute payment window
 
-    // Deduct 1 credit
-    const bookingId = uuidv4();
-    await deductCredit(req.user.id, 1, null, 'therapy_booking');
+    // 1. Fire payment FIRST — if it fails, no booking is created (clean state)
+    const { reference: paymentReference, checkoutUrl } = await initiatePayment({
+      amount:    rateKes,
+      phone,
+      email:     userRows[0].email,
+      bookingId,
+    });
 
-    // Create booking (payment_status=unpaid until STK callback confirms)
+    // 2. Atomically insert draft with payment_reference already populated
     await query(
       `INSERT INTO therapist_bookings
          (id, member_user_id, therapist_id, category_id, session_format,
           scheduled_at, duration_minutes, rate_kes, platform_fee_kes, therapist_payout_kes,
-          status, payment_status, escrow_status, credit_charged, notes, idempotency_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending','unpaid','held',1,$11,$12)`,
+          status, payment_status, escrow_status, credit_charged, notes, idempotency_key,
+          payment_reference, expires_at, slot_lock_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft','unpaid','held',0,$11,$12,$13,$14,$15)`,
       [
         bookingId, req.user.id, therapist_id, category_id, session_format,
         scheduled_at, duration_minutes, rateKes, platformFeeKes, therapistPayoutKes,
-        notes || null, bookingId,
+        notes || null, bookingId, paymentReference, draftExpiresAt, lock_id,
       ]
     );
 
-    // Release slot lock
-    await query('DELETE FROM booking_slot_locks WHERE id = $1', [lock_id]).catch(() => {});
-
-    // Initiate STK Push — store checkout_request_id in payment_reference
-    let checkoutRequestId = null;
-    try {
-      const normalisedPhone = normalisePhone(phone);
-      const stkResult = await stkPush(
-        normalisedPhone,
-        rateKes,
-        `PEERPAL-${bookingId.slice(0, 8).toUpperCase()}`,
-        'PeerPal therapy session payment'
-      );
-      checkoutRequestId = stkResult.CheckoutRequestID;
-      await query(
-        'UPDATE therapist_bookings SET payment_reference = $1 WHERE id = $2',
-        [checkoutRequestId, bookingId]
-      );
-    } catch (stkErr) {
-      console.error('[therapy.booking.stk]', stkErr.message);
-      // Booking created, STK failed — member can retry payment; booking stays unpaid
-    }
-
-    // Notify therapist
-    const { rows: therapistNotifRows } = await query(
-      'SELECT alias FROM users WHERE id = $1',
-      [therapistUserId]
-    );
-    await notifyUser(therapistUserId, 'therapist_update', {
-      message: `New booking request for ${new Date(scheduled_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}. Awaiting payment confirmation.`,
-    });
-
     return res.status(201).json({
-      booking_id: bookingId,
-      checkout_request_id: checkoutRequestId,
-      message: 'Booking created. Complete M-Pesa payment to confirm.',
+      booking_id:   bookingId,
+      expires_at:   draftExpiresAt.toISOString(),
+      // checkoutUrl present only for redirect-based providers (Paystack)
+      ...(checkoutUrl ? { checkout_url: checkoutUrl } : {}),
     });
   } catch (err) {
     console.error('[therapy.booking.create]', err.message);
+    if (err.message.includes('IntaSend') || err.message.includes('Paystack')) {
+      return res.status(502).json({ error: 'Payment initiation failed. Please try again.', code: 'PAYMENT_ERROR' });
+    }
     return res.status(500).json({ error: 'Failed to create booking', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── POST /therapy/payment-webhook ───────────────────────────────────────────
+// Public — called by IntaSend (challenge) or Paystack (HMAC-SHA512).
+// Respond 200 immediately, process async. rawBody available via express.json verify callback.
+router.post('/payment-webhook', async (req, res) => {
+  // Always acknowledge immediately so the provider doesn't retry on our processing time
+  res.status(200).json({ received: true });
+
+  let event;
+  try {
+    // req.rawBody is a Buffer captured by express.json({ verify }) in app.js
+    const rawBody = req.rawBody;
+    if (!rawBody) throw new Error('rawBody not available — check express.json verify callback');
+    event = verifyWebhook(rawBody, req.headers);
+  } catch (err) {
+    console.error('[therapy.payment-webhook.verify]', err.message);
+    return;
+  }
+
+  if (!event.success) {
+    // Payment failed or cancelled — mark payment_status=failed so UI can show retry
+    await query(
+      `UPDATE therapist_bookings SET payment_status = 'failed', updated_at = NOW()
+       WHERE payment_reference = $1 AND status = 'draft'`,
+      [event.reference]
+    ).catch(e => console.error('[therapy.payment-webhook.fail]', e.message));
+    return;
+  }
+
+  // Atomically promote draft → pending; WHERE status='draft' acts as idempotency guard
+  // (duplicate webhook fires find no rows and exit cleanly)
+  const { rows } = await query(
+    `UPDATE therapist_bookings
+       SET status = 'pending', payment_status = 'paid', credit_charged = 1,
+           expires_at = NULL, updated_at = NOW()
+     WHERE payment_reference = $1 AND status = 'draft'
+     RETURNING id, member_user_id, therapist_id, scheduled_at, session_format, slot_lock_id`,
+    [event.reference]
+  ).catch(e => {
+    console.error('[therapy.payment-webhook.promote]', e.message);
+    return { rows: [] };
+  });
+
+  if (!rows.length) {
+    // Either already promoted (duplicate webhook) or reference not found — both are fine
+    return;
+  }
+  const b = rows[0];
+  console.log(`[therapy.payment-webhook] Promoted booking ${b.id} to pending (ref=${event.reference})`);
+
+  // Release the slot lock held during the payment window
+  if (b.slot_lock_id) {
+    await query('DELETE FROM booking_slot_locks WHERE id = $1', [b.slot_lock_id])
+      .catch(e => console.error('[therapy.payment-webhook.lock]', e.message));
+  }
+
+  // Deduct 1 credit — after status is already 'pending', so a failed deduction
+  // leaves the booking promoted but credit undeducted (flag for reconciliation)
+  const creditOk = await deductCredit(b.member_user_id, 1, null, 'therapy_booking').then(() => true).catch(e => {
+    console.error('[therapy.payment-webhook.credit] RECONCILIATION NEEDED booking=%s err=%s', b.id, e.message);
+    return false;
+  });
+
+  // Notify member
+  await notifyUser(b.member_user_id, 'therapist_update', {
+    message: 'Payment confirmed! Your booking is awaiting therapist approval.',
+  });
+
+  // Notify therapist
+  const { rows: tpRows } = await query(
+    'SELECT user_id FROM therapist_profiles WHERE id = $1', [b.therapist_id]
+  ).catch(() => ({ rows: [] }));
+
+  if (tpRows.length) {
+    const { rows: mRows } = await query('SELECT alias FROM users WHERE id = $1', [b.member_user_id])
+      .catch(() => ({ rows: [{ alias: 'a member' }] }));
+    await notifyUser(tpRows[0].user_id, 'therapist_update', {
+      message: `New booking from ${mRows[0]?.alias ?? 'a member'}. Session: ${new Date(b.scheduled_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })} (${b.session_format}).`,
+    });
+  }
+});
+
+// ─── POST /therapy/bookings/:id/retry-payment ─────────────────────────────────
+// Member retriggers STK push on their own draft booking (e.g. missed the first prompt).
+router.post('/bookings/:id/retry-payment', auth, async (req, res) => {
+  const bookingId = req.params.id;
+  const { phone } = req.body; // member may supply a different number for retry
+  try {
+    const { rows } = await query(
+      `SELECT b.id, b.rate_kes, b.slot_lock_id, sl.expires_at AS lock_expires_at,
+              u.email, u.phone
+       FROM therapist_bookings b
+       JOIN users u ON u.id = b.member_user_id
+       LEFT JOIN booking_slot_locks sl ON sl.id = b.slot_lock_id
+       WHERE b.id = $1 AND b.member_user_id = $2 AND b.status = 'draft'`,
+      [bookingId, req.user.id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Draft booking not found', code: 'NOT_FOUND' });
+    }
+    const b = rows[0];
+
+    if (b.lock_expires_at && new Date(b.lock_expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Booking slot has expired — please rebook', code: 'BOOKING_EXPIRED' });
+    }
+
+    const stkPhone = phone || b.phone;
+    if (!stkPhone) {
+      return res.status(400).json({ error: 'Phone number required for retry', code: 'MISSING_FIELDS' });
+    }
+
+    const { reference: paymentReference, checkoutUrl } = await initiatePayment({
+      amount:    b.rate_kes,
+      phone:     stkPhone,
+      email:     b.email,
+      bookingId,
+    });
+
+    // Update payment_reference so new STK invoice is tracked
+    await query(
+      'UPDATE therapist_bookings SET payment_reference = $1, payment_status = $2, updated_at = NOW() WHERE id = $3',
+      [paymentReference, 'unpaid', bookingId]
+    );
+
+    return res.status(200).json({
+      booking_id: bookingId,
+      ...(checkoutUrl ? { checkout_url: checkoutUrl } : {}),
+    });
+  } catch (err) {
+    console.error('[therapy.retry-payment]', err.message);
+    if (err.message.includes('IntaSend') || err.message.includes('Paystack')) {
+      return res.status(502).json({ error: 'Payment initiation failed. Please try again.', code: 'PAYMENT_ERROR' });
+    }
+    return res.status(500).json({ error: 'Failed to retry payment', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── GET /therapy/bookings/drafts ─────────────────────────────────────────────
+// Returns the member's current draft bookings with slot lock countdown.
+router.get('/bookings/drafts', auth, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT b.id, b.therapist_id, b.scheduled_at, b.session_format, b.rate_kes,
+              b.expires_at, b.payment_status,
+              tp.display_name AS therapist_display_name,
+              tp.photo_url    AS therapist_photo_url,
+              sl.expires_at   AS slot_expires_at
+       FROM therapist_bookings b
+       JOIN therapist_profiles tp ON tp.id = b.therapist_id
+       LEFT JOIN booking_slot_locks sl ON sl.id = b.slot_lock_id
+       WHERE b.member_user_id = $1 AND b.status = 'draft'
+       ORDER BY b.created_at DESC`,
+      [req.user.id]
+    );
+    return res.status(200).json({ drafts: rows });
+  } catch (err) {
+    console.error('[therapy.bookings.drafts]', err.message);
+    return res.status(500).json({ error: 'Failed to fetch drafts', code: 'QUERY_ERROR' });
   }
 });
 

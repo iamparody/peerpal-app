@@ -33,7 +33,10 @@ app.use(cors({
 }));
 
 // Daraja M-Pesa callback — parsed JSON, no raw body needed (Paystack removed)
-app.use(express.json());
+// Capture raw body before parsing — needed for Paystack HMAC webhook verification
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 
 // ─── General rate limit ───────────────────────────────────────────────────────
 app.use('/api', apiLimiter);

@@ -32,8 +32,8 @@ export default function TherapistBookingScreen() {
   const [slotLockId, setSlotLockId] = useState(null);
   const [lockCountdown, setLockCountdown] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
   const [waitingMpesa, setWaitingMpesa] = useState(false);
+  const [error, setError] = useState('');
   const countdownRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -133,48 +133,54 @@ export default function TherapistBookingScreen() {
   async function handleConfirm(lockId) {
     if (!selectedFormat || !selectedSlot || !lockId) return;
     try {
-      // category_id comes from therapist's first category
       const categoryId = (therapist.category_ids ?? [])[0] ?? null;
 
-      // phone — fetch from user profile if not cached
+      // phone — fetch from user profile, prompt only if missing
       let phone;
       try {
         const { data: profileData } = await client.get('/api/profile');
         phone = profileData?.user?.phone ?? profileData?.phone ?? null;
-      } catch { /* will fall through to prompt */ }
-
+      } catch { /* fall through to prompt */ }
       if (!phone) {
-        phone = window.prompt('Enter your M-Pesa phone number (e.g. 0712345678):');
+        phone = window.prompt('Enter your M-Pesa number (e.g. 0712345678):');
         if (!phone) { setSubmitting(false); return; }
       }
 
       const { data } = await client.post('/api/therapy/bookings', {
-        therapist_id: therapistId,
-        category_id: categoryId,
-        lock_id: lockId,
-        session_format: selectedFormat,
-        scheduled_at: selectedSlot.iso,
+        therapist_id:     therapistId,
+        category_id:      categoryId,
+        lock_id:          lockId,
+        session_format:   selectedFormat,
+        scheduled_at:     selectedSlot.iso,
         duration_minutes: selectedDuration,
         phone,
-        notes: notes.trim() || null,
+        notes:            notes.trim() || null,
       });
-      const bookingId = data.booking_id;
-      // Poll for payment confirmation (max 3 min = 36 × 5s)
+
+      // Paystack (redirect flow): checkout_url present → go there
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+
+      // IntaSend (STK flow): show waiting screen, poll for status='pending'
       setWaitingMpesa(true);
+      const bookingId = data.booking_id;
       let attempts = 0;
       pollRef.current = setInterval(async () => {
         attempts++;
         try {
           const { data: bData } = await client.get(`/api/therapy/bookings/${bookingId}`);
-          if (bData.booking?.payment_status === 'paid') {
+          if (bData.booking?.status === 'pending') {
             clearInterval(pollRef.current);
-            navigate(`/therapists/booking/${bookingId}/confirm`, { replace: true });
+            navigate('/therapy/my?payment=success', { replace: true });
           }
         } catch { /* non-fatal */ }
-        if (attempts >= 36) {
+        if (attempts >= 36) { // 3 min max
           clearInterval(pollRef.current);
           setWaitingMpesa(false);
-          setError('M-Pesa confirmation is taking longer than expected. Check your bookings for status.');
+          setError('M-Pesa is taking longer than expected. Check "My Therapy" for your booking status.');
+          setSubmitting(false);
         }
       }, 5000);
     } catch (err) {
@@ -183,7 +189,7 @@ export default function TherapistBookingScreen() {
     }
   }
 
-  async function cancelWait() {
+  function cancelWait() {
     clearInterval(pollRef.current);
     setWaitingMpesa(false);
     setSubmitting(false);
@@ -224,16 +230,16 @@ export default function TherapistBookingScreen() {
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-calm-light, #e8f4f8)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
             <Clock size={32} color="var(--color-calm)" />
           </div>
-          <h2 style={{ fontFamily: 'var(--font-editorial)', marginBottom: 8 }}>Waiting for M-Pesa</h2>
+          <h2 style={{ fontFamily: 'var(--font-editorial)', marginBottom: 8 }}>Check your phone</h2>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
-            An M-Pesa STK Push has been sent to your phone. Enter your PIN to complete payment. This may take a moment.
+            An M-Pesa payment request has been sent. Enter your PIN to complete the booking.
           </p>
           <button onClick={cancelWait} className="btn btn--muted" style={{ minWidth: 180 }}>
             Cancel — check my bookings
           </button>
         </div>
       ) : (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)' }}>
           {/* Format selector */}
           <Section label="Session Format">
             <div style={{ display: 'flex', gap: 10 }}>
@@ -375,7 +381,7 @@ export default function TherapistBookingScreen() {
         </div>
       )}
 
-      {/* ── Schedule footer — flex sibling, not fixed ── */}
+      {/* ── Schedule footer — hidden while waiting for M-Pesa ── */}
       {!waitingMpesa && (
         <div style={{
           flexShrink: 0,
@@ -397,7 +403,7 @@ export default function TherapistBookingScreen() {
             onClick={canSchedule ? handleSchedule : undefined}
             disabled={submitting || !canSchedule}
           >
-            {submitting ? 'Scheduling…' : 'Schedule Session'}
+            {submitting ? 'Sending payment request…' : 'Schedule Session'}
           </button>
         </div>
       )}

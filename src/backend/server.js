@@ -23,6 +23,7 @@ const { runPreSessionReminderJob }     = require('./jobs/preSessionReminderJob')
 const { runPayoutReconciliationJob }   = require('./jobs/payoutReconciliationJob');
 const { runPayoutRetryJob }            = require('./jobs/payoutRetryJob');
 const { runMemberNoShowJob }           = require('./jobs/memberNoShowJob');
+const { runDraftBookingExpiryJob }     = require('./jobs/draftBookingExpiryJob');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -72,6 +73,9 @@ cron.schedule('0 * * * *', () => runBanExpiryJob().catch(console.error));
 
 // Slot lock cleanup — every 5 min
 cron.schedule('*/5 * * * *', () => runSlotLockCleanupJob().catch(console.error));
+
+// Draft booking expiry — every 2 min; deletes unpaid drafts whose slot lock has expired
+cron.schedule('*/2 * * * *', () => runDraftBookingExpiryJob().catch(console.error));
 
 // Therapist no-show detection — every 10 min
 cron.schedule('*/10 * * * *', () => runTherapistNoShowJob().catch(console.error));

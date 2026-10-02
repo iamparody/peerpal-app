@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Star, VideoCamera, Phone, ChatText, Clock, Warning } from '@phosphor-icons/react';
+import { ArrowLeft, Star, VideoCamera, Phone, ChatText, Clock, Warning, CheckCircle } from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const FORMAT_ICONS = { video: VideoCamera, voice: Phone, text: ChatText };
@@ -242,9 +242,48 @@ function BookingCard({ booking, tab, onCancel, onRate, onJoin }) {
 const TABS = ['upcoming', 'past', 'cancelled'];
 const TAB_LABELS = { upcoming: 'Upcoming', past: 'Past', cancelled: 'Cancelled' };
 
+function DraftCard({ draft, onRetry }) {
+  const expiresAt = draft.slot_expires_at || draft.expires_at;
+  const [secsLeft, setSecsLeft] = useState(
+    expiresAt ? Math.max(0, Math.floor((new Date(expiresAt) - Date.now()) / 1000)) : 0
+  );
+  useEffect(() => {
+    if (!expiresAt) return;
+    const t = setInterval(() => {
+      const s = Math.max(0, Math.floor((new Date(expiresAt) - Date.now()) / 1000));
+      setSecsLeft(s);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [expiresAt]);
+  const mm = String(Math.floor(secsLeft / 60)).padStart(2, '0');
+  const ss = String(secsLeft % 60).padStart(2, '0');
+  const expired = secsLeft === 0;
+
+  return (
+    <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 'var(--radius-lg)', padding: 'var(--space-md)', marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{draft.therapist_display_name}</div>
+        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: expired ? '#c0392b' : '#b45309' }}>
+          {expired ? 'Expired' : `${mm}:${ss} left`}
+        </span>
+      </div>
+      <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 12 }}>
+        Awaiting payment — slot held for {mm}:{ss}
+      </div>
+      {!expired && (
+        <button className="btn btn--primary" style={{ width: '100%', fontSize: '0.88rem' }} onClick={() => onRetry(draft)}>
+          Complete Payment
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function MyTherapyScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [paymentSuccess, setPaymentSuccess] = useState(searchParams.get('payment') === 'success');
   const [tab, setTab] = useState('upcoming');
   const [cancelBooking, setCancelBooking] = useState(null);
   const [rateBooking, setRateBooking] = useState(null);
@@ -266,6 +305,36 @@ export default function MyTherapyScreen() {
     queryFn: () => client.get('/api/therapy/bookings/stats').then(r => r.data),
     staleTime: 60000,
   });
+
+  const { data: draftsData } = useQuery({
+    queryKey: ['therapy', 'drafts'],
+    queryFn: () => client.get('/api/therapy/bookings/drafts').then(r => r.data),
+    refetchInterval: 30000,
+  });
+  const drafts = draftsData?.drafts ?? [];
+
+  // On returning from payment: immediately refetch so draft disappears without waiting 30s
+  useEffect(() => {
+    if (paymentSuccess) {
+      qc.invalidateQueries(['therapy', 'drafts']);
+      qc.invalidateQueries(['therapy', 'my-bookings']);
+      qc.invalidateQueries(['therapy', 'bookings-stats']);
+      const t = setTimeout(() => {
+        setPaymentSuccess(false);
+        setSearchParams({}, { replace: true });
+      }, 5000);
+      return () => clearTimeout(t);
+    }
+  }, [paymentSuccess]);
+
+  async function handleRetryPayment(draft) {
+    try {
+      const { data } = await client.post(`/api/therapy/bookings/${draft.id}/retry-payment`);
+      window.location.href = data.checkout_url;
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to create checkout. The slot may have expired.');
+    }
+  }
 
   const all       = data?.bookings ?? [];
   const live      = all.filter(b => b.status === 'in_progress');
@@ -347,6 +416,14 @@ export default function MyTherapyScreen() {
 
   return (
     <div className="screen" style={{ overflowY: 'auto', background: 'var(--color-bg-secondary, #f5f5f5)' }}>
+      {/* Payment success toast */}
+      {paymentSuccess && (
+        <div style={{ background: '#16a34a', color: '#fff', padding: '12px var(--space-md)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.88rem', fontWeight: 600 }}>
+          <CheckCircle size={20} weight="fill" />
+          Payment received! Your booking is confirmed and awaiting therapist approval.
+        </div>
+      )}
+
       {/* Live session banners */}
       {live.map(b => (
         <div key={b.id} style={{ background: '#1a6b3a', color: '#fff' }}>
@@ -418,6 +495,16 @@ export default function MyTherapyScreen() {
               <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pending Payment — draft bookings awaiting checkout */}
+      {drafts.length > 0 && (
+        <div style={{ background: '#fffbeb', borderBottom: '1px solid #f59e0b', padding: 'var(--space-md)' }}>
+          <p style={{ fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#b45309', marginBottom: 10 }}>
+            Pending Payment ({drafts.length})
+          </p>
+          {drafts.map(d => <DraftCard key={d.id} draft={d} onRetry={handleRetryPayment} />)}
         </div>
       )}
 
