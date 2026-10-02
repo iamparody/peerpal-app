@@ -32,11 +32,11 @@ function downloadCSV(rows) {
   const lines = [
     headers.join(','),
     ...rows.map((r) => [
-      formatEAT(r.session_date || r.created_at),
+      formatEAT(r.payout_date || r.created_at),
       r.member_alias || '',
-      r.format || '',
+      r.session_format || '',
       r.duration_minutes || '',
-      r.session_rate_kes || '',
+      r.rate_kes || '',
       r.therapist_payout_kes || '',
       r.payout_status || r.status || '',
     ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')),
@@ -106,7 +106,7 @@ export default function PaymentsTab() {
         <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
           <div className="stat-card stat-card--pending">
             <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.this_month_kes || 0).toLocaleString()}
+              KES {Number(summary.month_kes || 0).toLocaleString()}
             </div>
             <div className="stat-card__label">This Month</div>
           </div>
@@ -118,13 +118,13 @@ export default function PaymentsTab() {
           </div>
           <div className="stat-card stat-card--open">
             <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.pending_payout_kes || 0).toLocaleString()}
+              KES {Number(summary.pending_kes || 0).toLocaleString()}
             </div>
             <div className="stat-card__label">Pending Payouts</div>
           </div>
           <div className="stat-card">
             <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.completed_payout_kes || 0).toLocaleString()}
+              KES {Number(summary.completed_kes || 0).toLocaleString()}
             </div>
             <div className="stat-card__label">Completed Payouts</div>
           </div>
@@ -169,15 +169,15 @@ export default function PaymentsTab() {
                 <tbody>
                   {payments.map((p, i) => (
                     <tr key={p.id || i}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatEAT(p.session_date || p.created_at)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatEAT(p.payout_date || p.created_at)}</td>
                       <td>{p.member_alias || '—'}</td>
                       <td>
-                        <span className={`badge badge--${(p.format || 'text').toLowerCase()}`}>
-                          {p.format || '—'}
+                        <span className={`badge badge--${(p.session_format || 'text').toLowerCase()}`}>
+                          {p.session_format || '—'}
                         </span>
                       </td>
                       <td>{p.duration_minutes ? `${p.duration_minutes} min` : '—'}</td>
-                      <td>KES {Number(p.session_rate_kes || 0).toLocaleString()}</td>
+                      <td>KES {Number(p.rate_kes || 0).toLocaleString()}</td>
                       <td style={{ fontWeight: 600 }}>KES {Number(p.therapist_payout_kes || 0).toLocaleString()}</td>
                       <td><PayoutBadge status={p.payout_status || p.status} /></td>
                     </tr>

@@ -58,11 +58,11 @@ function TherapistCard({ therapist, onViewProfile, index }) {
               ].filter(Boolean).join(' · ')}
             </div>
           )}
-          {therapist.show_rating && therapist.bayesian_average != null && (
+          {therapist.total_ratings_count >= 5 && therapist.average_rating != null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <StarRating value={therapist.bayesian_average} />
+              <StarRating value={therapist.average_rating} />
               <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>
-                {Number(therapist.bayesian_average).toFixed(1)} ({therapist.total_sessions} sessions)
+                {Number(therapist.average_rating).toFixed(1)} ({therapist.total_ratings_count} ratings)
               </span>
             </div>
           )}
@@ -98,7 +98,7 @@ function TherapistCard({ therapist, onViewProfile, index }) {
 
 function ProfileSheet({ therapist, onClose, onBook }) {
   const formats = therapist.session_formats ?? [];
-  const showRating = therapist.show_rating && therapist.bayesian_average != null;
+  const showRating = therapist.total_ratings_count >= 5 && therapist.average_rating != null;
   const comments = therapist.recent_comments ?? [];
   const competencies = Array.isArray(therapist.cultural_competencies)
     ? therapist.cultural_competencies.join(' · ')
@@ -156,9 +156,9 @@ function ProfileSheet({ therapist, onClose, onBook }) {
               </p>
               {showRating && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <StarRating value={therapist.bayesian_average} size={13} />
+                  <StarRating value={therapist.average_rating} size={13} />
                   <span style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
-                    {Number(therapist.bayesian_average).toFixed(1)} ({therapist.total_ratings_count})
+                    {Number(therapist.average_rating).toFixed(1)} ({therapist.total_ratings_count})
                   </span>
                 </div>
               )}

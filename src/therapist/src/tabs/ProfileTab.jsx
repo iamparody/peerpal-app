@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 
-const FORMAT_OPTIONS = ['video', 'in_person'];
+const FORMAT_OPTIONS = ['video', 'voice', 'text'];
 const AVAILABILITY_OPTIONS = ['available', 'busy', 'on_leave'];
 
 export default function ProfileTab() {
@@ -26,9 +26,7 @@ export default function ProfileTab() {
   });
 
   useEffect(() => {
-    const endpoint = therapist?.id
-      ? `/api/therapy/therapist/profile`
-      : `/api/therapy/therapist/profile`;
+    const endpoint = `/api/therapy/therapist/profile`;
 
     client.get(endpoint)
       .then((res) => {

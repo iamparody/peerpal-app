@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Stethoscope, Warning } from '@phosphor-icons/react';
+import { ArrowLeft, ShieldCheck, Stethoscope, Warning } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
@@ -35,10 +35,10 @@ export default function TherapyConsentScreen() {
       }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: 'var(--color-text-primary)', lineHeight: 1 }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-primary)', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           aria-label="Go back"
         >
-          ←
+          <ArrowLeft size={22} />
         </button>
         <span style={{ fontWeight: 700, fontSize: 17 }}>Before you continue</span>
       </div>
@@ -68,7 +68,7 @@ export default function TherapyConsentScreen() {
           <ConsentPoint icon={<ShieldCheck size={20} color="var(--color-calm)" />} text="Therapists on PeerPal are independent professionals, not PeerPal employees. PeerPal facilitates access to their services." />
           <ConsentPoint icon={<ShieldCheck size={20} color="var(--color-calm)" />} text="Sessions are not recorded. No audio, video, or text logs are stored by PeerPal." />
           <ConsentPoint icon={<Warning size={20} color="var(--color-warning, #E88B3F)" />} text="If a crisis is identified before or during a session, we may pause the session and connect you with emergency resources." />
-          <ConsentPoint icon={<ShieldCheck size={20} color="var(--color-calm)" />} text="Cancellations over 24 hours in advance: full refund. 2–24 hours: 50% M-Pesa refund, credit non-refundable. Under 2 hours: no refund (first occurrence may be waived)." />
+          <ConsentPoint icon={<ShieldCheck size={20} color="var(--color-calm)" />} text="Cancellations more than 24 hours in advance: your credit is returned to your PeerPal balance. Cancellations within 24 hours are non-refundable. Members with 2+ cancellations in the past 30 days forfeit the refund regardless of timing." />
           <ConsentPoint icon={<ShieldCheck size={20} color="var(--color-calm)" />} text="Session data is retained for 7 years as required by Kenyan health regulations. You may request deletion after your last session date." />
         </div>
 

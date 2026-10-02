@@ -58,7 +58,13 @@ export default function DashboardTab() {
 
   if (loading) return <div className="loading">Loading dashboard…</div>;
 
-  const stats = data?.stats || {};
+  // API returns top-level fields, not nested under stats
+  const stats = {
+    upcoming_today:        data?.upcoming_today        ?? null,
+    this_month_earnings_kes: data?.earnings_this_month_kes ?? null,
+    avg_rating:            data?.average_rating        ?? null,
+    total_sessions:        data?.total_sessions        ?? null,
+  };
   const upcoming = data?.upcoming_sessions || [];
   const pending  = data?.pending_requests  || [];
 
@@ -139,7 +145,7 @@ export default function DashboardTab() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <FormatBadge format={s.format} />
+                    <FormatBadge format={s.session_format} />
                     <StatusBadge status={s.status} />
                   </div>
                 </div>
@@ -167,7 +173,7 @@ export default function DashboardTab() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <span style={{ fontWeight: 600, fontSize: 14 }}>{p.member_alias || 'Member'}</span>
-                    <FormatBadge format={p.format} />
+                    <FormatBadge format={p.session_format} />
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10 }}>
                     {formatEAT(p.scheduled_at)}

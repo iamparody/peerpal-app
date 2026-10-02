@@ -49,7 +49,7 @@ function NotesPanel({ booking, onClose }) {
     try {
       await client.post('/api/therapy/session-notes', {
         booking_id: booking.id,
-        note_text:  text.trim(),
+        content:    text.trim(),
       });
       setSaved(true);
       setTimeout(onClose, 900);
@@ -227,7 +227,7 @@ export default function SessionsTab() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <span style={{ fontWeight: 600, fontSize: 15 }}>{b.member_alias || 'Member'}</span>
-                    <FormatBadge format={b.format} />
+                    <FormatBadge format={b.session_format} />
                     <StatusBadge status={b.status} />
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>

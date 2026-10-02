@@ -330,9 +330,15 @@ export default function MyTherapyScreen() {
   async function handleRetryPayment(draft) {
     try {
       const { data } = await client.post(`/api/therapy/bookings/${draft.id}/retry-payment`);
-      window.location.href = data.checkout_url;
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+      // IntaSend STK — prompt sent to phone; refresh list so status updates
+      alert('An M-Pesa payment request has been sent to your phone. Enter your PIN to complete the booking.');
+      qc.invalidateQueries(['therapy', 'my-bookings']);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to create checkout. The slot may have expired.');
+      alert(err.response?.data?.error || 'Payment failed. The slot may have expired.');
     }
   }
 

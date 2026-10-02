@@ -1197,9 +1197,16 @@ router.get('/therapist/dashboard', therapistAuth, async (req, res) => {
       ),
     ]);
 
+    const todayEnd = new Date(now);
+    todayEnd.setUTCHours(23, 59, 59, 999);
+    const upcomingToday = upcomingRes.rows.filter(s =>
+      new Date(s.scheduled_at) <= todayEnd
+    ).length;
+
     return res.json({
       upcoming_sessions: upcomingRes.rows,
       pending_requests:  pendingRes.rows,
+      upcoming_today:    upcomingToday,
       earnings_this_month_kes: parseFloat(earningsRes.rows[0].month_earnings),
       average_rating:    profileRes.rows[0]?.average_rating ?? null,
       total_sessions:    profileRes.rows[0]?.total_sessions ?? 0,
