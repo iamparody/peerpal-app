@@ -385,6 +385,12 @@ function TextSession({ booking, joinData, onEnd }) {
   const [input, setInput] = useState('');
   const [contactWarning, setContactWarning] = useState(false);
   const [ended, setEnded] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_URL}/ws/signal?session=${booking.id}&token=${joinData.room_token}&session_type=therapy`);
@@ -421,8 +427,20 @@ function TextSession({ booking, joinData, onEnd }) {
     setInput('');
   }
 
+  const elapsedStr = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+  const totalStr   = `${booking.duration_minutes ?? 60} min`;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--color-bg-primary)' }}>
+      {/* Header bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px var(--space-md)', borderBottom: '1px solid var(--color-border)', flexShrink: 0, background: 'var(--color-bg-primary)' }}>
+        <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+          {booking.therapist_display_name ?? 'Therapist'} · Text session
+        </span>
+        <span style={{ fontSize: '0.84rem', color: elapsed >= (booking.duration_minutes ?? 60) * 60 * 0.9 ? 'var(--color-warning, #E88B3F)' : 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {elapsedStr} / {totalStr}
+        </span>
+      </div>
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {ended && (

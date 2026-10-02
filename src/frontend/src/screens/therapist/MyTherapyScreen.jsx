@@ -344,7 +344,7 @@ export default function MyTherapyScreen() {
 
   const all       = data?.bookings ?? [];
   const live      = all.filter(b => b.status === 'in_progress');
-  const upcoming  = all.filter(b => ['pending', 'confirmed', 'paid', 'in_progress'].includes(b.status));
+  const upcoming  = all.filter(b => ['pending', 'confirmed'].includes(b.status));
   const past      = all.filter(b => b.status === 'completed').map(b => ratedMap[b.id] ? { ...b, rating: ratedMap[b.id] } : b);
   const cancelled = all.filter(b => ['cancelled', 'member_no_show', 'therapist_no_show'].includes(b.status));
   const shown     = tab === 'upcoming' ? upcoming : tab === 'past' ? past : cancelled;

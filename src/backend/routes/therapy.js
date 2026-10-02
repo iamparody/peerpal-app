@@ -303,7 +303,8 @@ router.post('/bookings', auth, async (req, res) => {
       [therapist_id]
     );
     if (!tpRows.length) return res.status(404).json({ error: 'Therapist not available', code: 'NOT_FOUND' });
-    const { rate_per_session_kes: rateKes } = tpRows[0];
+    const baseRate = tpRows[0].rate_per_session_kes;
+    const rateKes  = duration_minutes === 45 ? Math.round(baseRate * 0.75) : baseRate;
 
     const platformFeeKes     = Math.ceil(rateKes * PLATFORM_FEE_RATE);
     const therapistPayoutKes = rateKes - platformFeeKes;

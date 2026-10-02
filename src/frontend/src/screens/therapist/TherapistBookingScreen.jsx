@@ -171,9 +171,18 @@ export default function TherapistBookingScreen() {
         attempts++;
         try {
           const { data: bData } = await client.get(`/api/therapy/bookings/${bookingId}`);
-          if (bData.booking?.status === 'pending') {
+          const b = bData.booking;
+          if (b?.status === 'pending') {
             clearInterval(pollRef.current);
             navigate('/therapy/my?payment=success', { replace: true });
+            return;
+          }
+          if (b?.payment_status === 'failed') {
+            clearInterval(pollRef.current);
+            setWaitingMpesa(false);
+            setError('Payment was declined. Please check your M-Pesa balance and try again.');
+            setSubmitting(false);
+            return;
           }
         } catch { /* non-fatal */ }
         if (attempts >= 36) { // 3 min max
