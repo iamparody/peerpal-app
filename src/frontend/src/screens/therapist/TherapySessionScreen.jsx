@@ -92,7 +92,9 @@ function MediaSession({ booking, joinData, onEnd }) {
   const [connState, setConnState] = useState('connecting');
   const [connError, setConnError] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(booking.duration_minutes * 60);
+  const [showWarnBanner, setShowWarnBanner] = useState(false);
   const timerRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
 
   const endSession = useCallback(() => {
     clearInterval(timerRef.current);
@@ -112,7 +114,6 @@ function MediaSession({ booking, joinData, onEnd }) {
       const iceServers = joinData.turn_credentials?.ice_servers?.length
         ? joinData.turn_credentials.ice_servers
         : [{ urls: 'stun:stun.l.google.com:19302' }];
-      console.log('[TherapySession] ICE servers:', JSON.stringify(iceServers));
 
       const mediaConstraints = isVideo ? { audio: true, video: { facingMode: 'user' } } : { audio: true };
       let stream;
@@ -143,12 +144,22 @@ function MediaSession({ booking, joinData, onEnd }) {
           remoteAudioRef.current.play().catch(() => {});
         }
         setConnState('active');
+        clearTimeout(reconnectTimerRef.current);
         // Start countdown
         const duration = booking.duration_minutes * 60;
         let left = duration;
         timerRef.current = setInterval(() => {
           left--;
           setSecondsLeft(left);
+          if (left === 300) {
+            setShowWarnBanner(true);
+            setTimeout(() => setShowWarnBanner(false), 8000);
+            try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              const beep = (t, f, d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = f; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.start(t); o.stop(t + d); };
+              beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
+            } catch {}
+          }
           if (left <= 0) { clearInterval(timerRef.current); endSession(); }
         }, 1000);
       };
@@ -187,10 +198,20 @@ function MediaSession({ booking, joinData, onEnd }) {
           } else {
             iceCandidateQueue.current.push(msg.candidate);
           }
-        } else if (msg.type === 'session_ended' || msg.type === 'peer_left') {
-          // session_ended = therapist ended via WS; peer_left = therapist disconnected
-          if (msg.type === 'peer_left' && connState === 'active') return; // brief drop — let WebRTC handle reconnect
+        } else if (msg.type === 'peer_joined') {
+          clearTimeout(reconnectTimerRef.current);
+          if (connState === 'reconnecting') setConnState('connecting');
+        } else if (msg.type === 'session_ended') {
           endSession();
+        } else if (msg.type === 'peer_left') {
+          if (connState === 'active') {
+            setConnState('reconnecting');
+            reconnectTimerRef.current = setTimeout(() => endSession(), 15000);
+          } else {
+            endSession();
+          }
+        } else if (msg.type === 'quick_reply') {
+          // no-op on member side
         }
       };
 
@@ -211,6 +232,7 @@ function MediaSession({ booking, joinData, onEnd }) {
 
     return () => {
       clearInterval(timerRef.current);
+      clearTimeout(reconnectTimerRef.current);
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       pcRef.current?.close();
       wsRef.current?.close();
@@ -241,13 +263,22 @@ function MediaSession({ booking, joinData, onEnd }) {
           {/* Remote video fills screen */}
           <video ref={remoteVideoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} playsInline autoPlay />
 
-          {/* Connecting overlay */}
+          {/* Connecting / reconnecting overlay */}
           {connState !== 'active' && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', flexDirection: 'column', gap: 16 }}>
               <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #fff', borderTopColor: 'var(--color-calm)', animation: 'spin 1s linear infinite' }} />
               <p style={{ color: '#fff', fontSize: '0.88rem' }}>
-                {connState === 'error' ? (connError || 'Connection failed.') : 'Connecting to your therapist…'}
+                {connState === 'error' ? (connError || 'Connection failed.')
+                  : connState === 'reconnecting' ? 'Reconnecting…'
+                  : 'Connecting to your therapist…'}
               </p>
+            </div>
+          )}
+
+          {/* 5-minute warning banner */}
+          {showWarnBanner && (
+            <div style={{ position: 'absolute', top: 52, left: 16, right: 16, background: 'rgba(192,57,43,0.92)', color: '#fff', borderRadius: 10, padding: '8px 16px', textAlign: 'center', fontWeight: 600, fontSize: '0.86rem' }}>
+              5 minutes remaining
             </div>
           )}
 

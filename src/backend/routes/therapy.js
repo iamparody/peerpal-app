@@ -10,6 +10,7 @@ const { stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund, issuePartialRefund } = require('../utils/therapyRefund');
 const { getTurnCredentialsWithFallback } = require('../utils/turnCredentials');
+const { therapyRooms } = require('../ws/signaling');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { initiatePayout } = require('../utils/therapistPayout');
 
@@ -873,6 +874,28 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
     console.error('[therapy.sessions.end]', err.message);
     return res.status(500).json({ error: 'Failed to end session', code: 'QUERY_ERROR' });
   }
+});
+
+// ─── POST /therapy/sessions/:booking_id/quick-reply ──────────────────────────
+// Member sends a quick-reply chip from the waiting screen. Relayed to therapist WS.
+router.post('/sessions/:booking_id/quick-reply', auth, async (req, res) => {
+  const { booking_id } = req.params;
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: 'text is required', code: 'MISSING_FIELDS' });
+
+  // Verify this booking belongs to the requesting member and is in_progress
+  const { rows } = await query(
+    `SELECT id FROM therapist_bookings WHERE id = $1 AND member_user_id = $2 AND status = 'in_progress'`,
+    [booking_id, req.user.id]
+  ).catch(() => ({ rows: [] }));
+  if (!rows.length) return res.status(403).json({ error: 'Booking not found or not in progress', code: 'NOT_FOUND' });
+
+  const room = therapyRooms.get(booking_id);
+  const ws = room?.therapist;
+  if (ws?.readyState === 1 /* OPEN */) {
+    ws.send(JSON.stringify({ type: 'quick_reply', text }));
+  }
+  return res.status(200).json({ delivered: ws?.readyState === 1 });
 });
 
 // ─── POST /therapy/ratings ────────────────────────────────────────────────────

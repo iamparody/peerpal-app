@@ -240,46 +240,94 @@ export default function MyTherapyScreen() {
     navigate(`/therapy/session/${booking.id}`);
   }
 
-  // Ring tone when session goes live
+  // Repeating ring while session is live and not muted
+  const ringMuted    = useRef(false);
+  const ringInterval = useRef(null);
   const prevLiveCount = useRef(0);
+  const [quickReplySent, setQuickReplySent] = useState(null); // booking id that got a reply
+
+  function playRing() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      function beep(startTime, freq, dur) {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq; osc.type = 'sine';
+        gain.gain.setValueAtTime(0.35, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+        osc.start(startTime); osc.stop(startTime + dur);
+      }
+      const t = ctx.currentTime;
+      beep(t, 880, 0.18); beep(t + 0.22, 660, 0.18);
+      beep(t + 0.6, 880, 0.18); beep(t + 0.82, 660, 0.18);
+    } catch {}
+  }
+
   useEffect(() => {
     if (live.length > 0 && prevLiveCount.current === 0) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        function beep(startTime, freq, dur) {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain();
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.frequency.value = freq; osc.type = 'sine';
-          gain.gain.setValueAtTime(0.35, startTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
-          osc.start(startTime); osc.stop(startTime + dur);
-        }
-        // Two-tone ring pattern: 880hz + 660hz, twice
-        const t = ctx.currentTime;
-        beep(t, 880, 0.18); beep(t + 0.22, 660, 0.18);
-        beep(t + 0.6, 880, 0.18); beep(t + 0.82, 660, 0.18);
-      } catch {}
+      ringMuted.current = false;
+      playRing();
+      ringInterval.current = setInterval(() => {
+        if (!ringMuted.current) playRing();
+      }, 4000);
+    }
+    if (live.length === 0 && prevLiveCount.current > 0) {
+      clearInterval(ringInterval.current);
+      ringMuted.current = false;
     }
     prevLiveCount.current = live.length;
   }, [live.length]);
+
+  // Stop ring when component unmounts
+  useEffect(() => () => clearInterval(ringInterval.current), []);
+
+  async function sendQuickReply(booking, text) {
+    ringMuted.current = true;
+    setQuickReplySent(booking.id);
+    try {
+      await client.post(`/api/therapy/sessions/${booking.id}/quick-reply`, { text });
+    } catch { /* best-effort */ }
+  }
 
   return (
     <div className="screen" style={{ overflowY: 'auto' }}>
       {/* Live session banner — appears as soon as therapist starts */}
       {live.map(b => (
-        <button
-          key={b.id}
-          onClick={() => handleJoin(b)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            width: '100%', padding: '14px var(--space-md)',
-            background: '#1a6b3a', border: 'none', cursor: 'pointer',
-            color: '#fff', fontSize: '0.9rem', fontWeight: 600, gap: 12,
-          }}
-        >
-          <span>🟢 Your session with {b.therapist_display_name} has started</span>
-          <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 14px', borderRadius: 20, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>Join Now</span>
-        </button>
+        <div key={b.id} style={{ background: '#1a6b3a', color: '#fff' }}>
+          <button
+            onClick={() => { ringMuted.current = true; handleJoin(b); }}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              width: '100%', padding: '14px var(--space-md)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#fff', fontSize: '0.9rem', fontWeight: 600, gap: 12,
+            }}
+          >
+            <span>🟢 Your session with {b.therapist_display_name} has started</span>
+            <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 14px', borderRadius: 20, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>Join Now</span>
+          </button>
+          {quickReplySent === b.id ? (
+            <p style={{ margin: 0, padding: '0 var(--space-md) 10px', fontSize: '0.78rem', opacity: 0.85 }}>
+              ✓ Message sent to your therapist
+            </p>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, padding: '0 var(--space-md) 10px', flexWrap: 'wrap' }}>
+              {['Joining in a moment', 'Give me 2 minutes', 'Be right there'].map(txt => (
+                <button
+                  key={txt}
+                  onClick={() => sendQuickReply(b, txt)}
+                  style={{
+                    background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)',
+                    borderRadius: 20, color: '#fff', fontSize: '0.76rem', padding: '4px 12px',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {txt}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       ))}
       {/* Header */}
       <div style={{

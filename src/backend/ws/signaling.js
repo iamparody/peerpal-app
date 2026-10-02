@@ -268,4 +268,4 @@ const ICE_SERVERS = [
   ...TURN_ENTRIES,
 ];
 
-module.exports = { createSignalingServer, ICE_SERVERS };
+module.exports = { createSignalingServer, ICE_SERVERS, therapyRooms };

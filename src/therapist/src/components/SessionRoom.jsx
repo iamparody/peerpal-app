@@ -31,11 +31,15 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
   const remoteDescSet   = useRef(false);
   const didSendOffer    = useRef(false);
 
-  const [muted,     setMuted]     = useState(false);
-  const [videoOff,  setVideoOff]  = useState(false);
-  const [connState, setConnState] = useState('waiting'); // waiting | connecting | active | error
-  const [elapsed,   setElapsed]   = useState(0);
-  const timerRef = useRef(null);
+  const [muted,        setMuted]        = useState(false);
+  const [videoOff,     setVideoOff]     = useState(false);
+  const [connState,    setConnState]    = useState('waiting'); // waiting | connecting | active | reconnecting | error
+  const [elapsed,      setElapsed]      = useState(0);
+  const [quickReply,   setQuickReply]   = useState('');
+  const [showWarn,     setShowWarn]     = useState(false);
+  const timerRef          = useRef(null);
+  const reconnectTimerRef = useRef(null);
+  const warnShownRef      = useRef(false);
 
   const isVideo = booking.session_format === 'video';
 
@@ -60,7 +64,6 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
       const iceServers = sessionData.turn_credentials?.ice_servers?.length
         ? sessionData.turn_credentials.ice_servers
         : [{ urls: 'stun:stun.l.google.com:19302' }];
-      console.log('[SessionRoom] ICE servers:', JSON.stringify(iceServers));
 
       const constraints = isVideo ? { audio: true, video: { facingMode: 'user' } } : { audio: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -82,7 +85,24 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
           remoteVideoRef.current.play().catch(() => {});
         }
         setConnState('active');
-        timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+        clearTimeout(reconnectTimerRef.current);
+        timerRef.current = setInterval(() => {
+          setElapsed(s => {
+            const next = s + 1;
+            const warnAt = booking.duration_minutes * 60 - 300;
+            if (next === warnAt && !warnShownRef.current) {
+              warnShownRef.current = true;
+              setShowWarn(true);
+              setTimeout(() => setShowWarn(false), 8000);
+              try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const beep = (t, f, d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = f; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.start(t); o.stop(t + d); };
+                beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
+              } catch {}
+            }
+            return next;
+          });
+        }, 1000);
       };
 
       pc.onicecandidate = e => {
@@ -133,8 +153,19 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
           } else {
             iceQueueRef.current.push(msg.candidate);
           }
+        } else if (msg.type === 'peer_joined') {
+          clearTimeout(reconnectTimerRef.current);
+          if (connState === 'reconnecting') setConnState('connecting');
         } else if (msg.type === 'peer_left') {
-          setConnState('waiting');
+          if (connState === 'active') {
+            setConnState('reconnecting');
+            reconnectTimerRef.current = setTimeout(() => setConnState('waiting'), 15000);
+          } else {
+            setConnState('waiting');
+          }
+        } else if (msg.type === 'quick_reply') {
+          setQuickReply(msg.text);
+          setTimeout(() => setQuickReply(''), 12000);
         } else if (msg.type === 'error') {
           setConnState('error');
         }
@@ -150,6 +181,7 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
 
     return () => {
       clearInterval(timerRef.current);
+      clearTimeout(reconnectTimerRef.current);
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       pcRef.current?.close();
       wsRef.current?.close();
@@ -171,10 +203,11 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
   const timerStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
   const stateLabel = {
-    waiting:    'Waiting for member to join…',
-    connecting: 'Connecting…',
-    active:     null,
-    error:      'Connection failed. Ask the member to rejoin.',
+    waiting:      'Waiting for member to join…',
+    connecting:   'Connecting…',
+    reconnecting: 'Member disconnected — reconnecting…',
+    active:       null,
+    error:        'Connection failed. Ask the member to rejoin.',
   }[connState];
 
   return (
@@ -197,6 +230,18 @@ export default function SessionRoom({ booking, sessionData, onEnd }) {
               {timerStr}
             </div>
           </div>
+
+          {quickReply && (
+            <div style={{ position: 'absolute', top: 52, left: 16, right: 16, background: 'rgba(30,120,60,0.93)', color: '#fff', borderRadius: 10, padding: '8px 16px', fontSize: '0.84rem', fontWeight: 500 }}>
+              Member: "{quickReply}"
+            </div>
+          )}
+
+          {showWarn && (
+            <div style={{ position: 'absolute', top: quickReply ? 96 : 52, left: 16, right: 16, background: 'rgba(192,57,43,0.92)', color: '#fff', borderRadius: 10, padding: '8px 16px', textAlign: 'center', fontWeight: 600, fontSize: '0.86rem' }}>
+              5 minutes remaining
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 24 }}>
