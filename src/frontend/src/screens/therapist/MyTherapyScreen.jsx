@@ -44,12 +44,11 @@ function StarRow({ rating }) {
 }
 
 function getCancellationRefundNote(scheduledAt) {
-  const now = Date.now();
-  const sessionMs = new Date(scheduledAt.includes('Z') ? scheduledAt : scheduledAt.replace(' ', 'T') + 'Z').getTime();
-  const hoursUntil = (sessionMs - now) / 3600000;
-  if (hoursUntil > 24) return 'Full refund will be issued.';
-  if (hoursUntil > 2) return '50% M-Pesa refund. Credit is non-refundable.';
-  return 'No refund available (less than 2 hours before session). First cancellation may be waived.';
+  const hoursUntil = (new Date(scheduledAt) - Date.now()) / 3600000;
+  if (hoursUntil > 24) {
+    return 'If this is your first or second cancellation this month, your credit will be refunded to your PeerPal balance. Repeated cancellations forfeit the refund.';
+  }
+  return 'Cancellations within 24 hours are non-refundable.';
 }
 
 function CancelModal({ booking, onConfirm, onClose }) {
@@ -286,6 +285,7 @@ export default function MyTherapyScreen() {
   const [paymentSuccess, setPaymentSuccess] = useState(searchParams.get('payment') === 'success');
   const [tab, setTab] = useState('upcoming');
   const [cancelBooking, setCancelBooking] = useState(null);
+  const [cancelResult, setCancelResult] = useState(null);
   const [rateBooking, setRateBooking] = useState(null);
   // optimistic rating cache: bookingId → rating value
   const [ratedMap, setRatedMap] = useState({});
@@ -344,9 +344,11 @@ export default function MyTherapyScreen() {
   const shown     = tab === 'upcoming' ? upcoming : tab === 'past' ? past : cancelled;
 
   async function handleCancel(id) {
-    await client.patch(`/api/therapy/bookings/${id}/cancel`);
+    const { data } = await client.patch(`/api/therapy/bookings/${id}/cancel`);
     qc.invalidateQueries(['therapy', 'my-bookings']);
     qc.invalidateQueries(['therapy', 'bookings-stats']);
+    setCancelResult(data.refund_reason || (data.credit_refunded ? 'Credit refunded to your PeerPal balance.' : 'Booking cancelled.'));
+    setTimeout(() => setCancelResult(null), 6000);
   }
 
   function handleJoin(booking) {
@@ -421,6 +423,12 @@ export default function MyTherapyScreen() {
         <div style={{ background: '#16a34a', color: '#fff', padding: '12px var(--space-md)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.88rem', fontWeight: 600 }}>
           <CheckCircle size={20} weight="fill" />
           Payment received! Your booking is confirmed and awaiting therapist approval.
+        </div>
+      )}
+      {cancelResult && (
+        <div style={{ background: 'var(--color-surface-card)', color: 'var(--color-text-primary)', padding: '12px var(--space-md)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.88rem', borderBottom: '1px solid var(--color-border)' }}>
+          <Warning size={20} color="var(--color-warning)" weight="duotone" />
+          {cancelResult}
         </div>
       )}
 

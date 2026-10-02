@@ -9,7 +9,7 @@ const { deductCredit, refundCredit } = require('../utils/creditDeductor');
 const { stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
 const { parseB2CCallback } = require('../utils/therapistPayout');
-const { issueFullRefund, issuePartialRefund } = require('../utils/therapyRefund');
+const { issueFullRefund } = require('../utils/therapyRefund');
 const { getTurnCredentialsWithFallback } = require('../utils/turnCredentials');
 const { therapyRooms } = require('../ws/signaling');
 const { encrypt, decrypt } = require('../utils/encryption');
@@ -662,7 +662,11 @@ router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
 });
 
 // ─── PATCH /therapy/bookings/:id/cancel ──────────────────────────────────────
-// Member cancellation with tiered refund policy.
+// Member cancellation policy:
+//   >24hr + fewer than 2 cancellations in 30 days → full credit refund to platform balance
+//   >24hr + repeat canceller (2+ in 30 days)       → no refund
+//   <24hr or no-show                                → no refund
+//   Refunds are always platform credit — no M-Pesa reversals.
 router.patch('/bookings/:id/cancel', auth, async (req, res) => {
   try {
     const { rows: bookingRows } = await query(
@@ -674,60 +678,39 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
     if (!bookingRows.length) return res.status(404).json({ error: 'Booking not found', code: 'NOT_FOUND' });
 
     const b = bookingRows[0];
-    const scheduledAt  = new Date(b.scheduled_at);
-    const hoursUntil   = (scheduledAt - Date.now()) / (1000 * 60 * 60);
+    const hoursUntil = (new Date(b.scheduled_at) - Date.now()) / (1000 * 60 * 60);
 
-    let creditRefund = false;
-    let mpesaRefundPct = 0; // 0–100
+    // Count member's cancellations in the last 30 days
+    const { rows: countRows } = await query(
+      `SELECT COUNT(*) AS cnt FROM therapist_bookings
+       WHERE member_user_id = $1 AND cancelled_by = 'member'
+         AND updated_at > NOW() - INTERVAL '30 days'`,
+      [req.user.id]
+    );
+    const recentCancellations = parseInt(countRows[0].cnt);
+    const isRepeatCanceller = recentCancellations >= 2;
 
-    if (hoursUntil > 24) {
-      creditRefund = true;
-      mpesaRefundPct = 100;
-    } else if (hoursUntil >= 2) {
-      creditRefund = false;
-      mpesaRefundPct = 50;
-    } else {
-      // <2hr — check lifetime grace (first cancellation <2hr gets full refund)
-      const { rows: graceRows } = await query(
-        `SELECT COUNT(*) AS cnt FROM therapist_bookings
-         WHERE member_user_id = $1
-           AND cancelled_by = 'member'
-           AND cancellation_reason = 'late_cancellation'`,
-        [req.user.id]
-      );
-      const usedGrace = parseInt(graceRows[0].cnt) > 0;
-      if (!usedGrace) {
-        creditRefund = true;
-        mpesaRefundPct = 100;
-        await query(
-          `UPDATE therapist_bookings SET cancellation_reason = 'late_cancellation', updated_at = NOW() WHERE id = $1`,
-          [b.id]
-        );
-      }
-      // else: no refund
-    }
+    // Determine refund eligibility
+    const eligibleForRefund = hoursUntil > 24 && !isRepeatCanceller;
+
+    const cancellationReason = hoursUntil <= 24
+      ? 'late_cancellation'
+      : isRepeatCanceller
+        ? 'repeat_cancellation'
+        : 'member_cancelled';
 
     await query(
       `UPDATE therapist_bookings
        SET status = 'cancelled', cancelled_by = 'member',
-           cancellation_reason = COALESCE(cancellation_reason, 'member_cancelled'), updated_at = NOW()
-       WHERE id = $1`,
-      [b.id]
+           cancellation_reason = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [cancellationReason, b.id]
     );
 
-    if (creditRefund && b.credit_charged > 0) {
+    if (eligibleForRefund && b.credit_charged > 0) {
       await refundCredit(req.user.id, b.credit_charged, null, 'therapy_booking_cancel').catch(
         (e) => console.error('[therapy.cancel.credit]', e.message)
       );
-    }
-
-    if (b.payment_status === 'paid' && mpesaRefundPct > 0) {
-      if (mpesaRefundPct === 100) {
-        await issueFullRefund(b.id).catch((e) => console.error('[therapy.cancel.refund.full]', e.message));
-      } else {
-        const memberPct = mpesaRefundPct / 100;
-        await issuePartialRefund(b.id, memberPct).catch((e) => console.error('[therapy.cancel.refund.partial]', e.message));
-      }
     }
 
     // Notify therapist
@@ -740,8 +723,12 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
 
     return res.status(200).json({
       cancelled: true,
-      credit_refunded: creditRefund,
-      mpesa_refund_pct: mpesaRefundPct,
+      credit_refunded: eligibleForRefund,
+      refund_reason: eligibleForRefund
+        ? 'Credit restored to your PeerPal balance.'
+        : hoursUntil <= 24
+          ? 'Cancellations within 24 hours are non-refundable.'
+          : 'Refund not issued — you have had 2 or more cancellations in the last 30 days.',
     });
   } catch (err) {
     console.error('[therapy.booking.cancel]', err.message);
