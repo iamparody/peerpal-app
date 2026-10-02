@@ -341,6 +341,12 @@ export default function MyTherapyScreen() {
         </button>
         <span style={{ fontWeight: 700, fontSize: 17, flex: 1 }}>My Therapy</span>
         <button
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-calm)', fontSize: '0.82rem', fontWeight: 600, padding: '0 4px' }}
+          onClick={() => navigate('/therapy/sessions')}
+        >
+          History
+        </button>
+        <button
           className="btn btn--primary btn--sm"
           onClick={() => navigate('/therapists')}
         >

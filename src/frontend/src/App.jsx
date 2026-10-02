@@ -69,6 +69,7 @@ import TherapistProfileScreen    from './screens/therapist/TherapistProfileScree
 import TherapistBookingScreen    from './screens/therapist/TherapistBookingScreen';
 import BookingConfirmScreen      from './screens/therapist/BookingConfirmScreen';
 import MyTherapyScreen           from './screens/therapist/MyTherapyScreen';
+import MySessionsScreen          from './screens/therapist/MySessionsScreen';
 import TherapySessionScreen      from './screens/therapist/TherapySessionScreen';
 
 // Training
@@ -327,6 +328,7 @@ function Layout() {
         <Route path="/therapists/book/:therapistId"          element={<ProtectedRoute><TherapistBookingScreen /></ProtectedRoute>} />
         <Route path="/therapists/booking/:id/confirm"        element={<ProtectedRoute><BookingConfirmScreen /></ProtectedRoute>} />
         <Route path="/therapy/my"                            element={<ProtectedRoute><MyTherapyScreen /></ProtectedRoute>} />
+        <Route path="/therapy/sessions"                      element={<ProtectedRoute><MySessionsScreen /></ProtectedRoute>} />
         <Route path="/therapy/session/:bookingId"            element={<ProtectedRoute><TherapySessionScreen /></ProtectedRoute>} />
 
         {/* Admin */}

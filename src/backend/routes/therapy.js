@@ -622,10 +622,14 @@ router.get('/bookings', auth, async (req, res) => {
               b.duration_minutes, b.rate_kes, b.status, b.payment_status, b.escrow_status,
               b.cancellation_reason, b.credit_charged, b.created_at,
               tp.display_name AS therapist_display_name, tp.photo_url AS therapist_photo_url,
-              tc.name AS category_name
+              tc.name AS category_name,
+              ts.duration_billed_minutes,
+              tr.rating, tr.comment AS rating_comment
        FROM therapist_bookings b
        JOIN therapist_profiles tp ON tp.id = b.therapist_id
        JOIN therapist_categories tc ON tc.id = b.category_id
+       LEFT JOIN therapy_sessions ts ON ts.booking_id = b.id
+       LEFT JOIN therapist_ratings tr ON tr.booking_id = b.id
        WHERE ${conditions.join(' AND ')}
        ORDER BY b.scheduled_at DESC`,
       params
@@ -634,6 +638,37 @@ router.get('/bookings', auth, async (req, res) => {
   } catch (err) {
     console.error('[therapy.bookings.list]', err.message);
     return res.status(500).json({ error: 'Failed to load bookings', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── GET /therapy/bookings/stats ──────────────────────────────────────────────
+router.get('/bookings/stats', auth, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT
+         COUNT(*) FILTER (WHERE b.status = 'completed')                         AS total_sessions,
+         COALESCE(SUM(ts.duration_billed_minutes) FILTER (WHERE b.status = 'completed'), 0) AS total_minutes_billed,
+         COUNT(DISTINCT b.therapist_id) FILTER (WHERE b.status = 'completed')   AS therapists_seen,
+         COUNT(*) FILTER (WHERE b.status IN ('cancelled','member_no_show'))      AS cancellations,
+         MIN(b.scheduled_at) FILTER (WHERE b.status = 'completed')              AS first_session_at,
+         MAX(b.scheduled_at) FILTER (WHERE b.status = 'completed')              AS last_session_at
+       FROM therapist_bookings b
+       LEFT JOIN therapy_sessions ts ON ts.booking_id = b.id
+       WHERE b.member_user_id = $1`,
+      [req.user.id]
+    );
+    const r = rows[0];
+    return res.status(200).json({
+      total_sessions:      Number(r.total_sessions),
+      total_hours_billed:  +(Number(r.total_minutes_billed) / 60).toFixed(1),
+      therapists_seen:     Number(r.therapists_seen),
+      cancellations:       Number(r.cancellations),
+      first_session_at:    r.first_session_at,
+      last_session_at:     r.last_session_at,
+    });
+  } catch (err) {
+    console.error('[therapy.bookings.stats]', err.message);
+    return res.status(500).json({ error: 'Failed to load stats', code: 'QUERY_ERROR' });
   }
 });
 
