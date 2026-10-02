@@ -6,7 +6,6 @@ const { query } = require('../db');
 const auth     = require('../middleware/auth');
 const therapistAuth = require('../middleware/therapistAuth');
 const { deductCredit, refundCredit } = require('../utils/creditDeductor');
-const { stkPush, parseCallback, normalisePhone } = require('../utils/daraja');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund } = require('../utils/therapyRefund');
@@ -509,63 +508,6 @@ router.get('/bookings/drafts', auth, async (req, res) => {
   }
 });
 
-// ─── POST /therapy/mpesa-callback ────────────────────────────────────────────
-// Public — called by Safaricom. Respond immediately, process async.
-router.post('/mpesa-callback', async (req, res) => {
-  res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
-
-  let parsed;
-  try {
-    parsed = parseCallback(req.body);
-  } catch (err) {
-    console.error('[therapy.mpesa-callback.parse]', err.message);
-    return;
-  }
-
-  const { success, checkoutRequestId } = parsed;
-
-  if (!success) {
-    await query(
-      `UPDATE therapist_bookings SET payment_status = 'failed', updated_at = NOW()
-       WHERE payment_reference = $1 AND payment_status = 'unpaid'`,
-      [checkoutRequestId]
-    ).catch((e) => console.error('[therapy.mpesa-callback.fail]', e.message));
-    return;
-  }
-
-  const { rows: bookingRows } = await query(
-    `UPDATE therapist_bookings SET payment_status = 'paid', updated_at = NOW()
-     WHERE payment_reference = $1 AND payment_status = 'unpaid'
-     RETURNING id, member_user_id, therapist_id, scheduled_at, session_format`,
-    [checkoutRequestId]
-  ).catch(() => ({ rows: [] }));
-
-  if (!bookingRows.length) return;
-
-  const b = bookingRows[0];
-
-  // Notify member
-  await notifyUser(b.member_user_id, 'therapist_update', {
-    message: 'Payment confirmed. Awaiting therapist confirmation of your session.',
-  });
-
-  // Fetch therapist user_id to notify
-  const { rows: tpRows } = await query(
-    'SELECT user_id FROM therapist_profiles WHERE id = $1',
-    [b.therapist_id]
-  ).catch(() => ({ rows: [] }));
-
-  if (tpRows.length) {
-    const { rows: memberRows } = await query(
-      'SELECT alias FROM users WHERE id = $1',
-      [b.member_user_id]
-    ).catch(() => ({ rows: [{ alias: 'a member' }] }));
-
-    await notifyUser(tpRows[0].user_id, 'therapist_update', {
-      message: `New confirmed booking from ${memberRows[0]?.alias}. Session: ${new Date(b.scheduled_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })} (${b.session_format}).`,
-    });
-  }
-});
 
 // ─── POST /therapy/b2c-callback ───────────────────────────────────────────────
 // Public — Daraja B2C result callback for therapist payouts.
