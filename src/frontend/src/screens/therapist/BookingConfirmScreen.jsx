@@ -1,10 +1,10 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle, VideoCamera, MapPin } from '@phosphor-icons/react';
+import { CheckCircle, VideoCamera, Phone, ChatText } from '@phosphor-icons/react';
 import client from '../../api/client';
 
-const FORMAT_ICONS  = { video: VideoCamera, in_person: MapPin };
-const FORMAT_LABELS = { video: 'Video Call', in_person: 'In Person' };
+const FORMAT_ICONS  = { video: VideoCamera, voice: Phone, text: ChatText };
+const FORMAT_LABELS = { video: 'Video call', voice: 'Voice call', text: 'Text chat' };
 
 function formatEAT(dateStr) {
   if (!dateStr) return '';
