@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Star, VideoCamera, Phone, ChatText, Warning } from '@phosphor-icons/react';
+import { ArrowLeft, Star, VideoCamera, Phone, ChatText, Clock, Warning } from '@phosphor-icons/react';
 import client from '../../api/client';
 
 const FORMAT_ICONS = { video: VideoCamera, voice: Phone, text: ChatText };
@@ -31,6 +31,16 @@ function formatEAT(dateStr) {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: 'numeric', minute: '2-digit', hour12: true,
   });
+}
+
+function StarRow({ rating }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: 2 }}>
+      {[1,2,3,4,5].map(n => (
+        <Star key={n} size={13} weight={n <= rating ? 'fill' : 'regular'} color={n <= rating ? '#f39c12' : '#ccc'} />
+      ))}
+    </span>
+  );
 }
 
 function getCancellationRefundNote(scheduledAt) {
@@ -79,7 +89,7 @@ function CancelModal({ booking, onConfirm, onClose }) {
   );
 }
 
-function RatingModal({ booking, onDone }) {
+function RatingModal({ booking, onDone, onClose }) {
   const [stars, setStars] = useState(0);
   const [hovered, setHovered] = useState(0);
   const [comment, setComment] = useState('');
@@ -92,7 +102,7 @@ function RatingModal({ booking, onDone }) {
     try {
       await client.post('/api/therapy/ratings', { booking_id: booking.id, rating: stars, comment: comment.trim() || null });
       setSubmitted(true);
-      setTimeout(onDone, 1500);
+      setTimeout(() => onDone(booking.id, stars), 1200);
     } catch { setSubmitting(false); }
   }
 
@@ -110,12 +120,10 @@ function RatingModal({ booking, onDone }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} onClick={onDone} />
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} onClick={onClose} />
       <div style={{ position: 'relative', background: 'var(--color-bg-primary)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
         <h3 style={{ marginBottom: 6 }}>Rate your session</h3>
         <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted)', marginBottom: 20 }}>How was your session with {booking.therapist_display_name}?</p>
-
-        {/* Stars */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
           {[1, 2, 3, 4, 5].map(n => (
             <button
@@ -130,8 +138,6 @@ function RatingModal({ booking, onDone }) {
             </button>
           ))}
         </div>
-
-        {/* Comment */}
         <textarea
           value={comment}
           onChange={e => setComment(e.target.value.slice(0, 300))}
@@ -140,9 +146,8 @@ function RatingModal({ booking, onDone }) {
           style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '10px 12px', fontSize: '0.88rem', resize: 'none', fontFamily: 'inherit', background: 'var(--color-surface)', color: 'var(--color-text-primary)', boxSizing: 'border-box', marginBottom: 16 }}
         />
         <div style={{ textAlign: 'right', fontSize: '0.74rem', color: 'var(--color-text-muted)', marginTop: -12, marginBottom: 16 }}>{comment.length}/300</div>
-
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn--muted" style={{ flex: 1 }} onClick={onDone}>Skip</button>
+          <button className="btn btn--muted" style={{ flex: 1 }} onClick={onClose}>Skip</button>
           <button className="btn btn--primary" style={{ flex: 1 }} onClick={submit} disabled={stars === 0 || submitting}>
             {submitting ? 'Submitting…' : 'Submit Rating'}
           </button>
@@ -154,15 +159,15 @@ function RatingModal({ booking, onDone }) {
 
 function BookingCard({ booking, tab, onCancel, onRate, onJoin }) {
   const FormatIcon = FORMAT_ICONS[booking.session_format] ?? VideoCamera;
-  const isUpcoming = tab === 'upcoming';
-  const canJoin = booking.status === 'in_progress';
-  const canCancel = isUpcoming && ['pending', 'confirmed', 'paid'].includes(booking.status);
-  const needsRating = tab === 'past' && booking.status === 'completed' && !booking.has_rating;
+  const canJoin    = booking.status === 'in_progress';
+  const canCancel  = tab === 'upcoming' && ['pending', 'confirmed', 'paid'].includes(booking.status);
+  const needsRating = tab === 'past' && booking.status === 'completed' && !booking.rating;
+  const billed     = booking.duration_billed_minutes;
 
   return (
-    <div style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-md)', marginBottom: 12 }}>
-      {/* Therapist + time */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+    <div style={{ background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-md)', marginBottom: 10 }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{booking.therapist_display_name}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{formatEAT(booking.scheduled_at)}</div>
@@ -177,15 +182,42 @@ function BookingCard({ booking, tab, onCancel, onRate, onJoin }) {
       </div>
 
       {/* Format badge */}
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: 14, background: 'var(--color-surface)', padding: '4px 10px', borderRadius: 20 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: 12, background: 'var(--color-surface)', padding: '4px 10px', borderRadius: 20 }}>
         <FormatIcon size={14} />
         {FORMAT_LABELS[booking.session_format]}
       </div>
 
+      {/* Past: billed time + rating */}
+      {tab === 'past' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+          {billed != null && (
+            <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Clock size={12} /> {billed} min billed
+            </span>
+          )}
+          {booking.rating
+            ? <StarRow rating={booking.rating} />
+            : null
+          }
+        </div>
+      )}
+
+      {/* Cancelled: reason + refund */}
+      {tab === 'cancelled' && (
+        <div style={{ fontSize: '0.78rem', color: 'var(--color-error, #c0392b)', marginBottom: 10 }}>
+          {STATUS_LABELS[booking.status] ?? booking.status}
+          {booking.escrow_status === 'refunded' ? ' · Refunded' : booking.escrow_status === 'released' ? ' · Released to therapist' : ''}
+        </div>
+      )}
+
       {/* Actions */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {canJoin && (
-          <button className="btn btn--primary" style={{ flex: 1, minWidth: 120, fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => onJoin(booking)}>
+          <button
+            className="btn btn--primary"
+            style={{ flex: 1, minWidth: 120, fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            onClick={() => onJoin(booking)}
+          >
             <VideoCamera size={16} weight="fill" /> Join Session
           </button>
         )}
@@ -207,17 +239,21 @@ function BookingCard({ booking, tab, onCancel, onRate, onJoin }) {
   );
 }
 
+const TABS = ['upcoming', 'past', 'cancelled'];
+const TAB_LABELS = { upcoming: 'Upcoming', past: 'Past', cancelled: 'Cancelled' };
+
 export default function MyTherapyScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState('upcoming');
   const [cancelBooking, setCancelBooking] = useState(null);
   const [rateBooking, setRateBooking] = useState(null);
+  // optimistic rating cache: bookingId → rating value
+  const [ratedMap, setRatedMap] = useState({});
 
   const { data, isLoading } = useQuery({
     queryKey: ['therapy', 'my-bookings'],
     queryFn: () => client.get('/api/therapy/bookings').then(r => r.data),
-    // Poll every 5s when there are confirmed bookings so Join button appears promptly
     refetchInterval: (query) => {
       const bookings = query.state.data?.bookings ?? [];
       const hasActive = bookings.some(b => ['confirmed', 'in_progress'].includes(b.status));
@@ -225,26 +261,41 @@ export default function MyTherapyScreen() {
     },
   });
 
-  const all = data?.bookings ?? [];
-  const live = all.filter(b => b.status === 'in_progress');
-  const upcoming = all.filter(b => ['pending', 'confirmed', 'paid', 'in_progress'].includes(b.status));
-  const past = all.filter(b => ['completed', 'cancelled', 'member_no_show', 'therapist_no_show'].includes(b.status));
-  const shown = tab === 'upcoming' ? upcoming : past;
+  const { data: statsData } = useQuery({
+    queryKey: ['therapy', 'bookings-stats'],
+    queryFn: () => client.get('/api/therapy/bookings/stats').then(r => r.data),
+    staleTime: 60000,
+  });
+
+  const all       = data?.bookings ?? [];
+  const live      = all.filter(b => b.status === 'in_progress');
+  const upcoming  = all.filter(b => ['pending', 'confirmed', 'paid', 'in_progress'].includes(b.status));
+  const past      = all.filter(b => b.status === 'completed').map(b => ratedMap[b.id] ? { ...b, rating: ratedMap[b.id] } : b);
+  const cancelled = all.filter(b => ['cancelled', 'member_no_show', 'therapist_no_show'].includes(b.status));
+  const shown     = tab === 'upcoming' ? upcoming : tab === 'past' ? past : cancelled;
 
   async function handleCancel(id) {
     await client.patch(`/api/therapy/bookings/${id}/cancel`);
     qc.invalidateQueries(['therapy', 'my-bookings']);
+    qc.invalidateQueries(['therapy', 'bookings-stats']);
   }
 
   function handleJoin(booking) {
+    ringMuted.current = true;
     navigate(`/therapy/session/${booking.id}`);
   }
 
+  function handleRated(bookingId, rating) {
+    setRatedMap(m => ({ ...m, [bookingId]: rating }));
+    setRateBooking(null);
+    qc.invalidateQueries(['therapy', 'bookings-stats']);
+  }
+
   // Repeating ring while session is live and not muted
-  const ringMuted    = useRef(false);
-  const ringInterval = useRef(null);
+  const ringMuted     = useRef(false);
+  const ringInterval  = useRef(null);
   const prevLiveCount = useRef(0);
-  const [quickReplySent, setQuickReplySent] = useState(null); // booking id that got a reply
+  const [quickReplySent, setQuickReplySent] = useState(null);
 
   function playRing() {
     try {
@@ -278,7 +329,6 @@ export default function MyTherapyScreen() {
     prevLiveCount.current = live.length;
   }, [live.length]);
 
-  // Stop ring when component unmounts
   useEffect(() => () => clearInterval(ringInterval.current), []);
 
   async function sendQuickReply(booking, text) {
@@ -289,13 +339,19 @@ export default function MyTherapyScreen() {
     } catch { /* best-effort */ }
   }
 
+  const EMPTY_MSG = {
+    upcoming: { heading: 'No upcoming sessions', cta: true },
+    past: { heading: 'No completed sessions yet', cta: false },
+    cancelled: { heading: 'No cancelled sessions', cta: false },
+  };
+
   return (
-    <div className="screen" style={{ overflowY: 'auto' }}>
-      {/* Live session banner — appears as soon as therapist starts */}
+    <div className="screen" style={{ overflowY: 'auto', background: 'var(--color-bg-secondary, #f5f5f5)' }}>
+      {/* Live session banners */}
       {live.map(b => (
         <div key={b.id} style={{ background: '#1a6b3a', color: '#fff' }}>
           <button
-            onClick={() => { ringMuted.current = true; handleJoin(b); }}
+            onClick={() => handleJoin(b)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               width: '100%', padding: '14px var(--space-md)',
@@ -329,23 +385,18 @@ export default function MyTherapyScreen() {
           )}
         </div>
       ))}
+
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
         height: 'var(--top-bar-height)', padding: '0 var(--space-md)',
         background: 'var(--color-bg-primary)', borderBottom: '1px solid var(--color-border)',
-        flexShrink: 0,
+        flexShrink: 0, position: 'sticky', top: 0, zIndex: 10,
       }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-primary)', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Back">
           <ArrowLeft size={22} />
         </button>
         <span style={{ fontWeight: 700, fontSize: 17, flex: 1 }}>My Therapy</span>
-        <button
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-calm)', fontSize: '0.82rem', fontWeight: 600, padding: '0 4px' }}
-          onClick={() => navigate('/therapy/sessions')}
-        >
-          History
-        </button>
         <button
           className="btn btn--primary btn--sm"
           onClick={() => navigate('/therapists')}
@@ -354,25 +405,46 @@ export default function MyTherapyScreen() {
         </button>
       </div>
 
+      {/* Stats strip */}
+      {statsData && (
+        <div style={{ display: 'flex', background: 'var(--color-bg-primary)', borderBottom: '1px solid var(--color-border)' }}>
+          {[
+            { label: 'Sessions', value: statsData.total_sessions ?? 0 },
+            { label: 'Hours', value: statsData.total_hours_billed ?? 0 },
+            { label: 'Therapists', value: statsData.therapists_seen ?? 0 },
+          ].map((s, i) => (
+            <div key={i} style={{ flex: 1, textAlign: 'center', padding: '14px 0', borderRight: i < 2 ? '1px solid var(--color-border)' : 'none' }}>
+              <div style={{ fontWeight: 800, fontSize: '1.3rem', color: 'var(--color-calm)' }}>{s.value}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        {['upcoming', 'past'].map(t => (
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-primary)', flexShrink: 0 }}>
+        {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
-              flex: 1, padding: '14px 0', background: 'none', border: 'none', cursor: 'pointer',
-              fontWeight: tab === t ? 700 : 400, fontSize: '0.9rem',
+              flex: 1, padding: '13px 0', background: 'none', border: 'none', cursor: 'pointer',
+              fontWeight: tab === t ? 700 : 400, fontSize: '0.88rem',
               color: tab === t ? 'var(--color-calm)' : 'var(--color-text-muted)',
               borderBottom: tab === t ? '2px solid var(--color-calm)' : '2px solid transparent',
-              textTransform: 'capitalize',
             }}
           >
-            {t}
+            {TAB_LABELS[t]}
+            {t === 'upcoming' && upcoming.length > 0 && (
+              <span style={{ marginLeft: 4, fontSize: '0.72rem', background: 'var(--color-calm)', color: '#fff', borderRadius: 10, padding: '1px 6px' }}>
+                {upcoming.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* Tab content */}
       <div style={{ padding: 'var(--space-md)' }}>
         {isLoading && (
           <>
@@ -383,8 +455,8 @@ export default function MyTherapyScreen() {
 
         {!isLoading && shown.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)' }}>
-            <p style={{ fontWeight: 600 }}>{tab === 'upcoming' ? 'No upcoming sessions' : 'No past sessions'}</p>
-            {tab === 'upcoming' && (
+            <p style={{ fontWeight: 600 }}>{EMPTY_MSG[tab].heading}</p>
+            {EMPTY_MSG[tab].cta && (
               <button className="btn btn--primary" style={{ marginTop: 16 }} onClick={() => navigate('/therapists')}>
                 Browse Therapists
               </button>
@@ -415,7 +487,8 @@ export default function MyTherapyScreen() {
       {rateBooking && (
         <RatingModal
           booking={rateBooking}
-          onDone={() => { setRateBooking(null); qc.invalidateQueries(['therapy', 'my-bookings']); }}
+          onDone={handleRated}
+          onClose={() => setRateBooking(null)}
         />
       )}
     </div>
