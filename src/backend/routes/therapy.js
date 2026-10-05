@@ -7,6 +7,7 @@ const auth     = require('../middleware/auth');
 const therapistAuth = require('../middleware/therapistAuth');
 const { deductCredit, refundCredit } = require('../utils/creditDeductor');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
+const { paymentLimiter } = require('../middleware/rateLimit');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund } = require('../utils/therapyRefund');
 const { getTurnCredentialsWithFallback } = require('../utils/turnCredentials');
@@ -257,7 +258,7 @@ router.post('/consent', auth, async (req, res) => {
 // Creates a draft booking and fires an M-Pesa STK push via IntaSend.
 // No credit deducted here — only on payment webhook success.
 // STK fires FIRST; booking is only inserted if STK succeeds (atomic, no orphans).
-router.post('/bookings', auth, async (req, res) => {
+router.post('/bookings', auth, paymentLimiter, async (req, res) => {
   const {
     therapist_id, category_id, session_format,
     scheduled_at, duration_minutes = 60,
@@ -432,7 +433,7 @@ router.post('/payment-webhook', async (req, res) => {
 
 // ─── POST /therapy/bookings/:id/retry-payment ─────────────────────────────────
 // Member retriggers STK push on their own draft booking (e.g. missed the first prompt).
-router.post('/bookings/:id/retry-payment', auth, async (req, res) => {
+router.post('/bookings/:id/retry-payment', auth, paymentLimiter, async (req, res) => {
   const bookingId = req.params.id;
   const { phone } = req.body; // member may supply a different number for retry
   try {

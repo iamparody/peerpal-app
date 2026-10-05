@@ -1,6 +1,7 @@
 ﻿const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
+const { paymentLimiter } = require('../middleware/rateLimit');
 const { PACKAGES, getPackages } = require('../utils/daraja');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
 const cache = require('../services/cache');
@@ -52,7 +53,7 @@ router.get('/transactions', auth, async (req, res) => {
 // ─── POST /credits/purchase ───────────────────────────────────────────────────
 // Initiates an IntaSend M-Pesa STK Push for credit package purchase.
 // Phone number is normalised inside the payment adapter.
-router.post('/purchase', auth, async (req, res) => {
+router.post('/purchase', auth, paymentLimiter, async (req, res) => {
   const packageId = req.body.package || req.body.package_id;
   const PKGS = await getPackages();
   if (!packageId || !PKGS[packageId]) {

@@ -3,6 +3,13 @@
 ---
 
 ## Current Phase
+**Phase 41 COMPLETE — Security Audit**
+
+All 9 sub-phases complete (41.1–41.9). See `docs/SECURITY_AUDIT_REPORT.md` for full findings.
+- 6 vulnerabilities fixed: reset-password rate limit, login account enumeration, CSP header, health endpoint info leak, payment rate limiting, DB SSL cert verification
+- 2 accepted risks documented: JWT in localStorage, 7-day token
+- Legal doc (`docs/LEGAL_COMPLIANCE.md`) updated: cancellation policy, video session provider, transport encryption, security audit summary
+
 **Phase 40 COMPLETE — Therapist Marketplace v2: Booking Flow, History & Video Verification**
 
 All sub-phases complete: 40.1–40.7 fully implemented and committed.
@@ -17,7 +24,7 @@ All sub-phases complete: 40.1–40.7 fully implemented and committed.
 
 **NEXT ACTION → Phase 38 — Activities Marketplace (first checklist item: schema migrations)**
 
-> **Phase 41 — Security Audit added to CHECKLIST.md** (41.1–41.9). Should be completed before public launch. Can run in parallel with Phase 38 build or immediately after.
+> **Phase 41 COMPLETE.** Security Audit added to CHECKLIST.md and fully executed. (41.1–41.9). Should be completed before public launch. Can run in parallel with Phase 38 build or immediately after.
 
 ⚠️ **Pending before full production readiness:**
 - IntaSend M-Pesa STK activation: user received Co-op Bank STK instead of Safaricom — contact IntaSend support to activate M-Pesa collection method

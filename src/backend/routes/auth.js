@@ -176,7 +176,7 @@ router.post('/login', loginCooldownMiddleware, async (req, res) => {
 
   if (!rows.length) {
     recordFailedLogin(req.ip);
-    return res.status(401).json({ error: 'No account associated with that email', code: 'NO_ACCOUNT' });
+    return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
   }
 
   if (!rows[0].is_active) {
@@ -273,7 +273,7 @@ router.post('/recover', authLimiter, async (req, res) => {
 });
 
 // ─── POST /auth/reset-password ────────────────────────────────────────────────
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
   const { token, new_password } = req.body;
 
   if (!token) {

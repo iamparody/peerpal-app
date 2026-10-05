@@ -11,7 +11,23 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ─── Security & parsing ───────────────────────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'"],
+      styleSrc:       ["'self'", "'unsafe-inline'"],
+      imgSrc:         ["'self'", 'data:', 'https:'],
+      connectSrc:     ["'self'", 'https:', 'wss:'],
+      fontSrc:        ["'self'", 'https:'],
+      objectSrc:      ["'none'"],
+      frameSrc:       ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 
 // CORS — explicit allowlist + Vercel preview subdomains
 const ALLOWED_ORIGINS = process.env.FRONTEND_URL
@@ -56,8 +72,8 @@ app.get('/health', async (_req, res) => {
     const t0 = Date.now();
     await query('SELECT 1');
     res.json({ status: 'ok', db: 'ok', db_latency_ms: Date.now() - t0, pool: poolMetrics() });
-  } catch (err) {
-    res.status(503).json({ status: 'degraded', db: 'error', detail: err.message });
+  } catch {
+    res.status(503).json({ status: 'degraded', db: 'error' });
   }
 });
 

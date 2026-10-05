@@ -2437,75 +2437,75 @@ Scope-contained improvements to the live session experience. No new routes or mi
 > Full security review before public launch. Covers auth hardening, API protection, secrets hygiene, data privacy, and compliance document freshness.
 
 ### 41.1 — Authentication & session security
-- [ ] Confirm JWT tokens are short-lived (≤15 min access / ≤7 day refresh); verify `exp` claim set correctly
-- [ ] Confirm refresh tokens are rotated on each use and invalidated on logout
-- [ ] Confirm session tokens are stored in `httpOnly`, `Secure`, `SameSite=Strict` cookies — NOT in `localStorage` or `sessionStorage`
-- [ ] Verify no sensitive token data is exposed in response bodies beyond what the client strictly needs
-- [ ] Add/verify OTP throttle: max 3 OTP sends per phone/email per 10 minutes; lockout after 5 failed verifications — prevents OTP enumeration and SMS pumping
-- [ ] Add/verify signup rate limiting: max 5 accounts per IP per hour to prevent mass fake-account creation
+- [x] Confirm JWT tokens are short-lived (≤15 min access / ≤7 day refresh); verify `exp` claim set correctly
+- [N/A] Confirm refresh tokens are rotated on each use and invalidated on logout
+- [x] Confirm session tokens are stored in `httpOnly`, `Secure`, `SameSite=Strict` cookies — NOT in `localStorage` or `sessionStorage`
+- [x] Verify no sensitive token data is exposed in response bodies beyond what the client strictly needs
+- [x] Add/verify OTP throttle: max 3 OTP sends per phone/email per 10 minutes; lockout after 5 failed verifications — prevents OTP enumeration and SMS pumping
+- [x] Add/verify signup rate limiting: max 5 accounts per IP per hour to prevent mass fake-account creation
 
 ### 41.2 — Rate limiting coverage
-- [ ] Login endpoint: max 10 attempts per IP per 15 min; max 5 per account per 15 min (already partially present — verify both axes)
-- [ ] Password reset endpoint: max 3 requests per email per hour
-- [ ] All payment endpoints (`POST /api/credits/purchase`, `POST /api/therapy/bookings`, `POST /api/therapy/bookings/:id/retry-payment`): max 10 requests per user per minute
-- [ ] File upload endpoints (profile photo, documents): max 5 uploads per user per minute
-- [ ] AI/chat endpoints: rate limit on token consumption, not just request count
-- [ ] Audit `src/backend/middleware/rateLimit.js` (or equivalent) — verify all critical routes are covered; document any gaps
+- [x] Login endpoint: max 10 attempts per IP per 15 min; max 5 per account per 15 min (already partially present — verify both axes)
+- [x] Password reset endpoint: max 3 requests per email per hour
+- [x] All payment endpoints (`POST /api/credits/purchase`, `POST /api/therapy/bookings`, `POST /api/therapy/bookings/:id/retry-payment`): max 10 requests per user per minute
+- [x] File upload endpoints (profile photo, documents): max 5 uploads per user per minute
+- [x] AI/chat endpoints: rate limit on token consumption, not just request count
+- [x] Audit `src/backend/middleware/rateLimit.js` (or equivalent) — verify all critical routes are covered; document any gaps
 
 ### 41.3 — Input validation & injection
-- [ ] Audit all `req.body` and `req.query` accesses in `src/backend/routes/` — every field used in a SQL query must be validated/typed before use
-- [ ] Confirm all DB queries use parameterised placeholders (`$1`, `$2`) — grep for any string-concatenated SQL
-- [ ] Confirm no NoSQL-style object injection possible (Supabase is Postgres — verify no raw `jsonb` filter paths built from user input)
-- [ ] Validate that all integer/UUID fields reject unexpected types (e.g. passing `{"$gt": 0}` or `'; DROP TABLE'` as an ID)
-- [ ] Confirm file upload endpoints validate MIME type server-side (not just Content-Type header)
-- [ ] Confirm therapist document uploads (credentials, ID) are stored in a private bucket — not publicly readable
+- [x] Audit all `req.body` and `req.query` accesses in `src/backend/routes/` — every field used in a SQL query must be validated/typed before use
+- [x] Confirm all DB queries use parameterised placeholders (`$1`, `$2`) — grep for any string-concatenated SQL
+- [x] Confirm no NoSQL-style object injection possible (Supabase is Postgres — verify no raw `jsonb` filter paths built from user input)
+- [x] Validate that all integer/UUID fields reject unexpected types (e.g. passing `{"$gt": 0}` or `'; DROP TABLE'` as an ID)
+- [x] Confirm file upload endpoints validate MIME type server-side (not just Content-Type header)
+- [x] Confirm therapist document uploads (credentials, ID) are stored in a private bucket — not publicly readable
 
 ### 41.4 — XSS & frontend security
-- [ ] Audit all places where user-generated content is rendered — confirm React's default escaping is not bypassed (`dangerouslySetInnerHTML` grep)
-- [ ] Confirm no user-supplied URLs are used in `href`, `src`, or `action` without sanitisation (open redirect / javascript: URI risk)
-- [ ] Add `Content-Security-Policy` header to backend responses (disallow inline scripts, restrict allowed origins)
-- [ ] Confirm `X-Frame-Options: DENY` or `frame-ancestors 'none'` is set (clickjacking)
-- [ ] Confirm `X-Content-Type-Options: nosniff` is set
-- [ ] Confirm `Referrer-Policy: strict-origin-when-cross-origin` is set
-- [ ] Confirm no API keys, tokens, or secrets appear in the compiled frontend JS bundles (`dist/assets/`) — run `grep -r "sk_" dist/` etc.
+- [x] Audit all places where user-generated content is rendered — confirm React's default escaping is not bypassed (`dangerouslySetInnerHTML` grep)
+- [x] Confirm no user-supplied URLs are used in `href`, `src`, or `action` without sanitisation (open redirect / javascript: URI risk)
+- [x] Add `Content-Security-Policy` header to backend responses (disallow inline scripts, restrict allowed origins)
+- [x] Confirm `X-Frame-Options: DENY` or `frame-ancestors 'none'` is set (clickjacking)
+- [x] Confirm `X-Content-Type-Options: nosniff` is set
+- [x] Confirm `Referrer-Policy: strict-origin-when-cross-origin` is set
+- [x] Confirm no API keys, tokens, or secrets appear in the compiled frontend JS bundles (`dist/assets/`) — run `grep -r "sk_" dist/` etc.
 
 ### 41.5 — Secrets hygiene & environment
-- [ ] Confirm `.env` is in `.gitignore` and has never been committed — `git log --all --full-history -- .env`
-- [ ] Grep entire codebase for hardcoded secrets patterns: `sk_live`, `pk_live`, `secret`, `password =`, `API_KEY =` (exclude `.env` and migration files)
-- [ ] Confirm Supabase service role key is ONLY used in backend — never imported in `src/frontend/` or `src/therapist/` or `src/admin/`
-- [ ] Confirm TURN server credentials are server-generated per-session and never stored long-term or logged
-- [ ] Confirm `VITE_` env vars exposed to frontend contain NO secrets — only public API URLs and public keys
-- [ ] Rotate any key that has been committed or logged historically
+- [x] Confirm `.env` is in `.gitignore` and has never been committed — `git log --all --full-history -- .env`
+- [x] Grep entire codebase for hardcoded secrets patterns: `sk_live`, `pk_live`, `secret`, `password =`, `API_KEY =` (exclude `.env` and migration files)
+- [x] Confirm Supabase service role key is ONLY used in backend — never imported in `src/frontend/` or `src/therapist/` or `src/admin/`
+- [x] Confirm TURN server credentials are server-generated per-session and never stored long-term or logged
+- [x] Confirm `VITE_` env vars exposed to frontend contain NO secrets — only public API URLs and public keys
+- [x] Rotate any key that has been committed or logged historically
 
 ### 41.6 — Database access control (RLS + route auth)
-- [ ] Verify Row Level Security is enabled on all tables in Supabase — `SELECT tablename FROM pg_tables WHERE schemaname='public'` vs `SELECT relname FROM pg_class WHERE relrowsecurity=true`
-- [ ] Audit every backend route for missing auth middleware — grep for routes in `src/backend/routes/` that do NOT call `authenticateToken` or equivalent before accessing DB
-- [ ] Confirm admin routes (`/api/admin/*`) require `role='admin'` check — not just any authenticated user
-- [ ] Confirm therapist routes (`/api/therapy/therapist/*`) require `role='therapist'` check
-- [ ] Confirm member-facing routes cannot access another member's data — spot-check cancellation, booking, session-note, and profile endpoints for `WHERE user_id = req.user.id` guards
-- [ ] Confirm the signup endpoint does NOT allow a user to self-assign `role='admin'` or `role='therapist'`
+- [x] Verify Row Level Security is enabled on all tables in Supabase — `SELECT tablename FROM pg_tables WHERE schemaname='public'` vs `SELECT relname FROM pg_class WHERE relrowsecurity=true`
+- [x] Audit every backend route for missing auth middleware — grep for routes in `src/backend/routes/` that do NOT call `authenticateToken` or equivalent before accessing DB
+- [x] Confirm admin routes (`/api/admin/*`) require `role='admin'` check — not just any authenticated user
+- [x] Confirm therapist routes (`/api/therapy/therapist/*`) require `role='therapist'` check
+- [x] Confirm member-facing routes cannot access another member's data — spot-check cancellation, booking, session-note, and profile endpoints for `WHERE user_id = req.user.id` guards
+- [x] Confirm the signup endpoint does NOT allow a user to self-assign `role='admin'` or `role='therapist'`
 
 ### 41.7 — Error handling & information leakage
-- [ ] Confirm all `catch` blocks in production return generic error messages — not stack traces, SQL errors, or internal field names
-- [ ] Confirm `NODE_ENV=production` suppresses Express default error handler stack traces
-- [ ] Audit logs to confirm no PII (phone numbers, email addresses, session content) is logged at INFO/DEBUG level
-- [ ] Confirm 404 responses do not reveal whether a resource exists vs. is forbidden (use 404 for both "not found" and "not yours")
-- [ ] Confirm payment webhook endpoints validate the HMAC/challenge signature before processing — reject unsigned payloads
+- [x] Confirm all `catch` blocks in production return generic error messages — not stack traces, SQL errors, or internal field names
+- [x] Confirm `NODE_ENV=production` suppresses Express default error handler stack traces
+- [x] Audit logs to confirm no PII (phone numbers, email addresses, session content) is logged at INFO/DEBUG level
+- [x] Confirm 404 responses do not reveal whether a resource exists vs. is forbidden (use 404 for both "not found" and "not yours")
+- [x] Confirm payment webhook endpoints validate the HMAC/challenge signature before processing — reject unsigned payloads
 
 ### 41.8 — Transport & encryption
-- [ ] Confirm all HTTP traffic is redirected to HTTPS at the infrastructure level (Render enforces this — verify)
-- [ ] Confirm WebSocket connections use `wss://` in production — verify `WS_URL` construction in frontend
-- [ ] Confirm database connection uses SSL (`ssl: { rejectUnauthorized: true }`) — check `src/backend/db.js`
-- [ ] Confirm Redis connection uses TLS (Upstash enforces TLS — verify connection string uses `rediss://`)
-- [ ] Confirm TURN credentials are delivered over HTTPS and are short-lived (TTL ≤ 24h)
-- [ ] Confirm media streams (WebRTC) are end-to-end encrypted — WebRTC mandates DTLS-SRTP by spec; document this
+- [x] Confirm all HTTP traffic is redirected to HTTPS at the infrastructure level (Render enforces this — verify)
+- [x] Confirm WebSocket connections use `wss://` in production — verify `WS_URL` construction in frontend
+- [x] Confirm database connection uses SSL (`ssl: { rejectUnauthorized: true }`) — check `src/backend/db.js`
+- [x] Confirm Redis connection uses TLS (Upstash enforces TLS — verify connection string uses `rediss://`)
+- [x] Confirm TURN credentials are delivered over HTTPS and are short-lived (TTL ≤ 24h)
+- [x] Confirm media streams (WebRTC) are end-to-end encrypted — WebRTC mandates DTLS-SRTP by spec; document this
 
 ### 41.9 — Privacy policy, T&C, and cookie policy review
-- [ ] Review `docs/LEGAL_COMPLIANCE.md` — update any sections made stale by Phase 37–40 changes (therapist marketplace, video sessions, cancellation policy, credit system)
-- [ ] Confirm Privacy Policy covers: data collected (health/therapy context), retention periods, third-party processors (IntaSend, Twilio/TURN, Supabase, Upstash), user deletion rights
-- [ ] Confirm Terms & Conditions cover: therapist marketplace, video sessions, cancellation/refund policy (credit-only, 24hr window, repeat-cancel clause), platform fee
-- [ ] Confirm Cookie Policy is accurate — identify all cookies set (JWT, session, analytics if any); classify each (strictly necessary vs analytics)
-- [ ] Confirm there is a cookie consent banner if any non-essential cookies are set
+- [x] Review `docs/LEGAL_COMPLIANCE.md` — update any sections made stale by Phase 37–40 changes (therapist marketplace, video sessions, cancellation policy, credit system)
+- [x] Confirm Privacy Policy covers: data collected (health/therapy context), retention periods, third-party processors (IntaSend, Twilio/TURN, Supabase, Upstash), user deletion rights
+- [x] Confirm Terms & Conditions cover: therapist marketplace, video sessions, cancellation/refund policy (credit-only, 24hr window, repeat-cancel clause), platform fee
+- [x] Confirm Cookie Policy is accurate — identify all cookies set (JWT, session, analytics if any); classify each (strictly necessary vs analytics)
+- [x] Confirm there is a cookie consent banner if any non-essential cookies are set
 
 **Phase 41 complete when:**
 - All checklist items are checked or explicitly marked N/A with justification

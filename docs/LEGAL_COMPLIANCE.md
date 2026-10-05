@@ -1,7 +1,7 @@
 # Legal, Compliance & Certifications — PeerPal Therapist Marketplace
 
-> Last updated: 2026-09-24
-> Scope: Covers the therapist marketplace module (Phase 37) and platform-wide obligations
+> Last updated: 2026-10-05
+> Scope: Covers the therapist marketplace module (Phases 37–41) and platform-wide obligations
 > Owner: Platform admin / legal lead
 > Review cycle: Every 6 months or on any regulatory change
 
@@ -86,21 +86,31 @@ Every therapist onboarded to the platform must satisfy ALL of the following befo
 
 ### 4.1 Existing Consent (version 1.0)
 Covers: platform ToS, Privacy Policy, age 18+.
-**Does NOT cover**: therapy session data, therapist access to member notes, session recording absence, data shared with therapist.
 
-### 4.2 Required: Therapy Consent Addendum
-Before a member accesses the therapist module for the first time, a new consent screen must be shown and accepted. Consent version bump required in DB.
+### 4.2 Therapy Consent Addendum — **IMPLEMENTED (version 2.0, Phase 40.4)**
+Consent screen shown before a member's first therapy booking. Version stored in DB as `therapy_consent_version = '2.0'`, `therapy_consented_at TIMESTAMPTZ`.
 
-This consent must cover:
+Consent covers:
 - Member understands the therapist is an independent verified professional, not a PeerPal employee
 - Session data (booking notes, session content) may be accessed by the therapist and PeerPal admin (for disputes only)
 - Sessions are not recorded
 - In a crisis, the therapist may contact emergency services or escalate to PeerPal admin
-- Cancellation and refund policy (explicit)
+- **Cancellation and refund policy (now explicit — see Section 4.4)**
 - Member has the right to end any session at any time
-- Data retention: session notes retained for [X] years per clinical standards, then deleted
+- Data retention: session notes retained for 7 years per clinical standards
 
-Store as: `therapy_consent_version VARCHAR(10)`, `therapy_consented_at TIMESTAMPTZ` on `users` table.
+### 4.4 Cancellation & Refund Policy — **IMPLEMENTED (Phase 40.4)**
+The following policy is enforced in code and shown to members before first booking:
+
+| Scenario | Outcome |
+|---|---|
+| Cancellation >24 hours before session | Full credit refund to PeerPal balance |
+| Cancellation 2–24 hours before session | 50% credit refund |
+| Cancellation <2 hours before session | No refund |
+| 2 or more member-initiated cancellations in past 30 days | No refund regardless of notice period |
+| Therapist no-show / therapist cancels | Full credit refund |
+
+**All refunds are to PeerPal credit balance — no M-Pesa reversals.** Members can use credited balance on any future booking.
 
 ### 4.3 Minor Safeguarding
 The platform is 18+ only (age gate at onboarding). The therapist category "Youth & Adolescent" **must not be accessible to members** unless a separate under-18 safeguarding framework is established. Remove the category or restrict it to admin/B2B access only until a minor safeguarding policy is formally written and reviewed.
@@ -144,6 +154,14 @@ When a member requests data deletion:
 - Booking records: anonymise member_user_id → NULL (retain for therapist payment records)
 - Session notes: delete member-side content; flag therapist notes as anonymised
 - Ratings: delete comment; retain rating score anonymously for therapist aggregate
+
+### 5.6 Transport & Encryption
+- All HTTP traffic is forced to HTTPS by Render (infrastructure level)
+- WebSocket connections use `wss://` in all production environments
+- Database connections use TLS (`ssl: { rejectUnauthorized: true }`) — verified server certificate
+- Redis (Upstash) connections use HTTPS REST API (port 443) and TLS TCP (rediss://, port 6380)
+- WebRTC video/voice sessions use DTLS-SRTP (mandatory per WebRTC spec) — media is end-to-end encrypted between browser peers; TURN server relays encrypted packets and cannot decrypt them
+- TURN credentials are generated per-session, short-lived (TTL ≤ 24h), and never stored in DB or logs
 
 ---
 
@@ -196,12 +214,12 @@ The existing Privacy Policy must be updated before therapist module launch to co
 - [ ] Who the therapist is (independent professional, not PeerPal staff)
 - [ ] How therapist data is used (verification, payments, ratings)
 - [ ] Data retention periods for therapy data
-- [ ] Third-party services used for video (Daily.co or WebRTC TURN provider) and their data handling
+- [ ] Third-party services used for video (WebRTC with Twilio TURN relay) and their data handling (video traffic passes through TURN only when direct P2P fails; no session recording at TURN layer)
 - [ ] Dispute resolution process and what data admin accesses
 - [ ] Right to request session note deletion
 
 Terms of Service must be updated to cover:
-- [ ] Cancellation and no-show policy (specific timelines and fees)
+- [x] Cancellation and no-show policy — fully specified in Section 4.4; enforced in code (Phase 40.4)
 - [ ] Dispute window (24hrs from session completion)
 - [ ] Platform's liability limitation (therapist is independent professional)
 - [ ] Crisis protocol (therapist may escalate to emergency services)
@@ -232,9 +250,9 @@ This is not optional and is not covered anywhere in the Phase 37 spec.
 | Therapy consent screen (version bump) | P0 — Before launch | Sprint 37 | Engineering |
 | KRA VAT / withholding tax opinion | P1 | Before first payout | Accountant |
 | CBK PSP licence opinion | P1 | Before escrow model goes live | Legal |
-| CA OTT licence opinion | P2 | After video sessions launch | Legal |
+| CA OTT licence opinion | P1 | Video sessions are LIVE — obtain legal opinion now | Legal |
 | ISO 27001 (Information Security) | P3 — Future | Year 2 if pursuing institutional/B2B contracts | TBD |
-| HIPAA Business Associate Agreement with Daily.co | P2 — If Daily.co used | Before video launch | Engineering + Legal |
+| Twilio TURN data processing terms review | P2 | Video sessions live; confirm Twilio DPA covers health-context relayed traffic | Engineering + Legal |
 
 ---
 
@@ -254,4 +272,40 @@ For a production mental health platform, the following must exist before launch:
 
 ---
 
+---
+
+## 12. Security Posture — Phase 41 Audit Summary (2026-10-05)
+
+### 12.1 Fixes Applied
+| Finding | Fix | Severity |
+|---|---|---|
+| `POST /auth/reset-password` had no rate limiter — brute-force token guessing possible | Added `authLimiter` (10 attempts per 15 min per IP) | High |
+| Login error "No account associated with that email" leaked account existence | Unified to "Invalid credentials" for both no-account and wrong-password cases | Medium |
+| Helmet Content-Security-Policy not configured — default allows broad inline scripts | Explicit CSP: `default-src 'self'`, no `object-src`, no inline scripts, `upgradeInsecureRequests` | Medium |
+| `/health` 503 response included `err.message` (DB connection string fragments possible) | Removed `detail` field from public health response | Low |
+| Payment endpoints (`POST /credits/purchase`, `POST /therapy/bookings`, `POST /bookings/:id/retry-payment`) covered only by global 120 req/min ceiling | Added `paymentLimiter` (10 per user per minute, keyed by `user.id`) | Medium |
+| DB SSL used `rejectUnauthorized: false` — no server certificate verification | Changed to `rejectUnauthorized: true` in production | Medium |
+| `Referrer-Policy` not configured | Added `strict-origin-when-cross-origin` via helmet | Low |
+
+### 12.2 Accepted Risks (Documented)
+| Risk | Justification | Mitigation |
+|---|---|---|
+| JWT tokens stored in `localStorage` (not `httpOnly` cookie) | PWA architecture — cookies require CORS setup that conflicts with cross-origin therapist portal; no `dangerouslySetInnerHTML` use found | XSS mitigation: strict CSP, no raw HTML injection |
+| Single long-lived JWT (7 days, no separate refresh token) | Simplified UX for a mental health app where session interruption is harmful | Mitigated by: token blacklist on logout, `jwt_issued_before` invalidation on password reset |
+| Firebase API key in committed `.env` | Firebase browser config keys are intentionally public — security enforced by Firebase Security Rules, not key secrecy | Configure Firebase Security Rules to restrict allowed operations |
+| DB SSL `rejectUnauthorized: true` may fail with Supabase transaction pooler on some network configurations | If connection errors occur on deploy, downgrade to `false` and document | Monitor deploy logs for SSL handshake errors |
+
+### 12.3 Remaining Actions (Pre-Launch)
+- [ ] Configure Firebase Security Rules to restrict reads/writes to authenticated users only
+- [ ] Run `git log --all --full-history -- .env` to confirm no `.env` file ever committed with production secrets
+- [ ] Verify RLS is enabled on all Supabase tables (`SELECT relname FROM pg_class WHERE relrowsecurity = true`)
+- [ ] Sentry DSN configured to scrub PHI — confirm no member alias or booking ID appears in error payloads
+- [ ] Add `Permissions-Policy` header to restrict browser APIs not in use (camera/microphone restricted to session screens only)
+- [ ] Cookie consent banner — confirm whether any non-essential cookies are set; if analytics added later, banner required
+
+---
+
 *This document is a living reference. It is not a substitute for formal legal advice. Consult a Kenyan lawyer specialising in health law and data protection before platform launch.*
+
+
+

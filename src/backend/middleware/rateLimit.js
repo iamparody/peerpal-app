@@ -73,6 +73,16 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests', code: 'RATE_LIMITED' },
 });
 
+// ── Payment endpoints — tighter ceiling to reduce STK pump risk ───────────────
+const paymentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many payment requests — please wait a minute', code: 'RATE_LIMITED' },
+});
+
 // ── Resend-verification rate limit: 3 per hour per user ───────────────────────
 const resendStore = new Map();
 const RESEND_MAX = 3;
@@ -90,4 +100,4 @@ function checkResendLimit(userId) {
   return true;
 }
 
-module.exports = { authLimiter, apiLimiter, loginCooldownMiddleware, recordFailedLogin, clearLoginRecord, checkResendLimit };
+module.exports = { authLimiter, apiLimiter, paymentLimiter, loginCooldownMiddleware, recordFailedLogin, clearLoginRecord, checkResendLimit };
