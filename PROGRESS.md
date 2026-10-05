@@ -17,6 +17,8 @@ All sub-phases complete: 40.1–40.7 fully implemented and committed.
 
 **NEXT ACTION → Phase 38 — Activities Marketplace (first checklist item: schema migrations)**
 
+> **Phase 41 — Security Audit added to CHECKLIST.md** (41.1–41.9). Should be completed before public launch. Can run in parallel with Phase 38 build or immediately after.
+
 ⚠️ **Pending before full production readiness:**
 - IntaSend M-Pesa STK activation: user received Co-op Bank STK instead of Safaricom — contact IntaSend support to activate M-Pesa collection method
 - Register second IntaSend webhook: `https://peerpal.onrender.com/api/credits/payment-webhook` (Collection event, same challenge string)
