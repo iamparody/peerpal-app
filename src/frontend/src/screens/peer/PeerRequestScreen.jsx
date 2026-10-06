@@ -169,7 +169,7 @@ function ConfidenceOverlay({ request, topicLabel, onAccept, onDecline }) {
         </p>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn--primary" style={{ flex: 1 }} onClick={() => { clearInterval(timerRef.current); onAccept(); }}>
+          <button className="btn btn--primary" style={{ flex: 1, background: 'var(--color-calm)', borderColor: 'var(--color-calm)' }} onClick={() => { clearInterval(timerRef.current); onAccept(); }}>
             Yes, I'm ready
           </button>
           <button className="btn btn--muted" style={{ flex: 1 }} onClick={() => { clearInterval(timerRef.current); onDecline(); }}>
@@ -196,6 +196,7 @@ export default function PeerRequestScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confidenceRequest, setConfidenceRequest] = useState(null); // request pending confidence check
+  const prevReqLenRef = useRef(0);
   const [availableUntil, setAvailableUntil] = useState(null); // ISO string or null
   const [availNow, setAvailNow] = useState('');    // live countdown string
   const [availToggling, setAvailToggling] = useState(false);
@@ -249,6 +250,22 @@ export default function PeerRequestScreen() {
       setError('This request was just cancelled by the user.');
     }
   }, [openRequests, confidenceRequest]);
+
+  // Ringtone — play when a new peer request appears after page has loaded
+  useEffect(() => {
+    if (loading) {
+      prevReqLenRef.current = openRequests.length;
+      return;
+    }
+    if (openRequests.length > prevReqLenRef.current) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const beep = (t, f, d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = f; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.start(t); o.stop(t + d); };
+        beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
+      } catch { /* AudioContext not available */ }
+    }
+    prevReqLenRef.current = openRequests.length;
+  }, [openRequests, loading]); // eslint-disable-line
 
   // Live countdown for availability window
   useEffect(() => {

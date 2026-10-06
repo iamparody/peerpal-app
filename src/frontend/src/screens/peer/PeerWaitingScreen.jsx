@@ -42,6 +42,11 @@ export default function PeerWaitingScreen() {
         if (data?.status === 'active' && data?.session_id) {
           clearInterval(pollRef.current);
           clearInterval(timerRef.current);
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const beep = (t, f, d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = f; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.start(t); o.stop(t + d); };
+            beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
+          } catch { /* AudioContext not available */ }
           qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
           navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
         }

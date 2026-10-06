@@ -422,7 +422,8 @@ export default function TherapistBookingScreen() {
       {!waitingMpesa && (
         <div style={{
           flexShrink: 0,
-          padding: '12px 20px 28px',
+          padding: '12px 20px',
+          paddingBottom: 'calc(28px + env(safe-area-inset-bottom))',
           background: 'var(--color-bg-primary)',
           borderTop: '1px solid var(--color-border)',
         }}>
