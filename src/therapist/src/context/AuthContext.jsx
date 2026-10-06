@@ -10,10 +10,34 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('pt_token');
     const user  = localStorage.getItem('pt_user');
-    if (token && user) {
-      try { setTherapist(JSON.parse(user)); } catch { /* ignore */ }
-    }
-    setLoading(false);
+    if (!token || !user) { setLoading(false); return; }
+    let parsed;
+    try { parsed = JSON.parse(user); } catch { setLoading(false); return; }
+    // Hydrate immediately from cache so the UI isn't blank, then refresh
+    // from the server to pick up onboarding_complete / is_verified / suspended
+    // which may be missing in sessions created before Phase 42.
+    setTherapist(parsed);
+    client.get('/api/therapy/therapist/profile')
+      .then((r) => {
+        const profile = r.data.profile || {};
+        setTherapist((prev) => {
+          if (!prev) return prev;
+          const updated = {
+            ...prev,
+            onboarding_complete: profile.onboarding_complete ?? prev.onboarding_complete ?? false,
+            is_verified:        profile.is_verified ?? prev.is_verified ?? false,
+            display_name:       profile.display_name || prev.display_name,
+            suspended:          profile.suspended ?? prev.suspended ?? false,
+          };
+          localStorage.setItem('pt_user', JSON.stringify(updated));
+          return updated;
+        });
+      })
+      .catch(() => {
+        // Token may be expired — leave the stale state; protected routes will
+        // return 401 and the user will need to log in again.
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   async function login(email, password) {
@@ -21,16 +45,43 @@ export function AuthProvider({ children }) {
     if (data.role !== 'therapist') {
       throw new Error('This account does not have therapist access.');
     }
-    const userData = {
-      id:          data.userId || data.id,
-      alias:       data.alias,
-      role:        data.role,
-      suspended:   data.suspended || false,
-      display_name: data.display_name || data.alias,
-    };
+    // Store token first so the profile fetch is authenticated
     localStorage.setItem('pt_token', data.token);
+    // Fetch profile to get onboarding_complete and is_verified
+    let profile = {};
+    try {
+      const pr = await client.get('/api/therapy/therapist/profile');
+      profile = pr.data.profile || {};
+    } catch { /* fall through — gate handled defensively */ }
+    const userData = {
+      id:                 data.userId || data.id,
+      alias:              data.alias,
+      role:               data.role,
+      suspended:          profile.suspended ?? false,
+      display_name:       profile.display_name || data.alias,
+      onboarding_complete: profile.onboarding_complete ?? false,
+      is_verified:        profile.is_verified ?? false,
+    };
     localStorage.setItem('pt_user', JSON.stringify(userData));
     setTherapist(userData);
+  }
+
+  function refreshProfile() {
+    client.get('/api/therapy/therapist/profile').then((r) => {
+      const profile = r.data.profile || {};
+      setTherapist((prev) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          onboarding_complete: profile.onboarding_complete ?? prev.onboarding_complete,
+          is_verified:        profile.is_verified ?? prev.is_verified,
+          display_name:       profile.display_name || prev.display_name,
+          suspended:          profile.suspended ?? prev.suspended,
+        };
+        localStorage.setItem('pt_user', JSON.stringify(updated));
+        return updated;
+      });
+    }).catch(() => {});
   }
 
   async function logout() {
@@ -41,7 +92,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ therapist, loading, login, logout }}>
+    <AuthContext.Provider value={{ therapist, loading, login, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

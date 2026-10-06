@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import LoginScreen  from './components/LoginScreen';
+import LoginScreen      from './components/LoginScreen';
+import OnboardingScreen from './screens/OnboardingScreen';
 import DashboardTab from './tabs/DashboardTab';
 import SessionsTab  from './tabs/SessionsTab';
 import ScheduleTab  from './tabs/ScheduleTab';
@@ -59,6 +60,8 @@ function TherapistShell() {
       </div>
     );
   }
+
+  const pendingVerification = therapist?.onboarding_complete && !therapist?.is_verified;
 
   const active   = TABS.find((t) => t.id === activeTab);
   const initials = therapist?.alias
@@ -151,6 +154,21 @@ function TherapistShell() {
           </div>
         </header>
 
+        {pendingVerification && (
+          <div style={{
+            background: '#fffbe6',
+            borderBottom: '1px solid #ffe58f',
+            padding: '10px 24px',
+            fontSize: 13,
+            color: '#614700',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <span>⏳</span>
+            <span>Your profile is under review. You'll get full access once an admin verifies your documents — this usually takes 1–2 business days.</span>
+          </div>
+        )}
         <main className="content">
           <div className="content-inner">
             {renderTab()}
@@ -198,7 +216,9 @@ function AppInner() {
       Loading…
     </div>
   );
-  return therapist ? <TherapistShell /> : <LoginScreen />;
+  if (!therapist) return <LoginScreen />;
+  if (!therapist.onboarding_complete) return <OnboardingScreen />;
+  return <TherapistShell />;
 }
 
 export default function App() {

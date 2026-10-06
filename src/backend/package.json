@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@sentry/node": "^10.53.1",
+    "@supabase/supabase-js": "^2.117.2",
     "@upstash/redis": "^1.37.0",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.76.5",

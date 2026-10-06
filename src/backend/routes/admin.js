@@ -4,6 +4,7 @@ const adminAuth = require('../middleware/adminAuth');
 const cache = require('../services/cache');
 const { refundCredit } = require('../utils/creditDeductor');
 const { getConfig, invalidateConfig } = require('../utils/config');
+const { getSignedUrl } = require('../services/storage');
 
 const router = express.Router();
 
@@ -851,6 +852,38 @@ router.patch('/therapists/:id/unsuspend', async (req, res) => {
   } catch (err) {
     console.error('[therapist.unsuspend]', err.message);
     return res.status(500).json({ error: 'Failed to unsuspend therapist', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── GET /admin/therapists/:id/documents ─────────────────────────────────────
+// Returns signed read URLs (1-hour TTL) for all documents uploaded by the therapist.
+router.get('/therapists/:id/documents', async (req, res) => {
+  try {
+    const { rows } = await query(
+      'SELECT documents FROM therapist_profiles WHERE id = $1',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+
+    const documents = rows[0].documents || [];
+    if (!documents.length) return res.json({ documents: [] });
+
+    const withUrls = await Promise.all(
+      documents.map(async (doc) => {
+        try {
+          const signed_url = await getSignedUrl(doc.file_path);
+          const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          return { ...doc, signed_url, expires_at };
+        } catch {
+          return { ...doc, signed_url: null, error: 'Could not generate URL' };
+        }
+      })
+    );
+
+    return res.json({ documents: withUrls });
+  } catch (err) {
+    console.error('[admin.therapist.documents]', err.message);
+    return res.status(500).json({ error: 'Failed to load documents', code: 'QUERY_ERROR' });
   }
 });
 

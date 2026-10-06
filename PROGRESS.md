@@ -3,6 +3,19 @@
 ---
 
 ## Current Phase
+**Phase 42 COMPLETE — Therapist Onboarding Form**
+
+All steps 42.1–42.6 complete. End-to-end verified: new therapist login → 3-step onboarding form → document upload to Supabase Storage → portal access with pending-verification banner.
+
+**NEXT ACTION → Phase 38 — Activities Marketplace (first checklist item: schema migrations)**
+
+Pending small fixes (Phase 43 polish):
+- Peer call accept button colour (brown → green)
+- Peer call ringtone (same tone as therapist portal)
+- Payment screen mobile responsiveness
+
+---
+
 **Phase 41 COMPLETE — Security Audit**
 
 All 9 sub-phases complete (41.1–41.9). See `docs/SECURITY_AUDIT_REPORT.md` for full findings.

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import client from '../api/client';
 
 const SESSION_FORMATS  = ['video', 'in_person'];
@@ -129,6 +129,7 @@ export default function TherapistsTab() {
           onEdit={(t) => setPanel({ mode: 'edit', data: t })}
           onVerify={(t) => setPanel({ mode: 'verify', data: t })}
           onSuspend={(t) => setPanel({ mode: 'suspend', data: t })}
+          onDocuments={(t) => setPanel({ mode: 'documents', data: t })}
           onDelete={handleDelete}
           onResetPassword={handleResetPassword}
         />
@@ -163,12 +164,18 @@ export default function TherapistsTab() {
           onSaved={() => { setPanel(null); load(); }}
         />
       )}
+      {panel?.mode === 'documents' && (
+        <DocumentsPanel
+          therapist={panel.data}
+          onClose={() => setPanel(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Therapists table ─────────────────────────────────────────────────────────
-function TherapistsTable({ therapists, categories, categoryName, onAvailability, onToggleActive, onUnsuspend, onEdit, onVerify, onSuspend, onDelete, onResetPassword }) {
+function TherapistsTable({ therapists, categories, categoryName, onAvailability, onToggleActive, onUnsuspend, onEdit, onVerify, onSuspend, onDocuments, onDelete, onResetPassword }) {
   if (!therapists.length) {
     return (
       <div className="card">
@@ -282,6 +289,9 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
                       <button className="btn btn--ghost btn--sm" onClick={() => onEdit(t)} style={{ fontSize: 11 }}>
                         Edit
+                      </button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => onDocuments(t)} style={{ fontSize: 11 }} title="Review uploaded documents">
+                        Docs
                       </button>
                       {!isVerified && (
                         <button className="btn btn--primary btn--sm" onClick={() => onVerify(t)} style={{ fontSize: 11 }}>
@@ -487,16 +497,16 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
             </>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="form-group">
-              <label className="form-label">Display name</label>
-              <input type="text" value={displayName} onChange={(e) => md(setDisplayName)(e.target.value)} placeholder="Dr. Amina K." />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Years experience</label>
-              <input type="number" value={yearsExp} onChange={(e) => md(setYearsExp)(e.target.value)} min={0} max={40} />
-            </div>
+          <div className="form-group">
+            <label className="form-label">Display name</label>
+            <input type="text" value={displayName} onChange={(e) => md(setDisplayName)(e.target.value)} placeholder="Dr. Amina K." />
           </div>
+
+          {isNew && (
+            <div style={{ background: 'var(--color-surface-secondary)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+              📋 The therapist will complete their bio, approach, languages, and documents themselves after accepting the invite.
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Credentials</label>
@@ -508,16 +518,18 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
               <label className="form-label">Rate per session (KES)</label>
               <input type="number" value={rate} onChange={(e) => md(setRate)(e.target.value)} min={0} placeholder="3500" />
             </div>
-            <div className="form-group">
-              <label className="form-label">Gender</label>
-              <select value={gender} onChange={(e) => md(setGender)(e.target.value)}>
-                <option value="">Not specified</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="non_binary">Non-binary</option>
-                <option value="prefer_not_to_say">Prefer not to say</option>
-              </select>
-            </div>
+            {!isNew && (
+              <div className="form-group">
+                <label className="form-label">Gender</label>
+                <select value={gender} onChange={(e) => md(setGender)(e.target.value)}>
+                  <option value="">Not specified</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="non_binary">Non-binary</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -533,10 +545,12 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Photo URL (optional)</label>
-            <input type="url" value={photoUrl} onChange={(e) => md(setPhotoUrl)(e.target.value)} placeholder="https://..." />
-          </div>
+          {!isNew && (
+            <div className="form-group">
+              <label className="form-label">Photo URL (optional)</label>
+              <input type="url" value={photoUrl} onChange={(e) => md(setPhotoUrl)(e.target.value)} placeholder="https://..." />
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Session formats</label>
@@ -569,34 +583,38 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
             <input type="text" value={languages} onChange={(e) => md(setLanguages)(e.target.value)} placeholder="English, Swahili, Kikuyu" />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Location (optional)</label>
-            <input type="text" value={location} onChange={(e) => md(setLocation)(e.target.value)} placeholder="Westlands, Nairobi" />
-          </div>
+          {!isNew && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Location (optional)</label>
+                <input type="text" value={location} onChange={(e) => md(setLocation)(e.target.value)} placeholder="Westlands, Nairobi" />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">In their own words <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(shown to members)</span></label>
-            <textarea value={plainIntro} onChange={(e) => md(setPlainIntro)(e.target.value)} rows={4}
-              placeholder="Hi, I'm Amina. I work with people who feel stuck…" />
-          </div>
+              <div className="form-group">
+                <label className="form-label">In their own words <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(shown to members)</span></label>
+                <textarea value={plainIntro} onChange={(e) => md(setPlainIntro)(e.target.value)} rows={4}
+                  placeholder="Hi, I'm Amina. I work with people who feel stuck…" />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">Their approach <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(plain language)</span></label>
-            <textarea value={approachPlain} onChange={(e) => md(setApproachPlain)(e.target.value)} rows={3}
-              placeholder="I help you understand patterns at your pace…" />
-          </div>
+              <div className="form-group">
+                <label className="form-label">Their approach <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(plain language)</span></label>
+                <textarea value={approachPlain} onChange={(e) => md(setApproachPlain)(e.target.value)} rows={3}
+                  placeholder="I help you understand patterns at your pace…" />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">Cultural competencies (comma-separated)</label>
-            <input type="text" value={culturalComps} onChange={(e) => md(setCulturalComps)(e.target.value)}
-              placeholder="Kenyan family systems, Faith-integrated, LGBTQ+ affirming" />
-          </div>
+              <div className="form-group">
+                <label className="form-label">Cultural competencies (comma-separated)</label>
+                <input type="text" value={culturalComps} onChange={(e) => md(setCulturalComps)(e.target.value)}
+                  placeholder="Kenyan family systems, Faith-integrated, LGBTQ+ affirming" />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">Professional statement <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(internal only)</span></label>
-            <textarea value={statement} onChange={(e) => md(setStatement)(e.target.value)} rows={2}
-              placeholder="Internal notes, not shown to members" />
-          </div>
+              <div className="form-group">
+                <label className="form-label">Professional statement <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(internal only)</span></label>
+                <textarea value={statement} onChange={(e) => md(setStatement)(e.target.value)} rows={2}
+                  placeholder="Internal notes, not shown to members" />
+              </div>
+            </>
+          )}
 
           {error && <p className="error-text">{error}</p>}
         </div>
@@ -971,6 +989,89 @@ function CategoryPanel({ category, onClose, onSaved }) {
           <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : isNew ? 'Add Category' : 'Save Changes'}
           </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── DocumentsPanel ───────────────────────────────────────────────────────────
+const DOC_LABELS = {
+  photo:         'Profile photo',
+  kcpa_cert:     'KCPA verification letter',
+  academic_cert: 'Academic certificate',
+  indemnity:     'Professional indemnity proof',
+  good_conduct:  'Certificate of Good Conduct',
+  agreement:     'Signed therapist agreement',
+};
+
+function DocumentsPanel({ therapist, onClose }) {
+  const [docs,    setDocs]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+  const urlCache = useRef({});
+
+  useEffect(() => {
+    client.get(`/api/admin/therapists/${therapist.id}/documents`)
+      .then((r) => setDocs(r.data.documents))
+      .catch(() => setError('Failed to load documents.'))
+      .finally(() => setLoading(false));
+  }, [therapist.id]);
+
+  async function handleView(doc) {
+    const cached = urlCache.current[doc.file_path];
+    if (cached && cached.expires_at > Date.now()) {
+      window.open(cached.url, '_blank', 'noopener');
+      return;
+    }
+    // Re-fetch a fresh signed URL
+    try {
+      const r = await client.get(`/api/admin/therapists/${therapist.id}/documents`);
+      const fresh = r.data.documents.find((d) => d.file_path === doc.file_path);
+      if (fresh?.signed_url) {
+        urlCache.current[doc.file_path] = { url: fresh.signed_url, expires_at: Date.now() + 55 * 60 * 1000 };
+        window.open(fresh.signed_url, '_blank', 'noopener');
+      }
+    } catch {
+      alert('Could not open document. Please try again.');
+    }
+  }
+
+  return (
+    <>
+      <div className="panel-overlay" onClick={onClose} />
+      <div className="slide-panel">
+        <div className="slide-panel__header">
+          <span className="slide-panel__title">Documents — {therapist.display_name}</span>
+          <button className="btn btn--ghost btn--sm" onClick={onClose}>✕</button>
+        </div>
+        <div className="slide-panel__body">
+          {loading && <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>}
+          {error  && <p style={{ color: 'var(--color-error)' }}>{error}</p>}
+          {docs && !docs.length && (
+            <div style={{ background: 'var(--color-surface-secondary)', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+              No documents uploaded yet. The therapist must complete their portal onboarding first.
+            </div>
+          )}
+          {docs?.map((doc) => (
+            <div key={doc.type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{DOC_LABELS[doc.type] ?? doc.type}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  Uploaded {new Date(doc.uploaded_at).toLocaleDateString('en-KE')}
+                </div>
+              </div>
+              <button className="btn btn--primary btn--sm" onClick={() => handleView(doc)} style={{ fontSize: 11 }}>
+                View ↗
+              </button>
+            </div>
+          ))}
+          <p style={{ marginTop: 20, fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+            Documents open via a signed URL valid for 1 hour. Each "View" click generates a fresh URL. No public links are created.
+          </p>
+        </div>
+        <div className="slide-panel__footer">
+          <button className="btn btn--ghost" onClick={onClose}>Close</button>
         </div>
       </div>
     </>

@@ -1465,7 +1465,8 @@ router.get('/therapist/profile', therapistAuth, async (req, res) => {
               tp.availability_status, tp.registration_number, tp.kcpa_level,
               tp.total_sessions, tp.average_rating, tp.total_ratings_count,
               tp.is_verified, tp.suspended, tp.age, tp.gender,
-              tp.statement, tp.years_experience
+              tp.statement, tp.years_experience,
+              tp.onboarding_complete, tp.documents
        FROM therapist_profiles tp WHERE tp.id = $1`,
       [therapistId]
     );
@@ -1481,8 +1482,10 @@ router.get('/therapist/profile', therapistAuth, async (req, res) => {
 router.patch('/therapist/profile', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   const EDITABLE = [
-    'photo_url', 'plain_language_intro', 'approach_plain', 'cultural_competencies',
+    'display_name', 'photo_url', 'plain_language_intro', 'approach_plain', 'cultural_competencies',
     'languages', 'session_formats', 'rate_per_session_kes', 'availability_status', 'statement',
+    'years_experience', 'location', 'gender', 'age',
+    'credentials', 'registration_number', 'kcpa_level',
   ];
 
   const updates = {};
@@ -1507,6 +1510,126 @@ router.patch('/therapist/profile', therapistAuth, async (req, res) => {
     console.error('[therapy.therapist.profile.patch]', err.message);
     return res.status(500).json({ error: 'Failed to update profile', code: 'QUERY_ERROR' });
   }
+});
+
+// ─── POST /therapy/therapist/documents/upload ─────────────────────────────────
+// Accepts multipart/form-data: file (binary) + document_type (string)
+// Streams to Supabase Storage via service role. Returns { file_path }.
+const multer = require('multer');
+const { uploadDocument, ALLOWED_DOCUMENT_TYPES } = require('../services/storage');
+const _upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post('/therapist/documents/upload', therapistAuth, _upload.single('file'), async (req, res) => {
+  const { document_type } = req.body;
+  if (!document_type || !ALLOWED_DOCUMENT_TYPES.has(document_type)) {
+    return res.status(400).json({
+      error: `document_type must be one of: ${[...ALLOWED_DOCUMENT_TYPES].join(', ')}`,
+      code: 'INVALID_DOCUMENT_TYPE',
+    });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded', code: 'MISSING_FILE' });
+  }
+
+  const userId = req.therapist.user_id;
+  const { originalname, mimetype, buffer } = req.file;
+
+  try {
+    const { path } = await uploadDocument({
+      userId,
+      documentType: document_type,
+      filename: originalname,
+      mimeType: mimetype,
+      buffer,
+    });
+
+    // Upsert into documents JSONB array — replace entry of same type if exists
+    await query(
+      `UPDATE therapist_profiles
+       SET documents = (
+         SELECT jsonb_agg(
+           CASE WHEN elem->>'type' = $2::text
+           THEN jsonb_build_object('type', $2::text, 'file_path', $3::text, 'uploaded_at', NOW()::text)
+           ELSE elem END
+         )
+         FROM jsonb_array_elements(
+           CASE WHEN documents @> jsonb_build_array(jsonb_build_object('type', $2::text))
+           THEN documents
+           ELSE documents || jsonb_build_array(jsonb_build_object('type', $2::text, 'file_path', $3::text, 'uploaded_at', NOW()::text))
+           END
+         ) AS elem
+       ),
+       updated_at = NOW()
+       WHERE id = $1`,
+      [req.therapist.profile_id, document_type, path]
+    );
+
+    return res.status(200).json({ file_path: path });
+  } catch (err) {
+    const status = err.status || 500;
+    console.error('[therapy.documents.upload]', err.message);
+    return res.status(status).json({ error: err.message, code: 'UPLOAD_ERROR' });
+  }
+});
+
+// ─── DELETE /therapy/therapist/documents/:document_type ───────────────────────
+router.delete('/therapist/documents/:document_type', therapistAuth, async (req, res) => {
+  const { document_type } = req.params;
+  if (!ALLOWED_DOCUMENT_TYPES.has(document_type)) {
+    return res.status(400).json({ error: 'Invalid document_type', code: 'INVALID_DOCUMENT_TYPE' });
+  }
+
+  await query(
+    `UPDATE therapist_profiles
+     SET documents = (
+       SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+       FROM jsonb_array_elements(documents) AS elem
+       WHERE elem->>'type' != $2
+     ),
+     updated_at = NOW()
+     WHERE id = $1`,
+    [req.therapist.profile_id, document_type]
+  );
+
+  return res.json({ removed: true });
+});
+
+// ─── PATCH /therapy/therapist/onboarding/complete ─────────────────────────────
+// Validates required onboarding fields, sets onboarding_complete = true.
+router.patch('/therapist/onboarding/complete', therapistAuth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT display_name, credentials, languages, session_formats,
+            years_experience, category_ids, onboarding_complete
+     FROM therapist_profiles WHERE id = $1`,
+    [req.therapist.profile_id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Profile not found', code: 'NOT_FOUND' });
+
+  const p = rows[0];
+  if (p.onboarding_complete) return res.json({ already_complete: true });
+
+  const missing = [];
+  if (!p.display_name)                    missing.push('display_name');
+  if (!p.credentials)                     missing.push('credentials');
+  if (!p.languages?.length)               missing.push('languages');
+  if (!p.session_formats?.length)         missing.push('session_formats');
+  if (!p.years_experience && p.years_experience !== 0) missing.push('years_experience');
+  if (!p.category_ids?.length)            missing.push('categories');
+
+  if (missing.length) {
+    return res.status(400).json({
+      error: 'Profile incomplete — fill all required fields before submitting',
+      code: 'INCOMPLETE_PROFILE',
+      missing,
+    });
+  }
+
+  await query(
+    `UPDATE therapist_profiles SET onboarding_complete = true, updated_at = NOW() WHERE id = $1`,
+    [req.therapist.profile_id]
+  );
+
+  return res.json({ onboarding_complete: true });
 });
 
 module.exports = router;

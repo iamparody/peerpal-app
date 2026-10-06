@@ -2512,3 +2512,52 @@ Scope-contained improvements to the live session experience. No new routes or mi
 - A `docs/SECURITY_AUDIT_REPORT.md` documents findings, remediations applied, and any accepted risks
 - No hardcoded secrets, no public `.env`, no unprotected admin/therapist routes
 - Privacy and legal docs reflect current product state
+
+## Phase 42 — Therapist Onboarding Form
+
+### 42.1 — Database migration
+- [x] Add `onboarding_complete BOOLEAN NOT NULL DEFAULT false` to `therapist_profiles`
+- [x] Add `documents JSONB NOT NULL DEFAULT '[]'` to `therapist_profiles`
+- [x] Create rollback file `098_therapist_onboarding_rollback.sql`
+- [x] Apply migration via `npm run migrate`
+
+### 42.2 — Storage infrastructure
+- [x] Install `@supabase/supabase-js` in backend
+- [x] Create `src/backend/services/storage.js` — uploadDocument, getSignedUrl, deleteDocument
+- [x] Create `docs/supabase_storage_setup.sql` — RLS policy: service_role only, deny authenticated/anon
+- [x] Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to `.env.example`
+- [ ] User action: create `therapist-docs` private bucket in Supabase Dashboard
+- [ ] User action: add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to backend `.env`
+- [ ] User action: run `docs/supabase_storage_setup.sql` in Supabase SQL Editor
+
+### 42.3 — Backend endpoints
+- [x] Extend `PATCH /therapy/therapist/profile` with: years_experience, location, gender, age, credentials, registration_number, kcpa_level
+- [x] Add `POST /therapy/therapist/documents/upload` — multer, storage service, JSONB upsert
+- [x] Add `DELETE /therapy/therapist/documents/:document_type`
+- [x] Add `PATCH /therapy/therapist/onboarding/complete` — validates required fields, sets flag
+- [x] Add `GET /admin/therapists/:id/documents` — signed URLs (1hr TTL)
+
+### 42.4 — Admin panel
+- [x] Slim admin create form to 8 bootstrap fields (hide bio/demographics — therapist completes these)
+- [x] Add "Docs" button to therapist row in admin panel
+- [x] Add `DocumentsPanel` component — signed URL viewing with 55-min client-side TTL cache
+
+### 42.5 — Therapist portal onboarding screen
+- [x] Update `AuthContext.jsx` login to fetch profile and store `onboarding_complete` + `is_verified`
+- [x] Expose `refreshProfile()` in auth context
+- [x] Create `src/therapist/src/screens/OnboardingScreen.jsx` — 3-step form (Professional Details → Bio → Documents)
+- [x] Add onboarding gate in `App.jsx`: if `!onboarding_complete` → show OnboardingScreen
+- [x] Add pending-verification banner for `onboarding_complete && !is_verified`
+
+### 42.6 — Verification & cleanup
+- [x] End-to-end test: new therapist login → onboarding form → submission → portal access
+- [x] Confirm no public URLs generated at any point (Supabase bucket private, RLS service_role only)
+- [ ] Test signed URL expiry (admin docs panel) — deferred: requires admin doc review UI test
+- [x] Confirm cross-therapist doc access is blocked (path scoped to user_id, service_role only)
+- [x] Update CHECKLIST.md and PROGRESS.md
+
+**Phase 42 complete when:**
+- New therapist sees onboarding form on first login and cannot access portal until complete
+- Admin can view therapist documents as signed URLs (no public URLs, no direct storage access)
+- `onboarding_complete=true` + `is_verified=false` shows pending-verification banner
+- All files stored at `therapist-docs/{user_id}/{doc_type}/{filename}`

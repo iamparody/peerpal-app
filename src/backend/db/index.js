@@ -3,9 +3,12 @@ const { Pool } = require('pg');
 
 const isProd = process.env.NODE_ENV === 'production';
 
+const connStr = process.env.DATABASE_POOLER_URL || process.env.DATABASE_URL;
+const needsSsl = connStr && connStr.includes('supabase.com');
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_POOLER_URL || process.env.DATABASE_URL,
-  ssl: isProd ? { rejectUnauthorized: true } : false,
+  connectionString: connStr,
+  ssl: needsSsl ? { rejectUnauthorized: false } : (isProd ? { rejectUnauthorized: true } : false),
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: isProd ? 5000 : 2000,
