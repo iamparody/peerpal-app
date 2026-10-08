@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PeerPal">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2c25"/>
+      <stop offset="1" stop-color="#2b211c"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="46%" r="55%">
+      <stop offset="0" stop-color="#f5e5cd"/>
+      <stop offset="1" stop-color="#e8c48f"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#tile)"/>
+  <clipPath id="clip"><rect x="0" y="0" width="64" height="64" rx="15"/></clipPath>
+  <g clip-path="url(#clip)">
+    <circle cx="32" cy="29.5" r="11" fill="url(#sun)"/>
+    <path d="M -6 44 Q 20 30 40 42 Q 52 49 70 44 L 70 70 L -6 70 Z" fill="#ad967c"/>
+    <path d="M -6 48 Q 30 36 70 50 L 70 70 L -6 70 Z" fill="#cdb79d"/>
+  </g>
+</svg>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Page not found — PeerPal</title>
+    <meta name="theme-color" content="#2f2622" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f8f1e8;
+        --deep: #2f2622;
+        --cream: #f5ede4;
+        --sand: #c2a48a;
+        --sage: #8faf9a;
+        --muted: rgba(47, 38, 34, 0.62);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--deep);
+        background:
+          radial-gradient(circle at 18% 20%, rgba(143, 175, 154, 0.25), transparent 32%),
+          radial-gradient(circle at 82% 12%, rgba(194, 164, 138, 0.28), transparent 28%),
+          var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+      .card { max-width: 480px; text-align: center; }
+      .mark { width: 64px; height: 64px; margin: 0 auto 28px; display: block; }
+      .eyebrow {
+        color: var(--sand);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-size: 12px;
+        font-weight: 700;
+        margin: 0 0 12px;
+      }
+      h1 {
+        font-family: "Lora", Georgia, serif;
+        font-weight: 500;
+        font-size: clamp(32px, 7vw, 48px);
+        line-height: 1.05;
+        margin: 0 0 16px;
+      }
+      p { color: var(--muted); font-size: 16px; line-height: 1.7; margin: 0 0 28px; }
+      .btn {
+        display: inline-block;
+        padding: 14px 32px;
+        background: var(--sage);
+        color: var(--deep);
+        border-radius: 100px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: opacity 0.2s ease;
+      }
+      .btn:hover, .btn:focus-visible { opacity: 0.85; }
+      .btn:focus-visible { outline: 2px solid #d9a441; outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <img class="mark" src="/favicon.svg" alt="PeerPal" width="64" height="64" />
+      <p class="eyebrow">Error 404</p>
+      <h1>This page wandered off.</h1>
+      <p>The link may be broken or the page may have moved. Let's get you back to somewhere calm.</p>
+      <a class="btn" href="/">Back to PeerPal</a>
+    </main>
+  </body>
+</html>

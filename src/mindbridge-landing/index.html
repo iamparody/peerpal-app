@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PeerPal is an anonymous, safety-first mental health support platform built for Kenya and designed to scale across African markets."
+    />
+    <title>PeerPal — Anonymous Mental Health Support in Kenya</title>
+    <link rel="canonical" href="https://www.peer-pal.com/" />
+    <meta name="theme-color" content="#2f2622" />
+
+    
+    <!-- Favicons / app icons -->
+    <link id="favicon-dyn" rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="alternate icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Loading favicon: shows a subtle spinner in the tab while the page loads,
+         then swaps to the static PeerPal mark. Falls back to the static icon
+         when JS is off, canvas is unavailable, or reduced motion is requested. -->
+    <script>
+      (function () {
+        var head = document.head;
+        var done = false;
+        function setIcon(href, type) {
+          var l = document.getElementById('favicon-dyn');
+          if (!l) { l = document.createElement('link'); l.id = 'favicon-dyn'; l.rel = 'icon'; head.appendChild(l); }
+          l.type = type; l.href = href;
+        }
+        function finish() {
+          if (done) return; done = true;
+          if (timer) clearInterval(timer);
+          setIcon('/favicon.svg', 'image/svg+xml');
+        }
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext && canvas.getContext('2d');
+        var timer = null;
+        if (ctx && !reduce) {
+          canvas.width = canvas.height = 64;
+          var angle = 0;
+          function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+          }
+          function draw() {
+            if (done) return;
+            ctx.clearRect(0, 0, 64, 64);
+            roundRect(1, 1, 62, 62, 15); ctx.fillStyle = '#3a2c25'; ctx.fill();
+            ctx.lineWidth = 5; ctx.lineCap = 'round';
+            ctx.strokeStyle = 'rgba(223,201,180,0.22)';
+            ctx.beginPath(); ctx.arc(32, 32, 14, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = '#e8c48f';
+            ctx.beginPath(); ctx.arc(32, 32, 14, angle, angle + Math.PI * 0.6); ctx.stroke();
+            angle += 0.5;
+            try { setIcon(canvas.toDataURL('image/png'), 'image/png'); } catch (e) { finish(); }
+          }
+          draw();
+          timer = setInterval(draw, 90);
+        }
+        if (document.readyState === 'complete') finish();
+        else window.addEventListener('load', finish);
+        setTimeout(finish, 8000);
+      })();
+    </script>
+
+    <!-- Bing Webmaster -->
+    <meta name="msvalidate.01" content="3837C48B39153A149D6589B765C8C50E" />
+
+    <!-- Schema.org -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "PeerPal",
+      "url": "https://www.peer-pal.com",
+      "logo": "https://www.peer-pal.com/site-image.png",
+      "description": "A safe, anonymous peer support platform built for Kenya and designed to scale across Africa.",
+      "areaServed": "KE",
+      "applicationCategory": "HealthApplication"
+    }
+    </script>
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="PeerPal — Anonymous Mental Health Support" />
+    <meta property="og:description" content="A safe, anonymous space to find peer support during difficult moments. Built for Kenya, designed to scale across Africa." />
+    <meta property="og:image" content="https://www.peer-pal.com/site-image.png" />
+    <meta property="og:url" content="https://www.peer-pal.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PeerPal" />
+
+    <!-- Twitter/X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PeerPal — Anonymous Mental Health Support" />
+    <meta name="twitter:description" content="A safe, anonymous space to find peer support during difficult moments. Built for Kenya, designed to scale across Africa." />
+    <meta name="twitter:image" content="https://www.peer-pal.com/site-image.png" />
+    <meta name="twitter:site" content="@peerpal_ke" />
+    <meta name="robots" content="index, follow" />
+    <!-- FAQPage rich results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is PeerPal a medical service?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. PeerPal is a support platform, not a clinic. It gives you people to talk to, tools to use, and a way to reach a professional. It doesn't diagnose or treat, and in a crisis it points you to emergency services rather than standing in for them." }
+        },
+        {
+          "@type": "Question",
+          "name": "Are peer supporters therapists?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. They're trained to listen and support, not to diagnose or counsel. When you want professional care, PeerPal connects you to qualified, independent therapists. That's a separate path." }
+        },
+        {
+          "@type": "Question",
+          "name": "What does the AI companion do?",
+          "acceptedAnswer": { "@type": "Answer", "text": "It's a companion for reflection, not a clinician. It won't diagnose you or give medical advice, and if something sounds serious, it points you toward real help rather than handling it itself." }
+        },
+        {
+          "@type": "Question",
+          "name": "Why anonymity first?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Having to give your name is often the reason people don't reach out at all. You start with an alias, so you can ask for help without it being tied to you." }
+        },
+        {
+          "@type": "Question",
+          "name": "Who is PeerPal for?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Adults 18 and over, in Kenya to start. It's built mobile-first and shaped around how people here actually reach for help." }
+        }
+      ]
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
