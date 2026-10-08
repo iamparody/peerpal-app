@@ -38,9 +38,9 @@ startEmailWorker();
 startNotificationWorker();
 
 // ─── Background jobs ──────────────────────────────────────────────────────────
-// Peer routing catch-all — every 2 minutes (handles requests whose in-process
+// Peer routing catch-all — every 5 minutes (handles requests whose in-process
 // timers were lost due to server restart or Render free-tier sleep)
-cron.schedule('*/2 * * * *', () => runRoutingJob().catch(console.error));
+cron.schedule('*/5 * * * *', () => runRoutingJob().catch(console.error));
 
 // Risk score recalculation — midnight UTC
 cron.schedule('0 0 * * *', () => runRiskScoreJob().catch(console.error));
@@ -74,8 +74,8 @@ cron.schedule('0 * * * *', () => runBanExpiryJob().catch(console.error));
 // Slot lock cleanup — every 5 min
 cron.schedule('*/5 * * * *', () => runSlotLockCleanupJob().catch(console.error));
 
-// Draft booking expiry — every 2 min; deletes unpaid drafts whose slot lock has expired
-cron.schedule('*/2 * * * *', () => runDraftBookingExpiryJob().catch(console.error));
+// Draft booking expiry — every 5 min; deletes unpaid drafts whose slot lock has expired
+cron.schedule('*/5 * * * *', () => runDraftBookingExpiryJob().catch(console.error));
 
 // Therapist no-show detection — every 10 min
 cron.schedule('*/10 * * * *', () => runTherapistNoShowJob().catch(console.error));

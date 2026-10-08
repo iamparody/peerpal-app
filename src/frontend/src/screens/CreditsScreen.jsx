@@ -481,14 +481,25 @@ export default function CreditsScreen() {
                 {visibleTx.map((tx, i) => {
                   const detail = txDetail(tx);
                   const isDebit = tx.type === 'debit';
+                  const isPending = tx.status === 'pending';
+                  const isFailed  = tx.status === 'failed';
                   return (
                     <div key={tx.id} style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       padding: '10px 14px', fontSize: 13,
                       borderBottom: i < visibleTx.length - 1 ? '1px solid var(--color-divider)' : 'none',
+                      opacity: isPending || isFailed ? 0.65 : 1,
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1, marginRight: 12 }}>
-                        <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{txLabel(tx)}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{txLabel(tx)}</span>
+                          {isPending && (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(194,164,138,0.18)', color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending</span>
+                          )}
+                          {isFailed && (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(220,60,60,0.12)', color: 'var(--color-danger)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Failed</span>
+                          )}
+                        </div>
                         <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                           {detail && <>{detail} · </>}
                           {new Date(tx.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -496,7 +507,7 @@ export default function CreditsScreen() {
                       </div>
                       <span style={{
                         fontWeight: 700, fontSize: 15, flexShrink: 0,
-                        color: isDebit ? 'var(--color-danger)' : 'var(--color-calm)',
+                        color: isFailed ? 'var(--color-text-muted)' : isDebit ? 'var(--color-danger)' : isPending ? 'var(--color-accent)' : 'var(--color-calm)',
                       }}>
                         {isDebit ? '−' : '+'}{tx.amount_credits ?? tx.amount} cr
                       </span>

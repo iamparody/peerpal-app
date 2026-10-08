@@ -20,7 +20,7 @@ pool.on('error', (err) => {
   console.error('[pg-pool] Unexpected client error', err.message);
 });
 
-const SLOW_QUERY_MS = 500;
+const SLOW_QUERY_MS = 1500;
 
 async function query(text, params) {
   const start = Date.now();
