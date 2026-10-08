@@ -1635,4 +1635,61 @@ router.patch('/therapy/disputes/:id/resolve', async (req, res) => {
   }
 });
 
+// ─── GET /admin/referrals ─────────────────────────────────────────────────────
+router.get('/referrals', async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT tr.id, tr.status, tr.admin_notes, tr.created_at,
+              u.alias,
+              COALESCE(
+                json_agg(
+                  json_build_object('therapist_id', ti.therapist_id, 'display_name', tp.display_name)
+                ) FILTER (WHERE ti.therapist_id IS NOT NULL), '[]'
+              ) AS interests
+         FROM therapist_referrals tr
+         JOIN users u ON u.id = tr.user_id
+         LEFT JOIN therapist_interests ti ON ti.referral_id = tr.id
+         LEFT JOIN therapist_profiles tp ON tp.therapist_user_id = ti.therapist_id
+        GROUP BY tr.id, u.alias
+        ORDER BY tr.created_at DESC`
+    );
+    return res.json({ referrals: rows });
+  } catch (err) {
+    console.error('[admin.referrals.list]', err.message);
+    return res.status(500).json({ error: 'Failed to fetch referrals', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── PATCH /admin/referrals/:id ───────────────────────────────────────────────
+router.patch('/referrals/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status, admin_notes } = req.body;
+
+  const VALID_STATUSES = ['pending', 'in_review', 'arranged', 'escalated', 'closed'];
+  if (status && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status', code: 'INVALID_STATUS' });
+  }
+
+  try {
+    const { rows } = await query(
+      `UPDATE therapist_referrals
+          SET status      = COALESCE($1, status),
+              admin_notes = COALESCE($2, admin_notes),
+              updated_at  = NOW()
+        WHERE id = $3
+        RETURNING id, status, admin_notes`,
+      [status || null, admin_notes !== undefined ? admin_notes : null, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Referral not found', code: 'NOT_FOUND' });
+
+    await auditLog(req.user.id, 'referral.update', 'referral', id, null,
+      null, JSON.stringify({ status, admin_notes }));
+
+    return res.json({ updated: true, referral: rows[0] });
+  } catch (err) {
+    console.error('[admin.referrals.update]', err.message);
+    return res.status(500).json({ error: 'Failed to update referral', code: 'QUERY_ERROR' });
+  }
+});
+
 module.exports = router;
