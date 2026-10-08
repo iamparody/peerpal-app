@@ -24,6 +24,7 @@ const { runPayoutReconciliationJob }   = require('./jobs/payoutReconciliationJob
 const { runPayoutRetryJob }            = require('./jobs/payoutRetryJob');
 const { runMemberNoShowJob }           = require('./jobs/memberNoShowJob');
 const { runDraftBookingExpiryJob }     = require('./jobs/draftBookingExpiryJob');
+const { runWaitlistDigestJob }         = require('./jobs/waitlistDigestJob');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -68,6 +69,10 @@ cron.schedule('0 3 * * *', () => runFlagAggregationJob().catch(console.error));
 
 // Group ban expiry — every hour, lifts bans whose expires_at has passed
 cron.schedule('0 * * * *', () => runBanExpiryJob().catch(console.error));
+
+// Waitlist digest — 06:00 UTC (9am Nairobi EAT); emails yesterday's new signups
+// to WAITLIST_NOTIFY_EMAIL. No-op if that env isn't set or nothing is new.
+cron.schedule('0 6 * * *', () => runWaitlistDigestJob().catch(console.error));
 
 // ─── Phase 37: Therapy marketplace background jobs ────────────────────────────
 
