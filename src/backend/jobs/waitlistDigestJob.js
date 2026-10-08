@@ -11,7 +11,7 @@ function escapeHtml(s) {
 // No-op when that env isn't set, or when there were no new signups yesterday.
 // Covers the previous full UTC day, so runs never overlap or drop signups.
 async function runWaitlistDigestJob() {
-  const to = process.env.WAITLIST_NOTIFY_EMAIL || 'info@peer-pal.com';
+  const to = process.env.WAITLIST_NOTIFY_EMAIL || 'support@peer-pal.com';
 
   const until = new Date();
   until.setUTCHours(0, 0, 0, 0);

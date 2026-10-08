@@ -19,7 +19,7 @@ const waitlistLimiter = rateLimit({
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALLOWED_SOURCES = new Set(['landing', 'hero', 'footer']);
-const NOTIFY_EMAIL = process.env.WAITLIST_NOTIFY_EMAIL || 'info@peer-pal.com';
+const NOTIFY_EMAIL = process.env.WAITLIST_NOTIFY_EMAIL || 'support@peer-pal.com';
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
