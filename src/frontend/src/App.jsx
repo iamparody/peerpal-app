@@ -195,6 +195,24 @@ function PeerRequestBanner() {
 
   useEffect(() => {
     const hasNew = openRequests.some(r => !dismissedIds.current.has(r.id));
+    if (hasNew && !bannerVisible) {
+      // Play incoming-request tone — same pair as therapist call accept
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const beep = (t, f, d) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = f;
+          g.gain.setValueAtTime(0.22, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + d);
+          o.start(t); o.stop(t + d);
+        };
+        // Two-tone pulse, then repeat once after 1.2s
+        const t = ctx.currentTime;
+        beep(t,        660, 0.2); beep(t + 0.28,  880, 0.2);
+        beep(t + 1.2,  660, 0.2); beep(t + 1.48,  880, 0.2);
+      } catch { /* AudioContext unavailable or blocked */ }
+    }
     setBannerVisible(hasNew);
   }, [openRequests]);
 
