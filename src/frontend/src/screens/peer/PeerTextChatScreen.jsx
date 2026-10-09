@@ -70,6 +70,45 @@ function ReflectionModal({ sessionId, onDone }) {
   );
 }
 
+function RequesterFeedbackModal({ sessionId, onDone }) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit() {
+    if (!rating) return onDone();
+    setSubmitting(true);
+    try { await client.post(`/api/peer/session/${sessionId}/requester-feedback`, { rating, comment: comment.trim() || undefined }); }
+    catch { /* best-effort */ }
+    finally { setSubmitting(false); onDone(); }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 150, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
+        <h3 style={{ marginBottom: 4 }}>How was your peer?</h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>Optional — helps us maintain quality</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 'var(--space-md)' }}>
+          {[1,2,3,4,5].map(n => (
+            <button key={n} type="button" onClick={() => setRating(n)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 32, opacity: n <= rating ? 1 : 0.3 }}>
+              ★
+            </button>
+          ))}
+        </div>
+        <textarea className="textarea" rows={2} value={comment} onChange={e => setComment(e.target.value)}
+          placeholder="Any comments? (optional)" style={{ marginBottom: 'var(--space-sm)' }} />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn--primary" style={{ flex: 1 }} onClick={handleSubmit} disabled={submitting}>
+            {submitting ? 'Saving…' : rating ? 'Submit' : 'Skip'}
+          </button>
+          <button className="btn btn--muted" style={{ flex: 1 }} onClick={onDone}>Skip</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportModal({ sessionId, onClose }) {
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -157,6 +196,8 @@ export default function PeerTextChatScreen() {
   const [sessionEnded, setSessionEnded] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [peerLeftEnded, setPeerLeftEnded] = useState(false);
   const isPeerRef = useRef(false);
 
   const [contactWarning, setContactWarning] = useState(false);
@@ -164,6 +205,7 @@ export default function PeerTextChatScreen() {
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
   const requestIdRef = useRef(null);
+  const hadContactRef = useRef(false); // true once any message is sent or received
   const endTimeRef = useRef(null);
   const timerRef = useRef(null);
   const promptShownRef = useRef(false); // track per-block so it only fires once
@@ -174,12 +216,18 @@ export default function PeerTextChatScreen() {
     wsRef.current?.close();
     const reqId = requestIdRef.current;
     if (reqId && reason === 'manual') {
-      try { await client.patch(`/api/peer/request/${reqId}/close`); } catch { /* best-effort */ }
+      const body = hadContactRef.current ? {} : { never_connected: true };
+      try { await client.patch(`/api/peer/request/${reqId}/close`, body); } catch { /* best-effort */ }
     }
     trackEvent('peer_session_completed', { channel: 'text', reason });
     if (reason === 'time_limit') {
       setSessionEnded(true);
       if (isPeerRef.current) setShowReflection(true);
+      else setShowFeedback(true);
+    } else if (reason === 'peer_left' && !isPeerRef.current) {
+      setPeerLeftEnded(true);
+      setSessionEnded(true);
+      setShowFeedback(true);
     } else if (isPeerRef.current) {
       setShowReflection(true);
     } else {
@@ -195,7 +243,7 @@ export default function PeerTextChatScreen() {
     timerRef.current = setInterval(() => {
       const secs = Math.round((endTimeRef.current - Date.now()) / 1000);
       setSecondsLeft(secs);
-      if (secs <= 300 && !promptShownRef.current) {
+      if (secs <= 300 && !promptShownRef.current && !isPeerRef.current) {
         promptShownRef.current = true;
         setShowExtendPrompt(true);
       }
@@ -227,6 +275,7 @@ export default function PeerTextChatScreen() {
         ws.onmessage = (e) => {
           const msg = JSON.parse(e.data);
           if (msg.type === 'chat') {
+            hadContactRef.current = true;
             setMessages((prev) => [...prev, { from: 'peer', text: msg.text, ts: msg.ts || Date.now() }]);
           } else if (msg.type === 'peer_left') {
             setPeerLeft(true);
@@ -238,7 +287,20 @@ export default function PeerTextChatScreen() {
             warnTimerRef.current = setTimeout(() => setContactWarning(false), 8000);
           }
         };
-        ws.onclose = () => setConnected(false);
+        ws.onclose = (ev) => {
+          setConnected(false);
+          // Don't reconnect on intentional close (code 1000/1005) or after session ended
+          if (ev.code === 1000 || ev.code === 1005) return;
+          setTimeout(() => {
+            if (wsRef.current?.readyState !== WebSocket.OPEN) {
+              const ws2 = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
+              wsRef.current = ws2;
+              ws2.onopen = () => { setConnected(true); ws2.send(JSON.stringify({ type: 'join', session_id: sessionId })); };
+              ws2.onmessage = ws.onmessage;
+              ws2.onclose = ws.onclose;
+            }
+          }, 2000);
+        };
       } catch {
         setError('Could not connect to session.');
       }
@@ -269,6 +331,7 @@ export default function PeerTextChatScreen() {
   function handleSend() {
     if (!input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     const text = input.trim();
+    hadContactRef.current = true;
     wsRef.current.send(JSON.stringify({ type: 'chat', text, session_id: sessionId }));
     setMessages((prev) => [...prev, { from: 'me', text, ts: Date.now() }]);
     setInput('');
@@ -278,15 +341,15 @@ export default function PeerTextChatScreen() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  // Session ended by time limit — show safety resources
+  // Session ended — show safety resources
   if (sessionEnded) {
     return (
       <>
         <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
           <Clock size={40} weight="duotone" color="var(--color-text-muted)" />
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Session time ended</h2>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{peerLeftEnded ? 'Your peer left the chat' : 'Session time ended'}</h2>
           <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
-            Your 30-minute session has ended. You can start a new session any time.
+            {peerLeftEnded ? 'The peer ended the session. If you still need support, the resources below are available.' : 'Your 30-minute session has ended. You can start a new session any time.'}
           </p>
           <div style={{ padding: '14px 16px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-calm)', width: '100%', maxWidth: 320 }}>
             <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Need immediate support?</p>
@@ -309,6 +372,24 @@ export default function PeerTextChatScreen() {
           </button>
         </div>
         {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
+        {showReflection && (
+          <ReflectionModal
+            sessionId={sessionId}
+            onDone={() => {
+              setShowReflection(false);
+              navigate('/peer', { replace: true });
+            }}
+          />
+        )}
+        {showFeedback && (
+          <RequesterFeedbackModal
+            sessionId={sessionId}
+            onDone={() => {
+              setShowFeedback(false);
+              navigate('/peer', { replace: true });
+            }}
+          />
+        )}
       </>
     );
   }

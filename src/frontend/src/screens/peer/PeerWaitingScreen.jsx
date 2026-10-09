@@ -64,6 +64,8 @@ export default function PeerWaitingScreen() {
   }, [id, navigate]);
 
   async function handleCancel() {
+    clearInterval(timerRef.current);
+    clearInterval(pollRef.current);
     try { await client.patch(`/api/peer/request/${id}/close`); } catch { /* best-effort */ }
     navigate('/peer', { replace: true });
   }

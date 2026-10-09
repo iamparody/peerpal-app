@@ -529,7 +529,7 @@ export default function PeerRequestScreen() {
                     );
                   })
                 )}
-                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Earn 1 credit for completing a session.</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Peers earn 25% of the session cost — credits convert once 2 accumulate.</p>
               </div>
             )}
 

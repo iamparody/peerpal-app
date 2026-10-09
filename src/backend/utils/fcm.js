@@ -35,11 +35,21 @@ async function sendPushNotification(fcm_token, title, body, data = {}) {
   initFCM();
   if (!initialized || !fcm_token) return;
   try {
-    await admin.messaging().send({
+    const isUrgent = data._urgent === 'true';
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([k]) => k !== '_urgent').map(([k, v]) => [k, String(v)])
+    );
+    const msg = {
       token: fcm_token,
       notification: { title, body },
-      data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
-    });
+      data: cleanData,
+    };
+    if (isUrgent) {
+      msg.android = { priority: 'high', notification: { channel_id: 'peer_requests', default_vibrate_timings: true } };
+      msg.apns = { headers: { 'apns-priority': '10', 'apns-push-type': 'alert' } };
+      msg.webpush = { headers: { Urgency: 'high', TTL: '30' } };
+    }
+    await admin.messaging().send(msg);
   } catch (err) {
     // Token expired / unregistered — clear it so we don't re-send to dead tokens
     if (err.code === 'messaging/registration-token-not-registered' ||

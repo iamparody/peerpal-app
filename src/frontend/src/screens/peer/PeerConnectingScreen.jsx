@@ -104,6 +104,13 @@ export default function PeerConnectingScreen() {
           setRequestId(rid);
           setPhase('waiting');
 
+          // Outgoing request tone — same pattern as therapist call (660→880 Hz)
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const beep = (t, f, d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = f; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.start(t); o.stop(t + d); };
+            beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
+          } catch { /* AudioContext unavailable */ }
+
           // 3. Poll every 2s — navigate immediately when peer accepts (no button click needed)
           pollRef.current = setInterval(async () => {
             try {

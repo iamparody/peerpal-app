@@ -58,7 +58,7 @@ async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug
       fcm_token,
       'Someone needs support',
       'A peer is looking for help. Tap to see if you can assist.',
-      { type: 'peer_request_broadcast', request_id: String(requestId) }
+      { type: 'peer_request_broadcast', request_id: String(requestId), _urgent: 'true' }
     ).catch((err) => console.warn('[broadcast] FCM enqueue error:', err.message));
   }
 
@@ -270,7 +270,7 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
          RETURNING pending_credits`,
         [responderId, earned]
       );
-      const newPending = parseFloat(statsRows[0].pending_credits);
+      const newPending = parseFloat(parseFloat(statsRows[0].pending_credits).toFixed(2));
       if (newPending >= CONVERSION_THRESHOLD) {
         const toConvert = Math.floor(newPending);
         const remaining = parseFloat((newPending - toConvert).toFixed(2));
@@ -713,8 +713,32 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     [req.params.id]
   );
 
-  // If WebRTC never connected, refund the requester and skip peer earning
-  if (never_connected && req.user.id === requesterId) {
+  // Notify the other party that this party has left
+  const closingUserId = req.user.id;
+  const otherPartyId = closingUserId === requesterId ? responderId : requesterId;
+  if (otherPartyId) {
+    const leavePayload = JSON.stringify({ session_id, reason: 'peer_left' });
+    await query(
+      `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'in_app')`,
+      [otherPartyId, leavePayload]
+    ).catch(() => {});
+    const { rows: otherRows } = await query('SELECT fcm_token FROM users WHERE id = $1', [otherPartyId]);
+    if (otherRows[0]?.fcm_token) {
+      const { enqueuePushNotification } = require('../utils/fcm');
+      await enqueuePushNotification(
+        otherRows[0].fcm_token,
+        'Session ended',
+        'Your peer has left the session.',
+        { type: 'peer_left', session_id: String(session_id) }
+      ).catch(() => {});
+    }
+  }
+
+  // If WebRTC never connected, refund the requester (only within 90s of session start)
+  const sessionAgeSeconds = sessionRows[0].started_at
+    ? (Date.now() - new Date(sessionRows[0].started_at).getTime()) / 1000
+    : Infinity;
+  if (never_connected && req.user.id === requesterId && sessionAgeSeconds < 90) {
     const _costs3 = await getCreditCosts();
     const creditCost = channel_preference === 'voice' ? _costs3.voice : _costs3.text;
     await refundCredit(
@@ -762,7 +786,7 @@ router.patch('/request/:id/close', auth, async (req, res) => {
         [responderId, earned]
       );
 
-      const newPending = parseFloat(statsRows[0].pending_credits);
+      const newPending = parseFloat(parseFloat(statsRows[0].pending_credits).toFixed(2));
 
       if (newPending >= CONVERSION_THRESHOLD) {
         const toConvert = Math.floor(newPending);

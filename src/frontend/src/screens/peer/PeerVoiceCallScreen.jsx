@@ -70,6 +70,45 @@ function ReflectionModal({ sessionId, onDone }) {
   );
 }
 
+function RequesterFeedbackModal({ sessionId, onDone }) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit() {
+    if (!rating) return onDone();
+    setSubmitting(true);
+    try { await client.post(`/api/peer/session/${sessionId}/requester-feedback`, { rating, comment: comment.trim() || undefined }); }
+    catch { /* best-effort */ }
+    finally { setSubmitting(false); onDone(); }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 150, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
+        <h3 style={{ marginBottom: 4 }}>How was your peer?</h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>Optional — helps us maintain quality</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 'var(--space-md)' }}>
+          {[1,2,3,4,5].map(n => (
+            <button key={n} type="button" onClick={() => setRating(n)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 32, opacity: n <= rating ? 1 : 0.3 }}>
+              ★
+            </button>
+          ))}
+        </div>
+        <textarea className="textarea" rows={2} value={comment} onChange={e => setComment(e.target.value)}
+          placeholder="Any comments? (optional)" style={{ marginBottom: 'var(--space-sm)' }} />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn--primary" style={{ flex: 1 }} onClick={handleSubmit} disabled={submitting}>
+            {submitting ? 'Saving…' : rating ? 'Submit' : 'Skip'}
+          </button>
+          <button className="btn btn--muted" style={{ flex: 1 }} onClick={onDone}>Skip</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportModal({ sessionId, onClose }) {
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -153,6 +192,8 @@ export default function PeerVoiceCallScreen() {
   const [sessionEnded, setSessionEnded] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [peerLeftMsg, setPeerLeftMsg] = useState(false);
 
   const wsRef = useRef(null);
   const pcRef = useRef(null);
@@ -181,6 +222,11 @@ export default function PeerVoiceCallScreen() {
     if (reason === 'time_limit') {
       setSessionEnded(true);
       if (isPeerRef.current) setShowReflection(true);
+      else setShowFeedback(true);
+    } else if (reason === 'peer_left' && !isPeerRef.current) {
+      setPeerLeftMsg(true);
+      setSessionEnded(true);
+      setShowFeedback(true);
     } else if (isPeerRef.current) {
       setShowReflection(true);
     } else {
@@ -195,7 +241,7 @@ export default function PeerVoiceCallScreen() {
     timerRef.current = setInterval(() => {
       const secs = Math.round((endTimeRef.current - Date.now()) / 1000);
       setSecondsLeft(secs);
-      if (secs <= 300 && !promptShownRef.current) {
+      if (secs <= 300 && !promptShownRef.current && !isPeerRef.current) {
         promptShownRef.current = true;
         setShowExtendPrompt(true);
       }
@@ -383,9 +429,9 @@ export default function PeerVoiceCallScreen() {
       <>
         <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
           <Clock size={40} weight="duotone" color="var(--color-text-muted)" />
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Call time ended</h2>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{peerLeftMsg ? 'Your peer left the call' : 'Call time ended'}</h2>
           <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
-            Your 30-minute voice call has ended. You can start a new session any time.
+            {peerLeftMsg ? 'The peer ended the session. If you still need support, the resources below are available.' : 'Your 30-minute voice call has ended. You can start a new session any time.'}
           </p>
           <div style={{ padding: '14px 16px', background: 'var(--color-calm-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-calm)', width: '100%', maxWidth: 320 }}>
             <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-calm)', marginBottom: 4 }}>Need immediate support?</p>
@@ -413,6 +459,15 @@ export default function PeerVoiceCallScreen() {
             sessionId={sessionId}
             onDone={() => {
               setShowReflection(false);
+              navigate('/peer', { replace: true });
+            }}
+          />
+        )}
+        {showFeedback && (
+          <RequesterFeedbackModal
+            sessionId={sessionId}
+            onDone={() => {
+              setShowFeedback(false);
               navigate('/peer', { replace: true });
             }}
           />
