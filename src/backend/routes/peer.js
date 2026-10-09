@@ -737,7 +737,7 @@ router.patch('/request/:id/close', auth, async (req, res) => {
   // If WebRTC never connected, refund the requester (only within 90s of session start)
   const sessionAgeSeconds = sessionRows[0].started_at
     ? (Date.now() - new Date(sessionRows[0].started_at).getTime()) / 1000
-    : Infinity;
+    : 0;
   if (never_connected && req.user.id === requesterId && sessionAgeSeconds < 90) {
     const _costs3 = await getCreditCosts();
     const creditCost = channel_preference === 'voice' ? _costs3.voice : _costs3.text;
