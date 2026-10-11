@@ -154,14 +154,18 @@ export default function PeerConnectingScreen() {
           // poll /api/health every 5s (up to 45s) before retrying the request automatically.
           if (attempt === 0) {
             setPhase('waking');
-            const deadline = Date.now() + 45000;
+            const deadline = Date.now() + 50000;
             let alive = false;
             while (Date.now() < deadline) {
               try {
-                await client.get('/health', { timeout: 8000 });
+                // Use the actual API route as the readiness check — not just /health —
+                // because Render can respond to /health before authenticated routes are ready.
+                await client.get('/api/peer/request/active', { timeout: 10000 });
                 alive = true;
                 break;
-              } catch {
+              } catch (probeErr) {
+                // A proper HTTP response (even 4xx/5xx) means the server is up and routing.
+                if (probeErr.response) { alive = true; break; }
                 await new Promise(r => setTimeout(r, 5000));
               }
             }
