@@ -158,14 +158,12 @@ export default function PeerConnectingScreen() {
             let alive = false;
             while (Date.now() < deadline) {
               try {
-                // Use the actual API route as the readiness check — not just /health —
-                // because Render can respond to /health before authenticated routes are ready.
-                await client.get('/api/peer/request/active', { timeout: 10000 });
+                // Use unauthenticated /health so the axios interceptor never fires
+                // and no navigation side-effects occur during the probe.
+                await client.get('/health', { timeout: 8000 });
                 alive = true;
                 break;
-              } catch (probeErr) {
-                // A proper HTTP response (even 4xx/5xx) means the server is up and routing.
-                if (probeErr.response) { alive = true; break; }
+              } catch {
                 await new Promise(r => setTimeout(r, 5000));
               }
             }
@@ -174,6 +172,8 @@ export default function PeerConnectingScreen() {
               setErrorMsg('Server is taking too long to respond. Please try again.');
               return;
             }
+            // Give the server 2s after the health check before hitting authenticated routes.
+            await new Promise(r => setTimeout(r, 2000));
             setPhase('submitting');
             // loop continues — attempt 1
           } else {
