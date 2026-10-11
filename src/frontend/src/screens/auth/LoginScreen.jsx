@@ -60,11 +60,17 @@ export default function LoginScreen() {
         return;
       }
 
-      const { data: status } = await client.get('/api/onboarding/status');
-      if (!status.consent) navigate('/onboarding/consent', { replace: true });
-      else if (!status.persona) navigate('/onboarding/persona', { replace: true });
-      else if (!status.first_mood) navigate('/onboarding/first-mood', { replace: true });
-      else navigate('/welcome', { replace: true });
+      try {
+        const { data: status } = await client.get('/api/onboarding/status');
+        if (!status.consent) navigate('/onboarding/consent', { replace: true });
+        else if (!status.persona) navigate('/onboarding/persona', { replace: true });
+        else if (!status.first_mood) navigate('/onboarding/first-mood', { replace: true });
+        else navigate('/welcome', { replace: true });
+      } catch {
+        // Login succeeded — token is stored. Navigate to welcome even if onboarding
+        // status check fails due to a transient network error.
+        navigate('/welcome', { replace: true });
+      }
     } catch (err) {
       const code = err.response?.data?.code;
       const retryAfter = err.response?.data?.retry_after ?? 30;
