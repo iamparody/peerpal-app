@@ -2,8 +2,16 @@ const { query } = require('../db');
 const { enqueuePushNotification } = require('../utils/fcm');
 const { getReengagementCopy } = require('../config/reengagementCopy');
 
-// Nudge priority order — first qualifying nudge per user wins the daily slot.
-// Lower index = higher priority.
+// Schema facts (verified against migrations):
+// sessions:         user_id, status IN ('active','completed','abandoned'), ended_at
+// therapy_sessions: booking_id → therapist_bookings.member_user_id, ended_at (no status/member_id)
+// credits:          user_id, balance (separate table — not a column on users)
+// peer_requests:    user_id, status='cancelled' (added migration 100), session_id, updated_at
+// moods:            user_id, mood_level, created_at
+// journals:         user_id, created_at
+// ai_interactions:  user_id, created_at
+// safety_plans:     user_id
+
 const NUDGE_PRIORITY = [
   'low_mood_streak',
   'bad_mood_followup',
@@ -21,109 +29,79 @@ const NUDGE_PRIORITY = [
   'dormant_nudge',
 ];
 
-// Returns true if user already received a re-engagement push in the last 24h.
-async function hasRecentPush(userId) {
-  const { rows } = await query(
-    `SELECT last_reengagement_push_at FROM users WHERE id = $1`,
-    [userId]
-  );
-  if (!rows[0]?.last_reengagement_push_at) return false;
-  const age = Date.now() - new Date(rows[0].last_reengagement_push_at).getTime();
-  return age < 24 * 60 * 60 * 1000;
+function hadRecentPush(user) {
+  if (!user.last_reengagement_push_at) return false;
+  return (Date.now() - new Date(user.last_reengagement_push_at).getTime()) < 86400000;
 }
 
 async function markPushSent(userId) {
-  await query(
-    `UPDATE users SET last_reengagement_push_at = NOW() WHERE id = $1`,
-    [userId]
-  );
+  await query(`UPDATE users SET last_reengagement_push_at = NOW() WHERE id = $1`, [userId]);
 }
 
 async function sendNudge(user, type, notifType, vars = {}, route = '/mood') {
   const copy = getReengagementCopy(type, vars);
   if (!copy) return;
-
   await query(
-    `INSERT INTO notifications (user_id, type, payload, channel)
-     VALUES ($1, $2, $3, 'push')`,
+    `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, $2, $3, 'push')`,
     [user.id, notifType, JSON.stringify({ message: copy.body, route })]
   );
-
   if (user.fcm_token) {
-    await enqueuePushNotification(user.fcm_token, copy.title, copy.body, {
-      type: notifType,
-      route,
-    });
+    await enqueuePushNotification(user.fcm_token, copy.title, copy.body, { type: notifType, route });
   }
-
   await markPushSent(user.id);
 }
 
-// ─── Individual nudge evaluators ─────────────────────────────────────────────
+// ─── Evaluators ───────────────────────────────────────────────────────────────
 
-// 3 or more consecutive days of low/very_low mood
 async function checkLowMoodStreak(user) {
   const { rows } = await query(
     `SELECT DATE(created_at AT TIME ZONE 'Africa/Nairobi') AS day, mood_level
-     FROM moods
-     WHERE user_id = $1
-     ORDER BY created_at DESC
-     LIMIT 10`,
+     FROM moods WHERE user_id = $1
+     ORDER BY created_at DESC LIMIT 10`,
     [user.id]
   );
   let streak = 0;
   let lastDay = null;
   for (const row of rows) {
-    const day = row.day;
-    if (lastDay && (new Date(lastDay) - new Date(day)) / 86400000 > 1) break;
-    if (['low', 'very_low'].includes(row.mood_level)) { streak++; lastDay = day; }
+    if (lastDay && (new Date(lastDay) - new Date(row.day)) / 86400000 > 1) break;
+    if (['low', 'very_low'].includes(row.mood_level)) { streak++; lastDay = row.day; }
     else break;
   }
   return streak >= 3;
 }
 
-// Low/very_low mood logged 6–12h ago with no subsequent mood, peer, or AI session
 async function checkBadMoodFollowup(user) {
   const { rows } = await query(
-    `SELECT id, created_at FROM moods
+    `SELECT created_at FROM moods
      WHERE user_id = $1
        AND mood_level IN ('low', 'very_low')
        AND created_at BETWEEN NOW() - INTERVAL '12 hours' AND NOW() - INTERVAL '6 hours'
-     ORDER BY created_at DESC
-     LIMIT 1`,
+     ORDER BY created_at DESC LIMIT 1`,
     [user.id]
   );
   if (!rows.length) return false;
-
   const moodAt = rows[0].created_at;
 
-  // Skip if another mood was logged since
-  const { rows: laterMoods } = await query(
+  const { rows: laterMood } = await query(
     `SELECT 1 FROM moods WHERE user_id = $1 AND created_at > $2 LIMIT 1`,
     [user.id, moodAt]
   );
-  if (laterMoods.length) return false;
+  if (laterMood.length) return false;
 
-  // Skip if a peer or AI session started since
-  const { rows: laterSessions } = await query(
-    `SELECT 1 FROM sessions
-     WHERE (user_a_id = $1 OR user_b_id = $1)
-       AND created_at > $2
-     LIMIT 1`,
+  // sessions.user_id is the requester; check if any session started after the mood
+  const { rows: laterSession } = await query(
+    `SELECT 1 FROM sessions WHERE user_id = $1 AND started_at > $2 LIMIT 1`,
     [user.id, moodAt]
   );
-  if (laterSessions.length) return false;
+  if (laterSession.length) return false;
 
   const { rows: laterAI } = await query(
     `SELECT 1 FROM ai_interactions WHERE user_id = $1 AND created_at > $2 LIMIT 1`,
     [user.id, moodAt]
   );
-  if (laterAI.length) return false;
-
-  return true;
+  return !laterAI.length;
 }
 
-// Peer request went unmatched in last 24h
 async function checkUnmatchedRequest(user) {
   const { rows } = await query(
     `SELECT 1 FROM peer_requests
@@ -137,17 +115,16 @@ async function checkUnmatchedRequest(user) {
   return rows.length > 0;
 }
 
-// Peer session ended 20–28h ago (so 24h nudge fires in a reasonable window)
 async function checkPeerSessionFollowup(user) {
+  // sessions.user_id is the session participant (requester side)
   const { rows } = await query(
-    `SELECT 1 FROM sessions s
-     WHERE (s.user_a_id = $1 OR s.user_b_id = $1)
-       AND s.status = 'ended'
-       AND s.ended_at BETWEEN NOW() - INTERVAL '28 hours' AND NOW() - INTERVAL '20 hours'
+    `SELECT 1 FROM sessions
+     WHERE user_id = $1
+       AND status = 'completed'
+       AND ended_at BETWEEN NOW() - INTERVAL '28 hours' AND NOW() - INTERVAL '20 hours'
      LIMIT 1`,
     [user.id]
   );
-  // Also make sure we haven't already sent a followup for this session today
   if (!rows.length) return false;
   const { rows: already } = await query(
     `SELECT 1 FROM notifications
@@ -160,12 +137,13 @@ async function checkPeerSessionFollowup(user) {
   return !already.length;
 }
 
-// Therapy session ended 44–52h ago
 async function checkTherapySessionFollowup(user) {
+  // therapy_sessions has no status/member_id — join via therapist_bookings
   const { rows } = await query(
     `SELECT 1 FROM therapy_sessions ts
-     WHERE ts.member_id = $1
-       AND ts.status = 'completed'
+     JOIN therapist_bookings tb ON tb.id = ts.booking_id
+     WHERE tb.member_user_id = $1
+       AND tb.status = 'completed'
        AND ts.ended_at BETWEEN NOW() - INTERVAL '52 hours' AND NOW() - INTERVAL '44 hours'
      LIMIT 1`,
     [user.id]
@@ -182,28 +160,18 @@ async function checkTherapySessionFollowup(user) {
   return !already.length;
 }
 
-// Has streak but no check-in yet today (EAT)
 async function checkStreakAtRisk(user) {
   if (!user.streak_count || user.streak_count < 1) return false;
-  const todayStart = new Date();
-  todayStart.setUTCHours(todayStart.getUTCHours() - 3); // rough EAT offset
-  todayStart.setUTCHours(Math.floor(todayStart.getUTCHours() / 24) * 24, 0, 0, 0);
   const { rows } = await query(
-    `SELECT 1 FROM moods WHERE user_id = $1 AND created_at >= $2 LIMIT 1`,
-    [user.id, new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1))]
-  );
-  // Simpler: just check if last mood was today
-  const { rows: todayMood } = await query(
     `SELECT 1 FROM moods
      WHERE user_id = $1
        AND created_at >= (NOW() AT TIME ZONE 'Africa/Nairobi')::date
      LIMIT 1`,
     [user.id]
   );
-  return !todayMood.length;
+  return !rows.length;
 }
 
-// Streak was > 0 yesterday but is now 0 (broken)
 async function checkStreakBroken(user) {
   if (user.streak_count !== 0) return false;
   const { rows } = await query(
@@ -217,11 +185,22 @@ async function checkStreakBroken(user) {
   return rows.length > 0;
 }
 
-// Credit balance
-function checkCreditZero(user) { return user.credit_balance === 0; }
-function checkCreditLow(user) { return user.credit_balance === 1; }
+async function checkCreditZero(userId) {
+  const { rows } = await query(
+    `SELECT balance FROM credits WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  return rows.length > 0 && parseInt(rows[0].balance) === 0;
+}
 
-// No journal entry in 7 days
+async function checkCreditLow(userId) {
+  const { rows } = await query(
+    `SELECT balance FROM credits WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  return rows.length > 0 && parseInt(rows[0].balance) === 1;
+}
+
 async function checkJournalDormant(user) {
   const { rows } = await query(
     `SELECT 1 FROM journals WHERE user_id = $1 AND created_at > NOW() - INTERVAL '7 days' LIMIT 1`,
@@ -230,7 +209,6 @@ async function checkJournalDormant(user) {
   return !rows.length;
 }
 
-// No AI interaction in 14 days
 async function checkAIDormant(user) {
   const { rows } = await query(
     `SELECT 1 FROM ai_interactions WHERE user_id = $1 AND created_at > NOW() - INTERVAL '14 days' LIMIT 1`,
@@ -239,7 +217,6 @@ async function checkAIDormant(user) {
   return !rows.length;
 }
 
-// No safety plan after 14+ days on platform
 async function checkNoSafetyPlan(user) {
   const accountAge = (Date.now() - new Date(user.created_at).getTime()) / 86400000;
   if (accountAge < 14) return false;
@@ -250,17 +227,16 @@ async function checkNoSafetyPlan(user) {
   return !rows.length;
 }
 
-// 3+ peer sessions, never booked therapy — fires at most once (check notifications table)
 async function checkTherapistUpsell(user) {
-  const { rows: sessions } = await query(
+  const { rows: peerSessions } = await query(
     `SELECT COUNT(*) AS cnt FROM sessions
-     WHERE (user_a_id = $1 OR user_b_id = $1) AND status = 'ended'`,
+     WHERE user_id = $1 AND status = 'completed'`,
     [user.id]
   );
-  if (parseInt(sessions[0].cnt) < 3) return false;
+  if (parseInt(peerSessions[0].cnt) < 3) return false;
 
   const { rows: booked } = await query(
-    `SELECT 1 FROM therapy_sessions WHERE member_id = $1 LIMIT 1`,
+    `SELECT 1 FROM therapist_bookings WHERE member_user_id = $1 LIMIT 1`,
     [user.id]
   );
   if (booked.length) return false;
@@ -272,19 +248,16 @@ async function checkTherapistUpsell(user) {
   return !already.length;
 }
 
-// Dormant — no check-in in 3+ days
 function checkDormant(user) {
   if (!user.last_mood_at) return true;
-  const age = (Date.now() - new Date(user.last_mood_at).getTime()) / 86400000;
-  return age >= 3;
+  return (Date.now() - new Date(user.last_mood_at).getTime()) / 86400000 >= 3;
 }
 
 // ─── Main runner ──────────────────────────────────────────────────────────────
 
 async function runReengagementJob() {
-  // Fetch active members with FCM token and key fields
   const { rows: users } = await query(
-    `SELECT u.id, u.fcm_token, u.streak_count, u.credit_balance, u.created_at,
+    `SELECT u.id, u.fcm_token, u.streak_count, u.created_at,
             u.last_reengagement_push_at,
             MAX(m.created_at) AS last_mood_at
      FROM users u
@@ -299,9 +272,8 @@ async function runReengagementJob() {
 
   for (const user of users) {
     try {
-      if (await hasRecentPush(user.id)) continue;
+      if (hadRecentPush(user)) continue;
 
-      // Evaluate each nudge type in priority order
       let fired = false;
 
       for (const nudge of NUDGE_PRIORITY) {
@@ -345,7 +317,7 @@ async function runReengagementJob() {
 
           case 'streak_reminder':
             if (await checkStreakAtRisk(user)) {
-              await sendNudge(user, 'streak_reminder', 'streak_reminder', { n: user.streak_count }, '/mood');
+              await sendNudge(user, 'streak_reminder', 'streak_reminder', { n: user.streak_count || 0 }, '/mood');
               fired = true;
             }
             break;
@@ -358,14 +330,14 @@ async function runReengagementJob() {
             break;
 
           case 'credit_zero':
-            if (checkCreditZero(user)) {
+            if (await checkCreditZero(user.id)) {
               await sendNudge(user, 'credit_zero', 'credit_zero', {}, '/credits');
               fired = true;
             }
             break;
 
           case 'credit_low':
-            if (checkCreditLow(user)) {
+            if (await checkCreditLow(user.id)) {
               await sendNudge(user, 'credit_low', 'credit_low', {}, '/credits');
               fired = true;
             }

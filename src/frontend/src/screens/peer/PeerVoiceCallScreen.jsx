@@ -327,6 +327,7 @@ export default function PeerVoiceCallScreen() {
         };
 
         ws.onclose = (ev) => {
+          clearInterval(ws._pingInterval);
           if (callWasActiveRef.current) return; // normal close after active call
           if (ev.code !== 1000 && ev.code !== 1005) {
             clearTimeout(connectTimeoutRef.current);

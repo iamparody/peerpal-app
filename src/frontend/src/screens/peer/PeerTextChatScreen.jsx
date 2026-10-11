@@ -294,6 +294,7 @@ export default function PeerTextChatScreen() {
           }
         };
         ws.onclose = (ev) => {
+          clearInterval(ws._pingInterval);
           setConnected(false);
           // Don't reconnect on intentional close (code 1000/1005) or after session ended
           if (ev.code === 1000 || ev.code === 1005) return;
