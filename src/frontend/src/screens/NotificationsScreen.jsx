@@ -2,16 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Trophy, Handshake, CheckCircle, BookOpen, Stethoscope, Clipboard,
-  ChatText, Warning, Bell, BellSlash, Info,
+  ChatText, Warning, Bell, BellSlash, Info, Flame, Heart, Robot,
+  CurrencyDollar, Shield, ArrowRight,
 } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 
 const LANES = [
-  { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'peer_matching_update', 'session_confirmation', 'journal_prompt'] },
-  { key: 'therapy',  label: 'Therapy',   types: ['therapist_update', 'therapist_nudge', 'therapy_booking_confirmed', 'therapy_session_reminder', 'therapy_dispute_update', 'referral_status', 'admin_message'] },
-  { key: 'payments', label: 'Payments',  types: ['credit_low', 'payment_confirmed'] },
-  { key: 'system',   label: 'System',    types: ['account_notice', 'generic'] },
+  { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'peer_matching_update', 'session_confirmation', 'journal_prompt', 'streak_reminder', 'streak_broken', 'dormant_nudge', 'bad_mood_followup', 'session_followup_peer', 'session_followup_therapy', 'unmatched_request', 'low_mood_streak'] },
+  { key: 'therapy',  label: 'Therapy',   types: ['therapist_update', 'therapist_nudge', 'therapist_upsell', 'therapy_booking_confirmed', 'therapy_session_reminder', 'therapy_dispute_update', 'referral_status', 'admin_message'] },
+  { key: 'payments', label: 'Payments',  types: ['credit_low', 'credit_zero', 'payment_confirmed'] },
+  { key: 'system',   label: 'System',    types: ['ai_dormant', 'no_safety_plan', 'account_notice', 'generic'] },
 ];
 
 const TYPE_META = {
@@ -31,6 +32,18 @@ const TYPE_META = {
   credit_low:                 { Icon: Warning,      label: 'Low balance',            route: '/credits' },
   payment_confirmed:          { Icon: CheckCircle,  label: 'Payment confirmed',      route: '/credits' },
   account_notice:             { Icon: Info,         label: 'Account notice',         route: '/profile' },
+  streak_reminder:            { Icon: Flame,        label: 'Streak reminder',        route: '/mood' },
+  streak_broken:              { Icon: Flame,        label: 'Streak reset',           route: '/mood' },
+  dormant_nudge:              { Icon: Heart,        label: 'Check in',               route: '/mood' },
+  bad_mood_followup:          { Icon: Heart,        label: 'How are you feeling?',   route: '/mood' },
+  session_followup_peer:      { Icon: Handshake,    label: 'After your session',     route: '/mood' },
+  session_followup_therapy:   { Icon: Stethoscope,  label: 'After your session',     route: '/journal' },
+  unmatched_request:          { Icon: Handshake,    label: 'No peer found',          route: '/peer' },
+  low_mood_streak:            { Icon: Heart,        label: 'A few hard days',        route: '/peer' },
+  ai_dormant:                 { Icon: Robot,        label: 'Your companion',         route: '/ai' },
+  credit_zero:                { Icon: CurrencyDollar, label: 'Out of credits',       route: '/credits' },
+  no_safety_plan:             { Icon: Shield,       label: 'Safety plan',            route: '/safety-plan' },
+  therapist_upsell:           { Icon: ArrowRight,   label: 'Ready to go deeper?',   route: '/therapy/browse' },
   generic:                    { Icon: Bell,         label: 'Notification',           route: null },
 };
 

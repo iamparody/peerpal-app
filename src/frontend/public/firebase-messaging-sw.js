@@ -52,10 +52,24 @@ self.addEventListener('notificationclick', (event) => {
   // "Skip" action on a peer request — dismiss, do nothing
   if (action === 'skip') return;
 
-  let path = '/';
-  if (d.type === 'peer_request_broadcast') path = '/peer';
+  let path = d.route || '/';
+  if (d.type === 'peer_request_broadcast')                               path = '/peer';
   else if (d.type === 'peer_matching_update' && d.cta === 'calm_space') path = '/calm-space';
-  else if (d.type === 'peer_left') path = '/peer';
+  else if (d.type === 'peer_left')                                       path = '/peer';
+  else if (d.type === 'streak_reminder')                                 path = '/mood';
+  else if (d.type === 'streak_broken')                                   path = '/mood';
+  else if (d.type === 'dormant_nudge')                                   path = '/mood';
+  else if (d.type === 'bad_mood_followup')                               path = '/mood';
+  else if (d.type === 'session_followup_peer')                           path = '/mood';
+  else if (d.type === 'session_followup_therapy')                        path = '/journal';
+  else if (d.type === 'unmatched_request')                               path = '/peer';
+  else if (d.type === 'ai_dormant')                                      path = '/ai';
+  else if (d.type === 'credit_low')                                      path = '/credits';
+  else if (d.type === 'credit_zero')                                     path = '/credits';
+  else if (d.type === 'no_safety_plan')                                  path = '/safety-plan';
+  else if (d.type === 'low_mood_streak')                                 path = '/peer';
+  else if (d.type === 'therapist_upsell')                                path = '/therapy/browse';
+  else if (d.type === 'journal_prompt')                                  path = '/journal';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

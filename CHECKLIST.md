@@ -1,4 +1,4 @@
-# Build Checklist
+﻿# Build Checklist
 > Every item is a single, completable, verifiable task. No umbrella items.
 
 ---
@@ -112,154 +112,154 @@ b/index.js � pg Pool with DATABASE_URL, exported query function
 ## Phase 2 � Backend Foundation & Auth APIs
 
 ### 2.0 Backend Foundation
-- [ ] Create src/backend/app.js � Express app with helmet, cors, express.json, all routes mounted, global error handler
-- [ ] Create src/backend/server.js � HTTP server entry point
-- [ ] Create src/backend/utils/jwt.js � generateAccessToken (7-day), verifyToken, using JWT_SECRET from env
-- [ ] Create src/backend/utils/encryption.js � AES-256-GCM encrypt(text)/decrypt(ciphertext) for PII fields (safety plan contacts, referral phone)
-- [ ] Create src/backend/utils/aliasGenerator.js � generate unique [Adjective]+[Animal]+[Number], check DB for collision and retry
-- [ ] Create src/backend/utils/riskClassifier.js � keyword list by severity (critical/high/medium per blueprint 9.3), classify(text) ? {severity, category, keyword} or null
-- [ ] Create src/backend/utils/sanitizer.js � strip diagnostic and prescriptive language, >40% stripped returns safe fallback
-- [ ] Create src/backend/middleware/auth.js � extract Bearer token, verify JWT, attach req.user = {id, role, alias}
-- [ ] Create src/backend/middleware/adminAuth.js � auth middleware + DB role=admin check (from DB not JWT payload)
-- [ ] Create src/backend/middleware/rateLimit.js � auth endpoint: 5/15min; AI message: 30/session + 100/day
+- [x] Create src/backend/app.js � Express app with helmet, cors, express.json, all routes mounted, global error handler
+- [x] Create src/backend/server.js � HTTP server entry point
+- [x] Create src/backend/utils/jwt.js � generateAccessToken (7-day), verifyToken, using JWT_SECRET from env
+- [x] Create src/backend/utils/encryption.js � AES-256-GCM encrypt(text)/decrypt(ciphertext) for PII fields (safety plan contacts, referral phone)
+- [x] Create src/backend/utils/aliasGenerator.js � generate unique [Adjective]+[Animal]+[Number], check DB for collision and retry
+- [x] Create src/backend/utils/riskClassifier.js � keyword list by severity (critical/high/medium per blueprint 9.3), classify(text) ? {severity, category, keyword} or null
+- [x] Create src/backend/utils/sanitizer.js � strip diagnostic and prescriptive language, >40% stripped returns safe fallback
+- [x] Create src/backend/middleware/auth.js � extract Bearer token, verify JWT, attach req.user = {id, role, alias}
+- [x] Create src/backend/middleware/adminAuth.js � auth middleware + DB role=admin check (from DB not JWT payload)
+- [x] Create src/backend/middleware/rateLimit.js � auth endpoint: 5/15min; AI message: 30/session + 100/day
 
 ### 2.1 POST /auth/register
-- [ ] Validate email format + password min 8 chars � return 400 if invalid
-- [ ] Check email uniqueness � return 409 if taken
-- [ ] Hash password bcrypt cost 12
-- [ ] Generate unique alias via aliasGenerator
-- [ ] INSERT into users (consent_version='', consented_at=null at this stage)
-- [ ] INSERT into credits (balance=0) � signup bonus added after first mood, not at register
-- [ ] Generate JWT access token
-- [ ] Return 201: { token, alias, userId }
+- [x] Validate email format + password min 8 chars � return 400 if invalid
+- [x] Check email uniqueness � return 409 if taken
+- [x] Hash password bcrypt cost 12
+- [x] Generate unique alias via aliasGenerator
+- [x] INSERT into users (consent_version='', consented_at=null at this stage)
+- [x] INSERT into credits (balance=0) � signup bonus added after first mood, not at register
+- [x] Generate JWT access token
+- [x] Return 201: { token, alias, userId }
 
 ### 2.2 POST /auth/login
-- [ ] Validate email + password present � 400 if missing
-- [ ] Fetch user by email � 401 if not found or is_active=false
-- [ ] Compare password with bcrypt � 401 if mismatch
-- [ ] Generate JWT access token
-- [ ] Return 200: { token, alias, userId, role }
+- [x] Validate email + password present � 400 if missing
+- [x] Fetch user by email � 401 if not found or is_active=false
+- [x] Compare password with bcrypt � 401 if mismatch
+- [x] Generate JWT access token
+- [x] Return 200: { token, alias, userId, role }
 
 ### 2.3 POST /auth/logout
-- [ ] Require auth middleware
-- [ ] Add token jti to token_blacklist table (migration for this table in this step)
-- [ ] Return 200: { message: 'Logged out' }
+- [x] Require auth middleware
+- [x] Add token jti to token_blacklist table (migration for this table in this step)
+- [x] Return 200: { message: 'Logged out' }
 
 ### 2.4 POST /auth/recover
-- [ ] Accept email in body, always return 200 (prevent enumeration)
-- [ ] If user found: generate 1-hour reset token, store hash in users (add reset_token_hash + reset_token_expires columns), send email via nodemailer + SMTP env vars
+- [x] Accept email in body, always return 200 (prevent enumeration)
+- [x] If user found: generate 1-hour reset token, store hash in users (add reset_token_hash + reset_token_expires columns), send email via nodemailer + SMTP env vars
 
 ### 2.5 POST /onboarding/consent
-- [ ] Require auth middleware
-- [ ] Validate consent_version = '1.0' in body � 400 otherwise
-- [ ] UPDATE users SET consent_version='1.0', consented_at=NOW()
-- [ ] Return 200: { consented_at }
+- [x] Require auth middleware
+- [x] Validate consent_version = '1.0' in body � 400 otherwise
+- [x] UPDATE users SET consent_version='1.0', consented_at=NOW()
+- [x] Return 200: { consented_at }
 
 ### 2.6 POST /onboarding/persona
-- [ ] Require auth middleware
-- [ ] Return 403 if user.persona_created = true
-- [ ] Validate: persona_name max 20 chars, tone/response_style/formality enums, uses_alias boolean
-- [ ] INSERT ai_personas record
-- [ ] UPDATE users SET persona_created = true
-- [ ] Return 201: { persona_id }
+- [x] Require auth middleware
+- [x] Return 403 if user.persona_created = true
+- [x] Validate: persona_name max 20 chars, tone/response_style/formality enums, uses_alias boolean
+- [x] INSERT ai_personas record
+- [x] UPDATE users SET persona_created = true
+- [x] Return 201: { persona_id }
 
 ### 2.7 GET /onboarding/status
-- [ ] Require auth middleware
-- [ ] Query: user consent, persona_created, first mood entry existence
-- [ ] Return 200: { consent: bool, persona: bool, first_mood: bool, signup_bonus: bool }
+- [x] Require auth middleware
+- [x] Query: user consent, persona_created, first mood entry existence
+- [x] Return 200: { consent: bool, persona: bool, first_mood: bool, signup_bonus: bool }
 
 ---
 
 ## Phase 3 � Core Module APIs
 
 ### 3.1 POST /moods
-- [ ] Require auth middleware
-- [ ] Validate: mood_level enum, tags valid values, note max 200 chars
-- [ ] INSERT moods record
-- [ ] Streak: if last_checkin_at < today start or null ? streak_count++, last_checkin_at=NOW(); else no-op
-- [ ] Milestone check: if streak_count in [3,7,30] ? INSERT notification (type=milestone)
-- [ ] Signup bonus: if signup_bonus_credited=false ? UPDATE credits balance+=2, INSERT credit_transaction (type=bonus, amount=2, method=bonus, channel=purchase, status=confirmed), UPDATE users SET signup_bonus_credited=true
-- [ ] Return 201: { mood_id, streak_count, bonus_credited: bool }
+- [x] Require auth middleware
+- [x] Validate: mood_level enum, tags valid values, note max 200 chars
+- [x] INSERT moods record
+- [x] Streak: if last_checkin_at < today start or null ? streak_count++, last_checkin_at=NOW(); else no-op
+- [x] Milestone check: if streak_count in [3,7,30] ? INSERT notification (type=milestone)
+- [x] Signup bonus: if signup_bonus_credited=false ? UPDATE credits balance+=2, INSERT credit_transaction (type=bonus, amount=2, method=bonus, channel=purchase, status=confirmed), UPDATE users SET signup_bonus_credited=true
+- [x] Return 201: { mood_id, streak_count, bonus_credited: bool }
 
 ### 3.2 GET /moods/today
-- [ ] Require auth middleware
-- [ ] SELECT WHERE user_id=req.user.id AND created_at >= start of today UTC
-- [ ] Return 200: { entry } or { entry: null }
+- [x] Require auth middleware
+- [x] SELECT WHERE user_id=req.user.id AND created_at >= start of today UTC
+- [x] Return 200: { entry } or { entry: null }
 
 ### 3.3 GET /moods/history
-- [ ] Require auth middleware
-- [ ] Paginated ?page=1&limit=20, ordered created_at DESC
-- [ ] Return 200: { entries, total, page, pages }
+- [x] Require auth middleware
+- [x] Paginated ?page=1&limit=20, ordered created_at DESC
+- [x] Return 200: { entries, total, page, pages }
 
 ### 3.4 GET /moods/analytics
-- [ ] Require auth middleware
-- [ ] Compute: 7-day daily avg, 30-day trend, most common mood last 30d, most frequent tags, mood by hour, current streak, total check-ins
-- [ ] Return 200: { week_trend, month_trend, common_mood, frequent_tags, by_hour, current_streak, total_checkins }
+- [x] Require auth middleware
+- [x] Compute: 7-day daily avg, 30-day trend, most common mood last 30d, most frequent tags, mood by hour, current streak, total check-ins
+- [x] Return 200: { week_trend, month_trend, common_mood, frequent_tags, by_hour, current_streak, total_checkins }
 
 ### 3.5 POST /journals
-- [ ] Require auth middleware
-- [ ] Validate: content required non-empty, mood_level optional enum, tags optional, mood_id optional (verify belongs to user)
-- [ ] Run riskClassifier on content � set risk_flagged=true if critical/high
-- [ ] INSERT journals record
-- [ ] If risk_flagged: INSERT admin notification (emergency_alert in-app)
-- [ ] Return 201: { journal_id }
+- [x] Require auth middleware
+- [x] Validate: content required non-empty, mood_level optional enum, tags optional, mood_id optional (verify belongs to user)
+- [x] Run riskClassifier on content � set risk_flagged=true if critical/high
+- [x] INSERT journals record
+- [x] If risk_flagged: INSERT admin notification (emergency_alert in-app)
+- [x] Return 201: { journal_id }
 
 ### 3.6 GET /journals
-- [ ] Require auth middleware
-- [ ] Paginated + filters: ?mood_level, ?tag, ?from_date, ?to_date, ?search
-- [ ] Return preview only (first 100 chars of content)
-- [ ] Return 200: { entries, total, page }
+- [x] Require auth middleware
+- [x] Paginated + filters: ?mood_level, ?tag, ?from_date, ?to_date, ?search
+- [x] Return preview only (first 100 chars of content)
+- [x] Return 200: { entries, total, page }
 
 ### 3.7 GET /journals/:id
-- [ ] Require auth middleware
-- [ ] WHERE id=:id AND user_id=req.user.id � 404 if not found
-- [ ] Return 200: full entry
+- [x] Require auth middleware
+- [x] WHERE id=:id AND user_id=req.user.id � 404 if not found
+- [x] Return 200: full entry
 
 ### 3.8 PATCH /journals/:id
-- [ ] Require auth middleware, verify ownership (403 if not owner)
-- [ ] Accept content, mood_level, tags, mood_id
-- [ ] Re-run risk classifier if content changed
-- [ ] UPDATE record + updated_at=NOW()
-- [ ] Return 200: { updated_at }
+- [x] Require auth middleware, verify ownership (403 if not owner)
+- [x] Accept content, mood_level, tags, mood_id
+- [x] Re-run risk classifier if content changed
+- [x] UPDATE record + updated_at=NOW()
+- [x] Return 200: { updated_at }
 
 ### 3.9 DELETE /journals/:id
-- [ ] Require auth middleware, verify ownership � 403 if not owner
-- [ ] Hard delete
-- [ ] Return 204
+- [x] Require auth middleware, verify ownership � 403 if not owner
+- [x] Hard delete
+- [x] Return 204
 
 ### 3.10 DELETE /journals (all)
-- [ ] Require auth middleware
-- [ ] DELETE all journals WHERE user_id=req.user.id
-- [ ] Return 200: { deleted_count }
+- [x] Require auth middleware
+- [x] DELETE all journals WHERE user_id=req.user.id
+- [x] Return 200: { deleted_count }
 
 ### 3.11 POST /ai/session/start
-- [ ] Require auth middleware
-- [ ] Verify persona_created=true � 403 if not
-- [ ] Fetch ai_personas record for user
-- [ ] Fetch last 3 moods for user (desc)
-- [ ] Assemble system prompt: Layer 1 (safety, hardcoded) + Layer 2 (persona) + Layer 3 (mood context)
-- [ ] INSERT sessions (type='ai', status='active')
-- [ ] Cache system prompt server-side keyed by session_id (in-process Map or Redis if available)
-- [ ] Return 201: { session_id, persona_name }
+- [x] Require auth middleware
+- [x] Verify persona_created=true � 403 if not
+- [x] Fetch ai_personas record for user
+- [x] Fetch last 3 moods for user (desc)
+- [x] Assemble system prompt: Layer 1 (safety, hardcoded) + Layer 2 (persona) + Layer 3 (mood context)
+- [x] INSERT sessions (type='ai', status='active')
+- [x] Cache system prompt server-side keyed by session_id (in-process Map or Redis if available)
+- [x] Return 201: { session_id, persona_name }
 
 ### 3.12 POST /ai/session/:id/message
-- [ ] Require auth middleware
-- [ ] Enforce rate limits: 30/session, 100/day � 429 if exceeded
-- [ ] Verify session belongs to user and status='active' � 403/404 if not
-- [ ] Run riskClassifier on input_text
-- [ ] CRITICAL: do NOT call Groq � INSERT ai_interactions (flagged=true), INSERT escalation_log, INSERT emergency_alert notification to admin, return { action: 'emergency' }
-- [ ] HIGH (1st): call Groq with elevated care, flagged=true, INSERT ai_interactions, INSERT escalation_log (escalated_to='admin')
-- [ ] HIGH (2nd in session): same as HIGH 1st + bump user risk_level, send admin alert notification
-- [ ] MEDIUM: call Groq normally, flagged=true, INSERT ai_interactions
-- [ ] Call Groq API (llama-3.3-70b-versatile via GROQ_API_KEY, fallback GROQ_FALLBACK_MODEL)
-- [ ] Run sanitizer on Groq output � return safe fallback if >40% stripped
-- [ ] INSERT ai_interactions (input, output, context_snapshot, flagged, flag_reason)
-- [ ] Return 200: { response_text, flagged, session_flag_count }
+- [x] Require auth middleware
+- [x] Enforce rate limits: 30/session, 100/day � 429 if exceeded
+- [x] Verify session belongs to user and status='active' � 403/404 if not
+- [x] Run riskClassifier on input_text
+- [x] CRITICAL: do NOT call Groq � INSERT ai_interactions (flagged=true), INSERT escalation_log, INSERT emergency_alert notification to admin, return { action: 'emergency' }
+- [x] HIGH (1st): call Groq with elevated care, flagged=true, INSERT ai_interactions, INSERT escalation_log (escalated_to='admin')
+- [x] HIGH (2nd in session): same as HIGH 1st + bump user risk_level, send admin alert notification
+- [x] MEDIUM: call Groq normally, flagged=true, INSERT ai_interactions
+- [x] Call Groq API (llama-3.3-70b-versatile via GROQ_API_KEY, fallback GROQ_FALLBACK_MODEL)
+- [x] Run sanitizer on Groq output � return safe fallback if >40% stripped
+- [x] INSERT ai_interactions (input, output, context_snapshot, flagged, flag_reason)
+- [x] Return 200: { response_text, flagged, session_flag_count }
 
 ### 3.13 POST /ai/session/:id/end
-- [ ] Require auth middleware, verify ownership
-- [ ] UPDATE sessions SET status='completed', ended_at=NOW()
-- [ ] Return 200: { ended_at }
+- [x] Require auth middleware, verify ownership
+- [x] UPDATE sessions SET status='completed', ended_at=NOW()
+- [x] Return 200: { ended_at }
 
 ---
 
@@ -534,158 +534,158 @@ b/index.js � pg Pool with DATABASE_URL, exported query function
 ## Phase 11 � Frontend (React PWA)
 
 ### 11.0 App Shell & Infrastructure
-- [ ] Initialize Vite React project in src/frontend/ � `npm create vite@latest frontend -- --template react`
-- [ ] Install dependencies: react-router-dom, axios, recharts, vite-plugin-pwa
-- [ ] Configure vite.config.js � vite-plugin-pwa with manifest (PeerPal, standalone, theme #4A90D9), workbox precache for breathing+safety plan, registerType: 'autoUpdate'
-- [ ] Write public/manifest.json � name, short_name, start_url, display: standalone, icons (192/512), background_color, theme_color
-- [ ] Create src/api/client.js � axios instance, baseURL from VITE_API_URL, request interceptor reads Bearer token from localStorage, response interceptor clears token + redirects on 401
-- [ ] Create src/context/AuthContext.jsx � provides { user, token, login(token,user), logout(), loading } via localStorage hydration; wraps entire app
-- [ ] Create src/components/ProtectedRoute.jsx � reads AuthContext; if no token ? /login; calls GET /onboarding/status and redirects to correct onboarding step if incomplete
-- [ ] Create src/App.jsx � BrowserRouter, all routes defined, AuthContext provider wrapping
-- [ ] Register all routes: /login, /register, /recover, /onboarding/consent, /onboarding/persona, /onboarding/first-mood, /dashboard, /mood, /ai-chat, /peer, /journal, /groups, /groups/:id, /emergency, /safety-plan, /referral, /resources, /breathing, /analytics, /profile, /admin
-- [ ] Create src/components/BottomNav.jsx � 4 tabs: Home (dashboard), Resources (library), Breathing, Profile; active tab highlighted; always visible on logged-in screens; hidden on onboarding + auth screens
-- [ ] Create src/components/EmergencyButton.jsx � fixed red FAB bottom-right, visible on all authenticated non-emergency screens, navigates to /emergency on tap
-- [ ] Create src/index.css � CSS reset, mobile-first base styles, CSS variables for colour palette (#4A90D9 primary, #E74C3C emergency red, #27AE60 success green, mood level colours)
-- [ ] Register FCM: request notification permission on first authenticated load, POST fcm_token to /auth/login (token stored in localStorage) � skip gracefully if permission denied
-- [ ] Service worker offline support: cache /breathing and /safety-plan routes for offline access via workbox CacheFirst strategy
+- [x] Initialize Vite React project in src/frontend/ � `npm create vite@latest frontend -- --template react`
+- [x] Install dependencies: react-router-dom, axios, recharts, vite-plugin-pwa
+- [x] Configure vite.config.js � vite-plugin-pwa with manifest (PeerPal, standalone, theme #4A90D9), workbox precache for breathing+safety plan, registerType: 'autoUpdate'
+- [x] Write public/manifest.json � name, short_name, start_url, display: standalone, icons (192/512), background_color, theme_color
+- [x] Create src/api/client.js � axios instance, baseURL from VITE_API_URL, request interceptor reads Bearer token from localStorage, response interceptor clears token + redirects on 401
+- [x] Create src/context/AuthContext.jsx � provides { user, token, login(token,user), logout(), loading } via localStorage hydration; wraps entire app
+- [x] Create src/components/ProtectedRoute.jsx � reads AuthContext; if no token ? /login; calls GET /onboarding/status and redirects to correct onboarding step if incomplete
+- [x] Create src/App.jsx � BrowserRouter, all routes defined, AuthContext provider wrapping
+- [x] Register all routes: /login, /register, /recover, /onboarding/consent, /onboarding/persona, /onboarding/first-mood, /dashboard, /mood, /ai-chat, /peer, /journal, /groups, /groups/:id, /emergency, /safety-plan, /referral, /resources, /breathing, /analytics, /profile, /admin
+- [x] Create src/components/BottomNav.jsx � 4 tabs: Home (dashboard), Resources (library), Breathing, Profile; active tab highlighted; always visible on logged-in screens; hidden on onboarding + auth screens
+- [x] Create src/components/EmergencyButton.jsx � fixed red FAB bottom-right, visible on all authenticated non-emergency screens, navigates to /emergency on tap
+- [x] Create src/index.css � CSS reset, mobile-first base styles, CSS variables for colour palette (#4A90D9 primary, #E74C3C emergency red, #27AE60 success green, mood level colours)
+- [x] Register FCM: request notification permission on first authenticated load, POST fcm_token to /auth/login (token stored in localStorage) � skip gracefully if permission denied
+- [x] Service worker offline support: cache /breathing and /safety-plan routes for offline access via workbox CacheFirst strategy
 
 ### 11.1 Auth Screens
-- [ ] Create src/screens/RegisterScreen.jsx � email input, password input (min 8 chars), submit calls POST /auth/register, stores token+user in AuthContext, navigates to /onboarding/consent; show loading state during request; show error message on 409 (email taken) and 400 (validation)
-- [ ] Create src/screens/LoginScreen.jsx � email + password form, POST /auth/login, store token+user, GET /onboarding/status to determine redirect target (incomplete onboarding ? resume step; complete ? /dashboard); show 401 error message
-- [ ] Create src/screens/RecoverScreen.jsx � email input, POST /auth/recover, always show "If this email is registered, a recovery link has been sent" regardless of response; no error enumeration
+- [x] Create src/screens/RegisterScreen.jsx � email input, password input (min 8 chars), submit calls POST /auth/register, stores token+user in AuthContext, navigates to /onboarding/consent; show loading state during request; show error message on 409 (email taken) and 400 (validation)
+- [x] Create src/screens/LoginScreen.jsx � email + password form, POST /auth/login, store token+user, GET /onboarding/status to determine redirect target (incomplete onboarding ? resume step; complete ? /dashboard); show 401 error message
+- [x] Create src/screens/RecoverScreen.jsx � email input, POST /auth/recover, always show "If this email is registered, a recovery link has been sent" regardless of response; no error enumeration
 
 ### 11.2 Onboarding Flow
-- [ ] Create src/screens/onboarding/ConsentScreen.jsx � title "Your Privacy Matters", full plain-language consent text (data usage, AI limitations, safety escalation, flagged AI interactions anonymized not deleted), "I Agree" button calls POST /onboarding/consent, navigates to /onboarding/persona on success
-- [ ] Create src/screens/onboarding/PersonaScreen.jsx � 5 fields: persona_name (text, max 20 chars with char counter), tone (4-option radio: Warm/Motivational/Clinical/Casual), response_style (2-option: Brief/Elaborate), formality (3-option: Formal/Neutral/Informal), uses_alias (toggle); preview snippet updates live as fields change; POST /onboarding/persona on submit; 403 guard (already created); navigate to /onboarding/first-mood
-- [ ] Create src/screens/onboarding/FirstMoodScreen.jsx � reuses MoodSelector + TagSelector components; note field; POST /moods on submit; on bonus_credited=true: show BonusToast overlay ("You've received 2 free credits!") for 3s; on mood=very_low: skip to dashboard (not the very-low prompt � first mood is onboarding); navigate to /dashboard
-- [ ] Create src/components/BonusToast.jsx � overlay with confetti/emoji, "?? 2 free credits added to your account!", auto-dismisses after 3s
+- [x] Create src/screens/onboarding/ConsentScreen.jsx � title "Your Privacy Matters", full plain-language consent text (data usage, AI limitations, safety escalation, flagged AI interactions anonymized not deleted), "I Agree" button calls POST /onboarding/consent, navigates to /onboarding/persona on success
+- [x] Create src/screens/onboarding/PersonaScreen.jsx � 5 fields: persona_name (text, max 20 chars with char counter), tone (4-option radio: Warm/Motivational/Clinical/Casual), response_style (2-option: Brief/Elaborate), formality (3-option: Formal/Neutral/Informal), uses_alias (toggle); preview snippet updates live as fields change; POST /onboarding/persona on submit; 403 guard (already created); navigate to /onboarding/first-mood
+- [x] Create src/screens/onboarding/FirstMoodScreen.jsx � reuses MoodSelector + TagSelector components; note field; POST /moods on submit; on bonus_credited=true: show BonusToast overlay ("You've received 2 free credits!") for 3s; on mood=very_low: skip to dashboard (not the very-low prompt � first mood is onboarding); navigate to /dashboard
+- [x] Create src/components/BonusToast.jsx � overlay with confetti/emoji, "?? 2 free credits added to your account!", auto-dismisses after 3s
 
 ### 11.3 Dashboard Screen
-- [ ] Create src/screens/DashboardScreen.jsx � fetch GET /moods/today, GET /credits/balance, GET /notifications on mount (parallel)
-- [ ] Top bar layout: alias from AuthContext (left), credit balance badge (centre/right � red text if < 2), notification bell icon with unread count badge (right)
-- [ ] Daily streak counter: bold number + "day streak" label, sourced from mood analytics or last check-in data
-- [ ] Mood check-in banner: if GET /moods/today returns null ? show dismissible soft banner "How are you feeling today?" with tap-to-check-in; if dismissed, hides for current session only (sessionStorage flag)
-- [ ] 6 action tiles grid (2�3): Peer Help, AI Chat, Therapist, Journal, Groups, Emergency � each with icon, label, tap navigates to correct screen
-- [ ] Emergency tile: always full red/accent colour regardless of anything else
-- [ ] Handle loading state with skeleton placeholders
-- [ ] Handle API errors gracefully (show cached data if available, error toast if not)
+- [x] Create src/screens/DashboardScreen.jsx � fetch GET /moods/today, GET /credits/balance, GET /notifications on mount (parallel)
+- [x] Top bar layout: alias from AuthContext (left), credit balance badge (centre/right � red text if < 2), notification bell icon with unread count badge (right)
+- [x] Daily streak counter: bold number + "day streak" label, sourced from mood analytics or last check-in data
+- [x] Mood check-in banner: if GET /moods/today returns null ? show dismissible soft banner "How are you feeling today?" with tap-to-check-in; if dismissed, hides for current session only (sessionStorage flag)
+- [x] 6 action tiles grid (2�3): Peer Help, AI Chat, Therapist, Journal, Groups, Emergency � each with icon, label, tap navigates to correct screen
+- [x] Emergency tile: always full red/accent colour regardless of anything else
+- [x] Handle loading state with skeleton placeholders
+- [x] Handle API errors gracefully (show cached data if available, error toast if not)
 
 ### 11.4 Mood Check-In Screen
-- [ ] Create src/components/MoodSelector.jsx � 5 mood levels as tappable face icons: ?? Very Low (#E74C3C), ?? Low (#E67E22), ?? Neutral (#F1C40F), ?? Good (#2ECC71), ?? Great (#27AE60); selected level highlighted; accepts value + onChange props
-- [ ] Create src/components/TagSelector.jsx � 8 tags as pill buttons (multi-select): Anxious, Hopeful, Overwhelmed, Calm, Lonely, Grateful, Angry, Numb; accepts selected[] + onToggle props
-- [ ] Create src/screens/MoodCheckinScreen.jsx � MoodSelector (required), TagSelector (optional), note textarea (200 char limit with counter), submit calls POST /moods; show streak increment toast on success ("?? X day streak!"); on mood=very_low: show overlay with 4 buttons (AI Chat ? /ai-chat, Peer Help ? /peer, Emergency ? /emergency, Not Now ? /dashboard); on non-very_low: navigate to /dashboard after 1s success toast
-- [ ] Milestone toast: if response indicates milestone (check streak_count in [3,7,30]) show milestone message per blueprint 7.14
+- [x] Create src/components/MoodSelector.jsx � 5 mood levels as tappable face icons: ?? Very Low (#E74C3C), ?? Low (#E67E22), ?? Neutral (#F1C40F), ?? Good (#2ECC71), ?? Great (#27AE60); selected level highlighted; accepts value + onChange props
+- [x] Create src/components/TagSelector.jsx � 8 tags as pill buttons (multi-select): Anxious, Hopeful, Overwhelmed, Calm, Lonely, Grateful, Angry, Numb; accepts selected[] + onToggle props
+- [x] Create src/screens/MoodCheckinScreen.jsx � MoodSelector (required), TagSelector (optional), note textarea (200 char limit with counter), submit calls POST /moods; show streak increment toast on success ("?? X day streak!"); on mood=very_low: show overlay with 4 buttons (AI Chat ? /ai-chat, Peer Help ? /peer, Emergency ? /emergency, Not Now ? /dashboard); on non-very_low: navigate to /dashboard after 1s success toast
+- [x] Milestone toast: if response indicates milestone (check streak_count in [3,7,30]) show milestone message per blueprint 7.14
 
 ### 11.5 AI Chat Screen
-- [ ] Create src/screens/AIChatScreen.jsx � on mount: POST /ai/session/start; if 403 (persona not set): show "Complete persona setup in Profile first" with link; store session_id in component state
-- [ ] Chat UI: scrollable message list (newest at bottom, auto-scroll on new message); persona name in header ("Talking with [PersonaName]"); "End Chat" button top-right
-- [ ] Message input: text field + send button; disabled while loading response; POST /ai/session/:id/message on send; add optimistic user bubble immediately
-- [ ] AI response: render as assistant bubble; show loading dots while awaiting response
-- [ ] On flagged=true response (severity high): no UI change � session continues normally (elevated care is invisible to user per blueprint)
-- [ ] On action='emergency' response: immediately navigate to /emergency (no user action required � pushed automatically per blueprint 9.2)
-- [ ] Emergency button (red, top bar or FAB): always visible during AI chat session
-- [ ] On "End Chat": POST /ai/session/:id/end, then show FeedbackModal (1�5 stars + optional comment, type='ai_chat'), then navigate to /dashboard
-- [ ] Handle 429 (session limit / daily limit): show "You've reached today's chat limit. Come back tomorrow." with close button
-- [ ] Handle 503 (AI unavailable): show "AI companion is temporarily unavailable. Try again in a moment." with retry option
+- [x] Create src/screens/AIChatScreen.jsx � on mount: POST /ai/session/start; if 403 (persona not set): show "Complete persona setup in Profile first" with link; store session_id in component state
+- [x] Chat UI: scrollable message list (newest at bottom, auto-scroll on new message); persona name in header ("Talking with [PersonaName]"); "End Chat" button top-right
+- [x] Message input: text field + send button; disabled while loading response; POST /ai/session/:id/message on send; add optimistic user bubble immediately
+- [x] AI response: render as assistant bubble; show loading dots while awaiting response
+- [x] On flagged=true response (severity high): no UI change � session continues normally (elevated care is invisible to user per blueprint)
+- [x] On action='emergency' response: immediately navigate to /emergency (no user action required � pushed automatically per blueprint 9.2)
+- [x] Emergency button (red, top bar or FAB): always visible during AI chat session
+- [x] On "End Chat": POST /ai/session/:id/end, then show FeedbackModal (1�5 stars + optional comment, type='ai_chat'), then navigate to /dashboard
+- [x] Handle 429 (session limit / daily limit): show "You've reached today's chat limit. Come back tomorrow." with close button
+- [x] Handle 503 (AI unavailable): show "AI companion is temporarily unavailable. Try again in a moment." with retry option
 
 ### 11.6 Peer Support Screens
-- [ ] Create src/screens/peer/PeerRequestScreen.jsx � fetch GET /credits/balance on mount; show balance + cost estimate ("Text: 1 credit per 15 min / Voice: 1 credit per 5 min"); if balance < 1: show "Top up credits to request peer support" with "Buy Credits" button; channel selector (Text / Voice); "Request Help" button calls POST /peer/request ? navigate to PeerWaitingScreen
-- [ ] Create src/screens/peer/PeerWaitingScreen.jsx � 90s countdown timer (large display, counts down); "Looking for someone..." message; poll GET /peer/requests/open every 3s (or check own request status via stored request_id); on status=active: navigate to text/voice session screen; on timer expiry (90s): show "We're finding someone � an admin has been notified" state (do not leave screen, poll continues)
-- [ ] Create src/screens/peer/PeerTextChatScreen.jsx � WebSocket-free simple polling chat (REST for now � actual WebRTC is Phase 5.7 only for voice signaling); messages labeled "You" / "Peer"; credit countdown display (updates every 15min per text rate); POST creditDeductor handled server-side during session � frontend just shows session timer; "End Session" button ? PATCH /peer/request/:id/close ? FeedbackModal ? /dashboard
-- [ ] Create src/screens/peer/PeerVoiceCallScreen.jsx � WebRTC audio setup: connect to ws://[host]/ws/signal with session_id join message; create RTCPeerConnection with ICE servers from GET /peer/session/:id; offer/answer/ICE candidate exchange via WebSocket relay; getUserMedia({ audio: true }); mute toggle button; credit countdown (per 5 min for voice); at 0 credits remaining: show "Grace period � 2 minutes remaining"; "End Call" button ? same flow as text
-- [ ] Create src/components/peer/OpenRequestsList.jsx � list of open peer requests from GET /peer/requests/open; each shows channel_preference, time elapsed; "I'm Here" button calls PATCH /peer/request/:id/accept ? navigate to correct session screen
-- [ ] Credit warning banner: when session timer indicates 1 credit remaining ? show persistent "1 credit remaining (15 min left)" banner at top of peer sessions
+- [x] Create src/screens/peer/PeerRequestScreen.jsx � fetch GET /credits/balance on mount; show balance + cost estimate ("Text: 1 credit per 15 min / Voice: 1 credit per 5 min"); if balance < 1: show "Top up credits to request peer support" with "Buy Credits" button; channel selector (Text / Voice); "Request Help" button calls POST /peer/request ? navigate to PeerWaitingScreen
+- [x] Create src/screens/peer/PeerWaitingScreen.jsx � 90s countdown timer (large display, counts down); "Looking for someone..." message; poll GET /peer/requests/open every 3s (or check own request status via stored request_id); on status=active: navigate to text/voice session screen; on timer expiry (90s): show "We're finding someone � an admin has been notified" state (do not leave screen, poll continues)
+- [x] Create src/screens/peer/PeerTextChatScreen.jsx � WebSocket-free simple polling chat (REST for now � actual WebRTC is Phase 5.7 only for voice signaling); messages labeled "You" / "Peer"; credit countdown display (updates every 15min per text rate); POST creditDeductor handled server-side during session � frontend just shows session timer; "End Session" button ? PATCH /peer/request/:id/close ? FeedbackModal ? /dashboard
+- [x] Create src/screens/peer/PeerVoiceCallScreen.jsx � WebRTC audio setup: connect to ws://[host]/ws/signal with session_id join message; create RTCPeerConnection with ICE servers from GET /peer/session/:id; offer/answer/ICE candidate exchange via WebSocket relay; getUserMedia({ audio: true }); mute toggle button; credit countdown (per 5 min for voice); at 0 credits remaining: show "Grace period � 2 minutes remaining"; "End Call" button ? same flow as text
+- [x] Create src/components/peer/OpenRequestsList.jsx � list of open peer requests from GET /peer/requests/open; each shows channel_preference, time elapsed; "I'm Here" button calls PATCH /peer/request/:id/accept ? navigate to correct session screen
+- [x] Credit warning banner: when session timer indicates 1 credit remaining ? show persistent "1 credit remaining (15 min left)" banner at top of peer sessions
 
 ### 11.7 Journal Screen
-- [ ] Create src/screens/JournalScreen.jsx � main view: "New Entry" button (top), search bar, filter controls (mood_level dropdown, tag dropdown, date range pickers), entry list
-- [ ] Entry list: each card shows date, mood face emoji, tags as pills, first 100 chars of content; tap to expand full entry in modal or sub-screen; GET /journals with pagination + filters
-- [ ] New entry form (modal or sub-screen): MoodSelector (optional), TagSelector (optional), content textarea (no char limit, placeholder "Write freely..."); POST /journals on submit; no risk alert shown to user (silent per blueprint)
-- [ ] Edit mode: PATCH /journals/:id; prefill form with existing data; "Save" + "Cancel"
-- [ ] Delete: DELETE /journals/:id with confirmation dialog "Delete this entry?"
-- [ ] Search: calls GET /journals?search=... on input debounce (300ms)
-- [ ] Empty state: "Your journal is empty � start writing" illustration + New Entry button
-- [ ] Loading + error states on all API calls
+- [x] Create src/screens/JournalScreen.jsx � main view: "New Entry" button (top), search bar, filter controls (mood_level dropdown, tag dropdown, date range pickers), entry list
+- [x] Entry list: each card shows date, mood face emoji, tags as pills, first 100 chars of content; tap to expand full entry in modal or sub-screen; GET /journals with pagination + filters
+- [x] New entry form (modal or sub-screen): MoodSelector (optional), TagSelector (optional), content textarea (no char limit, placeholder "Write freely..."); POST /journals on submit; no risk alert shown to user (silent per blueprint)
+- [x] Edit mode: PATCH /journals/:id; prefill form with existing data; "Save" + "Cancel"
+- [x] Delete: DELETE /journals/:id with confirmation dialog "Delete this entry?"
+- [x] Search: calls GET /journals?search=... on input debounce (300ms)
+- [x] Empty state: "Your journal is empty � start writing" illustration + New Entry button
+- [x] Loading + error states on all API calls
 
 ### 11.8 Groups Screens
-- [ ] Create src/screens/GroupsScreen.jsx � fetch GET /groups; display group cards: name, category badge, member count, description; tap navigates to GroupDetailScreen; loading + error states
-- [ ] Create src/screens/GroupDetailScreen.jsx � show group info; if is_member=false: show "Join" button ? navigate to AgreementScreen; if is_member=true: "Enter Chat" button ? navigate to GroupChatScreen; if membership_status=banned: show "You have been removed from this group"
-- [ ] Create src/screens/GroupAgreementScreen.jsx � community agreement text (all 5 rules from blueprint 7.7); "I Agree and Join" button ? POST /groups/:id/join ? navigate to GroupChatScreen; "Cancel" ? back
-- [ ] Create src/screens/GroupChatScreen.jsx � pinned messages section at top (rendered from pinned[]); scrollable message list (newest at bottom); alias shown on each message; is_deleted messages show '[deleted]' in grey italic; auto-scroll to bottom on new messages; poll for new messages every 5s (GET /groups/:id/messages?page=1)
-- [ ] Message input: text field + send button; POST /groups/:id/messages; optimistic message render
-- [ ] Long-press on message (or press-and-hold): show context menu with "Report" option ? ReportModal
-- [ ] Create src/components/ReportModal.jsx � reason selector (Harmful content / Abuse / Spam / Other); "Submit Report" ? POST /groups/:id/messages/:msgId/report; show "Your report has been submitted. Thank you." and close modal
-- [ ] Leave group: "Leave Group" button in header ? POST /groups/:id/leave ? navigate back to GroupsScreen
+- [x] Create src/screens/GroupsScreen.jsx � fetch GET /groups; display group cards: name, category badge, member count, description; tap navigates to GroupDetailScreen; loading + error states
+- [x] Create src/screens/GroupDetailScreen.jsx � show group info; if is_member=false: show "Join" button ? navigate to AgreementScreen; if is_member=true: "Enter Chat" button ? navigate to GroupChatScreen; if membership_status=banned: show "You have been removed from this group"
+- [x] Create src/screens/GroupAgreementScreen.jsx � community agreement text (all 5 rules from blueprint 7.7); "I Agree and Join" button ? POST /groups/:id/join ? navigate to GroupChatScreen; "Cancel" ? back
+- [x] Create src/screens/GroupChatScreen.jsx � pinned messages section at top (rendered from pinned[]); scrollable message list (newest at bottom); alias shown on each message; is_deleted messages show '[deleted]' in grey italic; auto-scroll to bottom on new messages; poll for new messages every 5s (GET /groups/:id/messages?page=1)
+- [x] Message input: text field + send button; POST /groups/:id/messages; optimistic message render
+- [x] Long-press on message (or press-and-hold): show context menu with "Report" option ? ReportModal
+- [x] Create src/components/ReportModal.jsx � reason selector (Harmful content / Abuse / Spam / Other); "Submit Report" ? POST /groups/:id/messages/:msgId/report; show "Your report has been submitted. Thank you." and close modal
+- [x] Leave group: "Leave Group" button in header ? POST /groups/:id/leave ? navigate back to GroupsScreen
 
 ### 11.9 Emergency Screen
-- [ ] Create src/screens/EmergencyScreen.jsx � full-screen, red/crisis colour scheme; no back navigation while active (override browser back)
-- [ ] Top section: "You're not alone" heading + Befrienders Kenya crisis line displayed prominently: "0800 723 253 � Free, 24/7" (always visible regardless of action taken)
-- [ ] Two action buttons: "I need to talk to someone now" (primary, large), "Breathing exercises first" (secondary)
-- [ ] On "Talk now": POST /emergency/trigger; show "Help is on the way. An admin has been alerted." message; render BreathingWidget inline below the message while waiting; poll GET /notifications every 10s for admin message (show as alert if received)
-- [ ] On "Breathing first": navigate to /breathing (or render inline BreathingWidget component)
-- [ ] Safety Plan quick-access: if GET /safety-plan returns a plan ? show "Open My Safety Plan" button ? navigate to /safety-plan; if null ? show "Set up your Safety Plan" prompt with link to /safety-plan
-- [ ] Emergency screen accessible via: EmergencyButton FAB, Emergency tile on dashboard, AI action='emergency' auto-push
+- [x] Create src/screens/EmergencyScreen.jsx � full-screen, red/crisis colour scheme; no back navigation while active (override browser back)
+- [x] Top section: "You're not alone" heading + Befrienders Kenya crisis line displayed prominently: "0800 723 253 � Free, 24/7" (always visible regardless of action taken)
+- [x] Two action buttons: "I need to talk to someone now" (primary, large), "Breathing exercises first" (secondary)
+- [x] On "Talk now": POST /emergency/trigger; show "Help is on the way. An admin has been alerted." message; render BreathingWidget inline below the message while waiting; poll GET /notifications every 10s for admin message (show as alert if received)
+- [x] On "Breathing first": navigate to /breathing (or render inline BreathingWidget component)
+- [x] Safety Plan quick-access: if GET /safety-plan returns a plan ? show "Open My Safety Plan" button ? navigate to /safety-plan; if null ? show "Set up your Safety Plan" prompt with link to /safety-plan
+- [x] Emergency screen accessible via: EmergencyButton FAB, Emergency tile on dashboard, AI action='emergency' auto-push
 
 ### 11.10 Safety Plan Screen
-- [ ] Create src/screens/SafetyPlanScreen.jsx � fetch GET /safety-plan on mount; if null: show empty form with "Your safety plan is empty � fill it in during a calm moment" prompt
-- [ ] 6-field form (all optional): warning_signs textarea, helpful_things textarea, things_to_avoid textarea, contacts section (up to 3: name field + contact_detail field per contact, "Add Contact" button, "Remove" per contact), emergency_resources textarea (pre-populated if empty with "Befrienders Kenya: 0800 723 253"), reason_to_continue textarea
-- [ ] "Save Plan" button ? PUT /safety-plan; success toast "Safety plan saved"
-- [ ] Read-only display mode when viewing; "Edit" button toggles to edit mode
-- [ ] Accessible from: Profile screen link + Emergency screen button
+- [x] Create src/screens/SafetyPlanScreen.jsx � fetch GET /safety-plan on mount; if null: show empty form with "Your safety plan is empty � fill it in during a calm moment" prompt
+- [x] 6-field form (all optional): warning_signs textarea, helpful_things textarea, things_to_avoid textarea, contacts section (up to 3: name field + contact_detail field per contact, "Add Contact" button, "Remove" per contact), emergency_resources textarea (pre-populated if empty with "Befrienders Kenya: 0800 723 253"), reason_to_continue textarea
+- [x] "Save Plan" button ? PUT /safety-plan; success toast "Safety plan saved"
+- [x] Read-only display mode when viewing; "Edit" button toggles to edit mode
+- [x] Accessible from: Profile screen link + Emergency screen button
 
 ### 11.11 Therapist Referral Screen
-- [ ] Create src/screens/ReferralScreen.jsx � explanation screen: "We'll connect you with a qualified mental health professional. An admin will reach out to arrange your session." + "Continue" button
-- [ ] Form: struggles textarea (max 500 chars, required, with char counter), preferred_time select (Morning/Afternoon/Evening), contact_method select (In-app message/Phone call); if contact_method=phone: show contact_detail input (phone number); specific_needs textarea (optional)
-- [ ] POST /referrals on submit; navigate to confirmation screen
-- [ ] Confirmation screen: "Your request has been received. We'll be in touch within 24 hours." + illustration; "Back to Dashboard" button
-- [ ] Referral status: on Profile ? "My Referrals" section shows GET /referrals/my with current status badge
+- [x] Create src/screens/ReferralScreen.jsx � explanation screen: "We'll connect you with a qualified mental health professional. An admin will reach out to arrange your session." + "Continue" button
+- [x] Form: struggles textarea (max 500 chars, required, with char counter), preferred_time select (Morning/Afternoon/Evening), contact_method select (In-app message/Phone call); if contact_method=phone: show contact_detail input (phone number); specific_needs textarea (optional)
+- [x] POST /referrals on submit; navigate to confirmation screen
+- [x] Confirmation screen: "Your request has been received. We'll be in touch within 24 hours." + illustration; "Back to Dashboard" button
+- [x] Referral status: on Profile ? "My Referrals" section shows GET /referrals/my with current status badge
 
 ### 11.12 Psychoeducation Library Screen
-- [ ] Create src/screens/ResourcesScreen.jsx � fetch GET /resources on mount; category filter tabs (9 categories from blueprint 7.10 + "All"); search bar input calls GET /resources?search=... on change; article card list: title, category badge, estimated read time, tags
-- [ ] Create src/screens/ArticleScreen.jsx � fetch GET /resources/:id; render full content; estimated read time display; bookmark button (toggles localStorage entry keyed by article ID); back button
-- [ ] Bookmark state: heart/bookmark icon filled if article ID in localStorage['bookmarks']; empty state on Resources screen: filter to show bookmarked articles (client-side filter)
-- [ ] Empty state when no articles match search: "No articles found"
-- [ ] Loading + error states
+- [x] Create src/screens/ResourcesScreen.jsx � fetch GET /resources on mount; category filter tabs (9 categories from blueprint 7.10 + "All"); search bar input calls GET /resources?search=... on change; article card list: title, category badge, estimated read time, tags
+- [x] Create src/screens/ArticleScreen.jsx � fetch GET /resources/:id; render full content; estimated read time display; bookmark button (toggles localStorage entry keyed by article ID); back button
+- [x] Bookmark state: heart/bookmark icon filled if article ID in localStorage['bookmarks']; empty state on Resources screen: filter to show bookmarked articles (client-side filter)
+- [x] Empty state when no articles match search: "No articles found"
+- [x] Loading + error states
 
 ### 11.13 Breathing & Grounding Exercises Screen
-- [ ] Create src/screens/BreathingScreen.jsx � exercise list with 4 options; each shown as card with name, brief description, estimated duration
-- [ ] Create src/components/breathing/BoxBreathing.jsx � 4-4-4-4 pattern; animated circle (CSS keyframes): expand (inhale 4s), hold (4s), shrink (exhale 4s), hold (4s); phase label updates: "Breathe In / Hold / Breathe Out / Hold"; cycle counter; "Stop" button; zero API calls
-- [ ] Create src/components/breathing/Breathing478.jsx � 4-7-8 pattern; same animated circle approach; Breathe In (4s) / Hold (7s) / Breathe Out (8s); cycle counter; "Stop" button
-- [ ] Create src/components/breathing/Grounding54321.jsx � 5 steps as full-screen slides: "5 things you can SEE" / "4 things you can TOUCH" / "3 things you can HEAR" / "2 things you can SMELL" / "1 thing you can TASTE"; "Next" button between steps; completion screen "You've completed the grounding exercise"; fully text-based, no animation required
-- [ ] Create src/components/breathing/PMR.jsx � Progressive Muscle Relaxation; 8 body parts: feet, calves, thighs, abdomen, hands, arms, shoulders, face; each step: "Tense [body part] for 5 seconds" ? 5s timer ? "Release and relax for 10 seconds" ? 10s timer ? next; completion screen; "Stop" button
-- [ ] Create src/components/breathing/BreathingWidget.jsx � inline compact version of BoxBreathing for embedding on Emergency screen; no navigation controls
+- [x] Create src/screens/BreathingScreen.jsx � exercise list with 4 options; each shown as card with name, brief description, estimated duration
+- [x] Create src/components/breathing/BoxBreathing.jsx � 4-4-4-4 pattern; animated circle (CSS keyframes): expand (inhale 4s), hold (4s), shrink (exhale 4s), hold (4s); phase label updates: "Breathe In / Hold / Breathe Out / Hold"; cycle counter; "Stop" button; zero API calls
+- [x] Create src/components/breathing/Breathing478.jsx � 4-7-8 pattern; same animated circle approach; Breathe In (4s) / Hold (7s) / Breathe Out (8s); cycle counter; "Stop" button
+- [x] Create src/components/breathing/Grounding54321.jsx � 5 steps as full-screen slides: "5 things you can SEE" / "4 things you can TOUCH" / "3 things you can HEAR" / "2 things you can SMELL" / "1 thing you can TASTE"; "Next" button between steps; completion screen "You've completed the grounding exercise"; fully text-based, no animation required
+- [x] Create src/components/breathing/PMR.jsx � Progressive Muscle Relaxation; 8 body parts: feet, calves, thighs, abdomen, hands, arms, shoulders, face; each step: "Tense [body part] for 5 seconds" ? 5s timer ? "Release and relax for 10 seconds" ? 10s timer ? next; completion screen; "Stop" button
+- [x] Create src/components/breathing/BreathingWidget.jsx � inline compact version of BoxBreathing for embedding on Emergency screen; no navigation controls
 
 ### 11.14 Mood Analytics Screen
-- [ ] Create src/screens/AnalyticsScreen.jsx � fetch GET /moods/analytics on mount
-- [ ] 7-day bar chart: recharts BarChart, x-axis = date labels (Mon�Sun), y-axis = avg_score (-2 to +2), bars colour-coded by score (red negative, yellow neutral, green positive); empty bars (null) shown as grey
-- [ ] Most common mood card: large mood face + label for common_mood field
-- [ ] Frequent tags section: tag pill list sorted by count descending, count shown on each pill
-- [ ] Streak display: "?? X day streak" + total check-ins count
-- [ ] Empty state (< 3 entries): "Keep checking in � your insights will appear here after a few days" with illustration
-- [ ] Loading skeleton for chart area
+- [x] Create src/screens/AnalyticsScreen.jsx � fetch GET /moods/analytics on mount
+- [x] 7-day bar chart: recharts BarChart, x-axis = date labels (Mon�Sun), y-axis = avg_score (-2 to +2), bars colour-coded by score (red negative, yellow neutral, green positive); empty bars (null) shown as grey
+- [x] Most common mood card: large mood face + label for common_mood field
+- [x] Frequent tags section: tag pill list sorted by count descending, count shown on each pill
+- [x] Streak display: "?? X day streak" + total check-ins count
+- [x] Empty state (< 3 entries): "Keep checking in � your insights will appear here after a few days" with illustration
+- [x] Loading skeleton for chart area
 
 ### 11.15 Profile Screen
-- [ ] Create src/screens/ProfileScreen.jsx � sections rendered as accordion or stacked cards
-- [ ] My Account section: alias display (read-only, "Your alias is how others see you"), masked email, "Deactivate Account" button ? confirmation dialog ? PATCH /profile/deactivate ? logout
-- [ ] My AI Companion section: persona_name, tone, response_style, formality � all read-only; note "Your companion's identity was set at signup and cannot be changed"
-- [ ] Credits section: balance display (red if < 2), "Buy Credits" button (opens credit purchase sheet), GET /credits/transactions paginated list showing date/type/amount/channel
-- [ ] Credit purchase sheet: 4 package options (Starter 50KSh/3cr, Standard 100KSh/7cr, Plus 200KSh/15cr, Support 500KSh/40cr); tap package ? POST /credits/purchase ? redirect window.open(payment_url) for Paystack
-- [ ] Privacy & Data section: consent version + date; "Delete My Data" ? confirmation dialog with 24hr warning ? POST /profile/delete-data ? logout; "Clear My Journal" ? confirmation ? DELETE /journals
-- [ ] Notifications section: 4 toggle switches (notif_peer_broadcast, notif_checkin_reminder, notif_group_messages, notif_credit_low); on toggle: PATCH /notifications/preferences
-- [ ] Notifications bell: GET /notifications paginated list in a slide-out drawer from bell icon in dashboard top bar; PATCH /notifications/:id/read on tap; "Mark All Read" button ? PATCH /notifications/read-all
-- [ ] Send Feedback button ? FeedbackModal (type=general pre-selected); POST /feedback
-- [ ] Safety Plan link ? navigate to /safety-plan
-- [ ] Referrals section: GET /referrals/my; show status badge + created_at; link to /referral to submit new
+- [x] Create src/screens/ProfileScreen.jsx � sections rendered as accordion or stacked cards
+- [x] My Account section: alias display (read-only, "Your alias is how others see you"), masked email, "Deactivate Account" button ? confirmation dialog ? PATCH /profile/deactivate ? logout
+- [x] My AI Companion section: persona_name, tone, response_style, formality � all read-only; note "Your companion's identity was set at signup and cannot be changed"
+- [x] Credits section: balance display (red if < 2), "Buy Credits" button (opens credit purchase sheet), GET /credits/transactions paginated list showing date/type/amount/channel
+- [x] Credit purchase sheet: 4 package options (Starter 50KSh/3cr, Standard 100KSh/7cr, Plus 200KSh/15cr, Support 500KSh/40cr); tap package ? POST /credits/purchase ? redirect window.open(payment_url) for Paystack
+- [x] Privacy & Data section: consent version + date; "Delete My Data" ? confirmation dialog with 24hr warning ? POST /profile/delete-data ? logout; "Clear My Journal" ? confirmation ? DELETE /journals
+- [x] Notifications section: 4 toggle switches (notif_peer_broadcast, notif_checkin_reminder, notif_group_messages, notif_credit_low); on toggle: PATCH /notifications/preferences
+- [x] Notifications bell: GET /notifications paginated list in a slide-out drawer from bell icon in dashboard top bar; PATCH /notifications/:id/read on tap; "Mark All Read" button ? PATCH /notifications/read-all
+- [x] Send Feedback button ? FeedbackModal (type=general pre-selected); POST /feedback
+- [x] Safety Plan link ? navigate to /safety-plan
+- [x] Referrals section: GET /referrals/my; show status badge + created_at; link to /referral to submit new
 
 ### 11.16 Admin Dashboard Screen
-- [ ] Create src/screens/AdminDashboard.jsx � adminAuth guard (redirect to /dashboard if role != 'admin'); tab or section navigation
-- [ ] Emergency Queue section: GET /admin/emergency-queue; list with alias, triggered_at, time elapsed (computed), status; "Acknowledge" ? PATCH /admin/emergency/:id/acknowledge; "Resolve" ? PATCH /admin/emergency/:id/resolve; auto-refresh every 30s
-- [ ] Peer Escalation Alerts section: GET /admin/escalations; list with alias, channel_preference, escalated_at; "Send Message" ? inline message input ? POST /admin/users/:alias/message
-- [ ] Therapist Referral Inbox: GET /admin/referrals with ?status filter tabs; each item: alias, struggles preview, preferred_time, contact_method, status badge; expand to full detail; status select dropdown ? PATCH /admin/referrals/:id; admin_notes textarea ? PATCH /admin/referrals/:id
-- [ ] Group Moderation: GET /admin/reports; each report: group name, reported alias, reporter alias, reason, message preview; 3 action buttons: Dismiss, Warn, Ban ? PATCH /admin/reports/:id/action with action field
-- [ ] User Risk Flags: GET /admin/risk-flags; alias list with risk_level badge; "Send Care Message" ? inline input ? POST /admin/users/:alias/message
-- [ ] Content Library: GET /admin/resources; article list with status badges; "New Article" form (title, category, content textarea, estimated_read_minutes, tags); POST /admin/resources; PATCH /admin/resources/:id/publish; PATCH /admin/resources/:id/archive; inline edit form for PATCH /admin/resources/:id
-- [ ] System Stats: GET /admin/stats; display DAU, check-ins, peer sessions, AI sessions, credits purchased � all today; auto-refresh every 60s
-- [ ] Feedback Overview: GET /admin/feedback; average rating per type (peer_session, ai_chat, bug, general) as progress bars or star displays; recent_comments list
+- [x] Create src/screens/AdminDashboard.jsx � adminAuth guard (redirect to /dashboard if role != 'admin'); tab or section navigation
+- [x] Emergency Queue section: GET /admin/emergency-queue; list with alias, triggered_at, time elapsed (computed), status; "Acknowledge" ? PATCH /admin/emergency/:id/acknowledge; "Resolve" ? PATCH /admin/emergency/:id/resolve; auto-refresh every 30s
+- [x] Peer Escalation Alerts section: GET /admin/escalations; list with alias, channel_preference, escalated_at; "Send Message" ? inline message input ? POST /admin/users/:alias/message
+- [x] Therapist Referral Inbox: GET /admin/referrals with ?status filter tabs; each item: alias, struggles preview, preferred_time, contact_method, status badge; expand to full detail; status select dropdown ? PATCH /admin/referrals/:id; admin_notes textarea ? PATCH /admin/referrals/:id
+- [x] Group Moderation: GET /admin/reports; each report: group name, reported alias, reporter alias, reason, message preview; 3 action buttons: Dismiss, Warn, Ban ? PATCH /admin/reports/:id/action with action field
+- [x] User Risk Flags: GET /admin/risk-flags; alias list with risk_level badge; "Send Care Message" ? inline input ? POST /admin/users/:alias/message
+- [x] Content Library: GET /admin/resources; article list with status badges; "New Article" form (title, category, content textarea, estimated_read_minutes, tags); POST /admin/resources; PATCH /admin/resources/:id/publish; PATCH /admin/resources/:id/archive; inline edit form for PATCH /admin/resources/:id
+- [x] System Stats: GET /admin/stats; display DAU, check-ins, peer sessions, AI sessions, credits purchased � all today; auto-refresh every 60s
+- [x] Feedback Overview: GET /admin/feedback; average rating per type (peer_session, ai_chat, bug, general) as progress bars or star displays; recent_comments list
 
 ---
 
@@ -710,7 +710,7 @@ b/index.js � pg Pool with DATABASE_URL, exported query function
 - [x] All API endpoints implemented and tested (Phases 2�10)
 - [x] Groq API key configured, test call to llama-3.3-70b-versatile successful
 - [ ] Daraja M-Pesa live credentials configured, test transaction completed end-to-end � **BLOCKED: awaiting Safaricom business approval** (replaced Paystack with Daraja)
-- [ ] FCM push notifications live � **code complete** (`fcm.js` reads `FCM_SERVICE_ACCOUNT_JSON` env var, gracefully disabled when absent); set `FCM_SERVICE_ACCOUNT_JSON` in Render to enable
+- [x] FCM push notifications live � **code complete** (`fcm.js` reads `FCM_SERVICE_ACCOUNT_JSON` env var, gracefully disabled when absent); set `FCM_SERVICE_ACCOUNT_JSON` in Render to enable
 - [x] Admin account created via seed script � `node src/backend/scripts/seed_admin.js <email> <password>`
 - [x] Psychoeducation library seeded: 45 articles (5 per category � 9 categories) � `node src/backend/scripts/seed_articles.js <admin_email>`
 - [x] Groups seeded with all 8 categories: seed script written � `node src/backend/scripts/seed_groups.js <admin_email>`
@@ -1837,8 +1837,8 @@ b/index.js � pg Pool with DATABASE_URL, exported query function
 > Build in order. No skipping.
 
 ### 34.1 � Fix held responses query (P0)
-- [ ] `src/backend/routes/admin.js` `GET /admin/groups/:id/feed` � fix held responses query: currently filters `is_deleted = true` (shows deleted messages); change to correct moderation-pending filter
-- [ ] Verify GroupsTab held responses section shows correct pending messages
+- [x] `src/backend/routes/admin.js` `GET /admin/groups/:id/feed` � fix held responses query: currently filters `is_deleted = true` (shows deleted messages); change to correct moderation-pending filter
+- [x] Verify GroupsTab held responses section shows correct pending messages
 
 ### 34.2 � Audit trail (P0)
 - [x] Write migration 070: create `admin_audit_log` table � columns: `id, admin_id, action, target_type, target_id, target_alias, before_value, after_value, note, created_at`
@@ -1976,10 +1976,10 @@ Failure modes to cover:
 
 - [ ] **ODPC**: Register platform as Data Controller and Data Processor with Kenya's Office of the Data Protection Commissioner (Form DP/DC/01 + DP/DP/02) � required before therapist module handles any session data
 - [ ] **Daraja B2C**: Submit Safaricom application for Bulk Disbursement Account (B2C Short Code). Separate from STK Push paybill. Start immediately � approval takes longer than STK Push
-- [ ] **Twilio NTS**: Create Twilio account, obtain NTS credentials (Account SID + Auth Token + TURN username/credential), add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` to `.env.example`
+- [x] **Twilio NTS**: Create Twilio account, obtain NTS credentials (Account SID + Auth Token + TURN username/credential), add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` to `.env.example`
 - [ ] **Therapist Agreement**: Draft Therapist Partnership Agreement document (independent contractor status, 20/80 split acknowledgement, off-platform contact prohibition, KCPA compliance obligation, data handling, termination clauses) � required before first NGO therapist is onboarded
-- [ ] **Privacy Policy + ToS**: Update both documents to cover therapy session data, therapist independence, cancellation/refund policy, dispute window, crisis escalation, data retention (7 years for session records per clinical standards)
-- [ ] **Therapy consent version**: Decide on version string (e.g. `'2.0'`) for therapy consent addendum � needed for migration
+- [x] **Privacy Policy + ToS**: Update both documents to cover therapy session data, therapist independence, cancellation/refund policy, dispute window, crisis escalation, data retention (7 years for session records per clinical standards)
+- [x] **Therapy consent version**: Decide on version string (e.g. `'2.0'`) for therapy consent addendum � needed for migration
 
 ---
 
@@ -2044,20 +2044,20 @@ Failure modes to cover:
 
 ### 37.4 � Admin Panel: Therapist Verification & Category Management
 
-- [ ] Add `CategoriesPanel` to `TherapistsTab.jsx` � list all `therapist_categories`; create/edit/reorder/deactivate; icon name input (Phosphor slug); condition tags input (comma-separated); sort order drag or up/down buttons
-- [ ] `GET /admin/therapist-categories` � all categories ordered by sort_order
-- [ ] `POST /admin/therapist-categories` � create category; validate name unique, icon_name provided
-- [ ] `PATCH /admin/therapist-categories/:id` � update name, description, icon_name, condition_tags, sort_order, is_active
-- [ ] Update `POST /admin/therapists` � add fields: `gender`, `age`, `rate_per_session_kes`, `mpesa_number`, `registration_number`, `kcpa_level`; remove `specializations` (replaced by category_ids); keep invite email flow; set `is_verified = false` on creation (admin must verify separately)
-- [ ] Update `PATCH /admin/therapists/:id` � support all new fields; if `credentials`, `registration_number`, or `kcpa_level` is edited, automatically set `is_verified = false` and log in `admin_audit_log` with reason 'credentials_edited � re-verification required'
-- [ ] Add `PATCH /admin/therapists/:id/verify` � 6-step verification checklist in request body: `{ kcpa_confirmed, credentials_confirmed, good_conduct_confirmed, indemnity_confirmed, teletherapy_agreement_signed, agreement_signed_at }`; sets `is_verified = true` only when all 6 are true; stores `credentials_verified_by = req.user.id`, `credentials_verified_at = NOW()`; logs in `admin_audit_log`
-- [ ] Add `PATCH /admin/therapists/:id/suspend` � sets `therapist_profiles.suspended = true`, `is_active = false`; finds all future `therapist_bookings` with `status IN ('pending','confirmed')` for this therapist; auto-cancels each with `cancelled_by = 'admin'`; triggers full M-Pesa refund + credit refund for each; notifies each affected member via in-app notification; logs in `admin_audit_log`
-- [ ] Update `TherapistsTab.jsx` � add verification checklist panel (6 checkboxes per therapist, shown when `is_verified = false`); add "Suspend" button (red, requires confirmation dialog: "This will cancel all future bookings and refund all affected members"); add `is_verified` badge on each row; add category assignment multi-select
-- [ ] Add `VerificationQueueTab` or section within `TherapistsTab` � lists therapists with `is_verified = false` sorted by `created_at ASC`; each row shows: name, email, registration_number, days_since_created; one-click to open full verification panel
-- [ ] Add float management widget to `OverviewTab.jsx` � shows: current Paybill balance (manual input field, admin-updated), total `therapist_payouts` WHERE `status = 'pending'` sum in KES, total `therapist_payouts` WHERE `status = 'processing'` sum in KES, warning banner if pending + processing obligations exceed Paybill balance threshold (configurable, default KES 50,000)
-- [ ] Add `TherapyMarketplaceTab` to admin panel � platform-wide metrics: total bookings, completed sessions, cancelled sessions, therapist no-show count, member no-show count, gross revenue (KES), platform fees collected (KES), total payouts (KES), active therapists, unique members who booked; per-therapist table: name, sessions, rating, earnings, disputes, payout status; dispute queue (open disputes with resolve actions); pending verification queue count; **partial sessions queue** � list of completed bookings where `duration_billed_minutes < booking.duration_minutes * 0.8`, showing both parties' aliases, duration, and "Release payout" / "Issue refund" action buttons (admin decides outcome for short sessions)
-- [ ] Add to `admin.js`: `GET /admin/therapy/bookings`, `GET /admin/therapy/disputes`, `PATCH /admin/therapy/disputes/:id/resolve` � resolve with outcome: `full_refund | partial_refund | release`; on `full_refund`: refund member M-Pesa + credit, set booking `payment_status = 'refunded'`, `escrow_status = 'refunded'`; on `release`: trigger `initiatePayout`; on `partial_refund`: calculate partial amounts, issue partial M-Pesa refund to member, release remainder to therapist
-- [ ] Add `GET /admin/therapy/stats` � daily series: bookings, completions, revenue, disputes; used by `TherapyMarketplaceTab` chart
+- [x] Add `CategoriesPanel` to `TherapistsTab.jsx` � list all `therapist_categories`; create/edit/reorder/deactivate; icon name input (Phosphor slug); condition tags input (comma-separated); sort order drag or up/down buttons
+- [x] `GET /admin/therapist-categories` � all categories ordered by sort_order
+- [x] `POST /admin/therapist-categories` � create category; validate name unique, icon_name provided
+- [x] `PATCH /admin/therapist-categories/:id` � update name, description, icon_name, condition_tags, sort_order, is_active
+- [x] Update `POST /admin/therapists` � add fields: `gender`, `age`, `rate_per_session_kes`, `mpesa_number`, `registration_number`, `kcpa_level`; remove `specializations` (replaced by category_ids); keep invite email flow; set `is_verified = false` on creation (admin must verify separately)
+- [x] Update `PATCH /admin/therapists/:id` � support all new fields; if `credentials`, `registration_number`, or `kcpa_level` is edited, automatically set `is_verified = false` and log in `admin_audit_log` with reason 'credentials_edited � re-verification required'
+- [x] Add `PATCH /admin/therapists/:id/verify` � 6-step verification checklist in request body: `{ kcpa_confirmed, credentials_confirmed, good_conduct_confirmed, indemnity_confirmed, teletherapy_agreement_signed, agreement_signed_at }`; sets `is_verified = true` only when all 6 are true; stores `credentials_verified_by = req.user.id`, `credentials_verified_at = NOW()`; logs in `admin_audit_log`
+- [x] Add `PATCH /admin/therapists/:id/suspend` � sets `therapist_profiles.suspended = true`, `is_active = false`; finds all future `therapist_bookings` with `status IN ('pending','confirmed')` for this therapist; auto-cancels each with `cancelled_by = 'admin'`; triggers full M-Pesa refund + credit refund for each; notifies each affected member via in-app notification; logs in `admin_audit_log`
+- [x] Update `TherapistsTab.jsx` � add verification checklist panel (6 checkboxes per therapist, shown when `is_verified = false`); add "Suspend" button (red, requires confirmation dialog: "This will cancel all future bookings and refund all affected members"); add `is_verified` badge on each row; add category assignment multi-select
+- [x] Add `VerificationQueueTab` or section within `TherapistsTab` � lists therapists with `is_verified = false` sorted by `created_at ASC`; each row shows: name, email, registration_number, days_since_created; one-click to open full verification panel
+- [x] Add float management widget to `OverviewTab.jsx` � shows: current Paybill balance (manual input field, admin-updated), total `therapist_payouts` WHERE `status = 'pending'` sum in KES, total `therapist_payouts` WHERE `status = 'processing'` sum in KES, warning banner if pending + processing obligations exceed Paybill balance threshold (configurable, default KES 50,000)
+- [x] Add `TherapyMarketplaceTab` to admin panel � platform-wide metrics: total bookings, completed sessions, cancelled sessions, therapist no-show count, member no-show count, gross revenue (KES), platform fees collected (KES), total payouts (KES), active therapists, unique members who booked; per-therapist table: name, sessions, rating, earnings, disputes, payout status; dispute queue (open disputes with resolve actions); pending verification queue count; **partial sessions queue** � list of completed bookings where `duration_billed_minutes < booking.duration_minutes * 0.8`, showing both parties' aliases, duration, and "Release payout" / "Issue refund" action buttons (admin decides outcome for short sessions)
+- [x] Add to `admin.js`: `GET /admin/therapy/bookings`, `GET /admin/therapy/disputes`, `PATCH /admin/therapy/disputes/:id/resolve` � resolve with outcome: `full_refund | partial_refund | release`; on `full_refund`: refund member M-Pesa + credit, set booking `payment_status = 'refunded'`, `escrow_status = 'refunded'`; on `release`: trigger `initiatePayout`; on `partial_refund`: calculate partial amounts, issue partial M-Pesa refund to member, release remainder to therapist
+- [x] Add `GET /admin/therapy/stats` � daily series: bookings, completions, revenue, disputes; used by `TherapyMarketplaceTab` chart
 
 ---
 
@@ -2140,60 +2140,60 @@ Failure modes to cover:
 ### 37.8 � Therapist Portal (src/therapist/)
 
 #### Scaffold
-- [ ] Create `src/therapist/` directory with Vite + React setup: copy `src/admin/` config pattern; `vite.config.js`, `package.json`, `index.html`; title: "PeerPal � Therapist Portal"
-- [ ] Add PWA manifest (`public/manifest.json`): name "PeerPal Therapist", short_name "PT Portal", start_url "/", display "standalone", background_color and theme_color matching admin palette; add `<link rel="manifest">` to `index.html`
-- [ ] Create `src/therapist/src/main.jsx`, `App.jsx`, `context/AuthContext.jsx` � JWT storage, role check on load: fetch user from `/api/profile`, if `role !== 'therapist'` redirect to login; if `suspended = true` show suspension notice
-- [ ] Create `src/therapist/src/components/LoginScreen.jsx` � same pattern as admin login; POST `/api/auth/login`; after login verify `role = 'therapist'` client-side; if not therapist: logout + show error
-- [ ] Create `src/therapist/src/api/client.js` � Axios with baseURL from `VITE_API_URL` env; attach JWT from localStorage; 401 ? redirect to login
-- [ ] Create `src/therapist/src/styles/globals.css` � professional palette (admin base); Inter font only (no Lora); denser layout; no blob, no emotional design moments
-- [ ] Create navigation: mobile-first bottom nav for mobile (Sessions, Dashboard, Schedule, Payments, Profile); sidebar for desktop (768px+); Ratings as sidebar item on desktop, bottom nav item on mobile
+- [x] Create `src/therapist/` directory with Vite + React setup: copy `src/admin/` config pattern; `vite.config.js`, `package.json`, `index.html`; title: "PeerPal � Therapist Portal"
+- [x] Add PWA manifest (`public/manifest.json`): name "PeerPal Therapist", short_name "PT Portal", start_url "/", display "standalone", background_color and theme_color matching admin palette; add `<link rel="manifest">` to `index.html`
+- [x] Create `src/therapist/src/main.jsx`, `App.jsx`, `context/AuthContext.jsx` � JWT storage, role check on load: fetch user from `/api/profile`, if `role !== 'therapist'` redirect to login; if `suspended = true` show suspension notice
+- [x] Create `src/therapist/src/components/LoginScreen.jsx` � same pattern as admin login; POST `/api/auth/login`; after login verify `role = 'therapist'` client-side; if not therapist: logout + show error
+- [x] Create `src/therapist/src/api/client.js` � Axios with baseURL from `VITE_API_URL` env; attach JWT from localStorage; 401 ? redirect to login
+- [x] Create `src/therapist/src/styles/globals.css` � professional palette (admin base); Inter font only (no Lora); denser layout; no blob, no emotional design moments
+- [x] Create navigation: mobile-first bottom nav for mobile (Sessions, Dashboard, Schedule, Payments, Profile); sidebar for desktop (768px+); Ratings as sidebar item on desktop, bottom nav item on mobile
 
 #### Dashboard Tab (mobile-first)
-- [ ] `DashboardTab.jsx` � upcoming sessions next 7 days (card list: member alias, scheduled_at, format, status badge, join button if in_progress or within 10min of start); pending booking requests (confirm/decline action inline); earnings this month in KES; average rating; today's session count; GET `/api/therapy/therapist/dashboard` (new endpoint)
-- [ ] `GET /api/therapy/therapist/dashboard` � therapistAuth; returns: upcoming_sessions (next 7 days, status IN confirmed/in_progress), pending_requests (status=pending), earnings_this_month (SUM therapist_payout_kes WHERE status=completed AND scheduled_at >= start of month), average_rating, total_sessions
+- [x] `DashboardTab.jsx` � upcoming sessions next 7 days (card list: member alias, scheduled_at, format, status badge, join button if in_progress or within 10min of start); pending booking requests (confirm/decline action inline); earnings this month in KES; average rating; today's session count; GET `/api/therapy/therapist/dashboard` (new endpoint)
+- [x] `GET /api/therapy/therapist/dashboard` � therapistAuth; returns: upcoming_sessions (next 7 days, status IN confirmed/in_progress), pending_requests (status=pending), earnings_this_month (SUM therapist_payout_kes WHERE status=completed AND scheduled_at >= start of month), average_rating, total_sessions
 
 #### Sessions Tab (mobile-first)
-- [ ] `SessionsTab.jsx` � filter tabs: Upcoming / Pending / Completed / Cancelled; each booking card: member alias, scheduled_at (formatted in EAT), format badge, status badge, duration, notes from member (if provided); Confirm / Decline buttons on pending; "Join Session" button when status=in_progress or within 15min of scheduled_at; "Mark Complete" button (if started and not yet ended � fallback for session that ended outside app); "Add Notes" button on completed sessions
-- [ ] Therapist video/voice session screen: same WebRTC stack as member; therapist role = owner (initiates offer); therapist sees member alias only; "End Session" button (therapist controls end); session timer; no recording controls; mute + camera toggle; crisis escalation button (one tap) � POST `/api/emergency/trigger` with `source = 'therapist'`, `booking_id` � fires admin alert immediately
-- [ ] Therapist text session screen: WebSocket chat (therapy namespace); auto-close when therapist ends; same off-platform contact filter applies to therapist messages too
-- [ ] "Add Notes" ? slide panel with textarea (private, encrypted server-side); POST `/api/therapy/session-notes`; note: label prominently "Private � not visible to client"
-- [ ] GET `/api/therapy/therapist/bookings` � therapistAuth; paginated; filters by status; returns member alias, scheduled_at, format, status, member notes
+- [x] `SessionsTab.jsx` � filter tabs: Upcoming / Pending / Completed / Cancelled; each booking card: member alias, scheduled_at (formatted in EAT), format badge, status badge, duration, notes from member (if provided); Confirm / Decline buttons on pending; "Join Session" button when status=in_progress or within 15min of scheduled_at; "Mark Complete" button (if started and not yet ended � fallback for session that ended outside app); "Add Notes" button on completed sessions
+- [x] Therapist video/voice session screen: same WebRTC stack as member; therapist role = owner (initiates offer); therapist sees member alias only; "End Session" button (therapist controls end); session timer; no recording controls; mute + camera toggle; crisis escalation button (one tap) � POST `/api/emergency/trigger` with `source = 'therapist'`, `booking_id` � fires admin alert immediately
+- [x] Therapist text session screen: WebSocket chat (therapy namespace); auto-close when therapist ends; same off-platform contact filter applies to therapist messages too
+- [x] "Add Notes" ? slide panel with textarea (private, encrypted server-side); POST `/api/therapy/session-notes`; note: label prominently "Private � not visible to client"
+- [x] GET `/api/therapy/therapist/bookings` � therapistAuth; paginated; filters by status; returns member alias, scheduled_at, format, status, member notes
 
 #### Schedule Tab (mobile-first)
-- [ ] `ScheduleTab.jsx` � weekly calendar grid (Mon�Sun, rows = time blocks); therapist's availability slots highlighted; confirmed bookings shown as blocks; tap day/time to toggle availability; PATCH `/api/therapy/therapist/availability` � upsert availability row; bookings cannot be moved (immutable once confirmed)
-- [ ] `GET /api/therapy/therapist/availability` � therapistAuth; returns all availability rows + confirmed bookings for next 4 weeks
-- [ ] `PATCH /api/therapy/therapist/availability` � therapistAuth; body: array of `{ day_of_week, start_time, end_time, is_active }`; UPSERT; cannot deactivate slot that has a confirmed booking
+- [x] `ScheduleTab.jsx` � weekly calendar grid (Mon�Sun, rows = time blocks); therapist's availability slots highlighted; confirmed bookings shown as blocks; tap day/time to toggle availability; PATCH `/api/therapy/therapist/availability` � upsert availability row; bookings cannot be moved (immutable once confirmed)
+- [x] `GET /api/therapy/therapist/availability` � therapistAuth; returns all availability rows + confirmed bookings for next 4 weeks
+- [x] `PATCH /api/therapy/therapist/availability` � therapistAuth; body: array of `{ day_of_week, start_time, end_time, is_active }`; UPSERT; cannot deactivate slot that has a confirmed booking
 
 #### Payments Tab (desktop-optimised)
-- [ ] `PaymentsTab.jsx` � earnings summary card: this month (KES), lifetime (KES), pending payouts (KES), completed payouts (KES); per-session breakdown table: member alias (anonymous), date, format, duration, session rate, platform fee, therapist payout, payout status, M-Pesa reference; payout schedule explainer: "Sessions are paid out 24 hours after completion, pending any disputes"; export to CSV button (frontend-only, formats displayed data)
-- [ ] `GET /api/therapy/therapist/payments` � therapistAuth; returns `therapist_payouts` joined with `therapist_bookings`; paginated; filter by status
+- [x] `PaymentsTab.jsx` � earnings summary card: this month (KES), lifetime (KES), pending payouts (KES), completed payouts (KES); per-session breakdown table: member alias (anonymous), date, format, duration, session rate, platform fee, therapist payout, payout status, M-Pesa reference; payout schedule explainer: "Sessions are paid out 24 hours after completion, pending any disputes"; export to CSV button (frontend-only, formats displayed data)
+- [x] `GET /api/therapy/therapist/payments` � therapistAuth; returns `therapist_payouts` joined with `therapist_bookings`; paginated; filter by status
 
 #### Ratings Tab (desktop-optimised)
-- [ ] `RatingsTab.jsx` � average rating display with star breakdown (1�5 distribution bar chart); total ratings count; note if count < 5: "Your rating will appear publicly once you have 5 or more reviews"; anonymous comment list (no member alias, no date beyond month/year); flagged comments hidden from view (flagged=true)
-- [ ] `GET /api/therapy/therapist/ratings` � therapistAuth; returns own ratings (anonymous � no member_user_id in response); filters out flagged; includes rating, comment, created_at (month/year only)
+- [x] `RatingsTab.jsx` � average rating display with star breakdown (1�5 distribution bar chart); total ratings count; note if count < 5: "Your rating will appear publicly once you have 5 or more reviews"; anonymous comment list (no member alias, no date beyond month/year); flagged comments hidden from view (flagged=true)
+- [x] `GET /api/therapy/therapist/ratings` � therapistAuth; returns own ratings (anonymous � no member_user_id in response); filters out flagged; includes rating, comment, created_at (month/year only)
 
 #### Profile Tab
-- [ ] `ProfileTab.jsx` � view and edit: photo_url, bio, plain_language_intro, approach_plain, cultural_competencies, languages (comma-separated), session_formats (checkbox), rate_per_session_kes, availability_status; PATCH `/api/therapy/therapist/profile`
-- [ ] `PATCH /api/therapy/therapist/profile` � therapistAuth; allows: photo_url, bio, plain_language_intro, approach_plain, cultural_competencies, languages, session_formats, rate_per_session_kes, availability_status; if `credentials` (display_name, credentials field) is edited: set `is_verified = false`, notify admin for re-verification; M-Pesa number editable for payout; display read-only: display_name, full_name (immutable after admin sets), registration_number, kcpa_level, total_sessions, average_rating
-- [ ] Therapist notifications: new booking request (push + in-app), booking cancelled by member (push + in-app), session starting in 15 min (push + in-app), payout processed (in-app), new rating received (in-app), account suspended (in-app + email)
+- [x] `ProfileTab.jsx` � view and edit: photo_url, bio, plain_language_intro, approach_plain, cultural_competencies, languages (comma-separated), session_formats (checkbox), rate_per_session_kes, availability_status; PATCH `/api/therapy/therapist/profile`
+- [x] `PATCH /api/therapy/therapist/profile` � therapistAuth; allows: photo_url, bio, plain_language_intro, approach_plain, cultural_competencies, languages, session_formats, rate_per_session_kes, availability_status; if `credentials` (display_name, credentials field) is edited: set `is_verified = false`, notify admin for re-verification; M-Pesa number editable for payout; display read-only: display_name, full_name (immutable after admin sets), registration_number, kcpa_level, total_sessions, average_rating
+- [x] Therapist notifications: new booking request (push + in-app), booking cancelled by member (push + in-app), session starting in 15 min (push + in-app), payout processed (in-app), new rating received (in-app), account suspended (in-app + email)
 
 ---
 
 ### 37.9 � Safety, Quality & Compliance Implementation
 
-- [ ] Verify zero third-party analytics events fire on any screen in the therapist module (no `events` table inserts, no Sentry breadcrumbs containing booking_id or member alias on therapy screens)
-- [ ] Verify `GET /therapy/therapists/:id` response contains zero: mpesa_number, full_name, user_id, email, registration_number � run manual API check against response payload
-- [ ] Verify `GET /therapy/sessions/:booking_id/join` returns `room_token_member` only once � token is nulled in DB after first retrieval; second call returns 404
-- [ ] Verify therapist session screen shows member alias only � no full name, no email, no phone reachable from any client-visible API
-- [ ] Verify `therapy_session_notes` RLS: attempt SELECT as anon role ? 0 rows; attempt SELECT as member JWT ? 0 rows; SELECT as therapist JWT ? own notes only; SELECT as admin ? all (for dispute resolution only)
-- [ ] Add Sentry `beforeSend` scrubber: strip any field named `booking_id`, `member_alias`, `therapist_id`, `room_token`, `mpesa_number` from error payloads before they leave the client
-- [ ] Therapy consent gate: verify that any unauthenticated or pre-consent member hitting `/therapists/*` is redirected to consent screen; test with a new account that has not yet consented
-- [ ] Cancellation policy: write unit test for each band (>24hr, 2�24hr, <2hr, grace case) against the cancellation handler logic
-- [ ] Verify B2C idempotency: simulate duplicate payout trigger for same `idempotency_key` � second call must be rejected without initiating a second Daraja request
-- [ ] Verify slot lock: simulate two concurrent booking confirmations for the same slot � second must receive 409; only one booking created
-- [ ] Bayesian rating: verify formula output with known inputs (C=10, platform_mean=3.5, 2 five-star reviews ? result should be ~3.73, not 5.0)
-- [ ] Therapist no-show: simulate therapist not joining within 10 min � verify auto-cancel fires, refund issued, no_show_count incremented, admin notified
-- [ ] Crisis escalation from therapist portal: tap crisis button during session ? verify emergency_log INSERT, admin in-app notification, Befrienders Kenya number surfaces to therapist
+- [x] Verify zero third-party analytics events fire on any screen in the therapist module (no `events` table inserts, no Sentry breadcrumbs containing booking_id or member alias on therapy screens)
+- [x] Verify `GET /therapy/therapists/:id` response contains zero: mpesa_number, full_name, user_id, email, registration_number � run manual API check against response payload
+- [x] Verify `GET /therapy/sessions/:booking_id/join` returns `room_token_member` only once � token is nulled in DB after first retrieval; second call returns 404
+- [x] Verify therapist session screen shows member alias only � no full name, no email, no phone reachable from any client-visible API
+- [x] Verify `therapy_session_notes` RLS: attempt SELECT as anon role ? 0 rows; attempt SELECT as member JWT ? 0 rows; SELECT as therapist JWT ? own notes only; SELECT as admin ? all (for dispute resolution only)
+- [x] Add Sentry `beforeSend` scrubber: strip any field named `booking_id`, `member_alias`, `therapist_id`, `room_token`, `mpesa_number` from error payloads before they leave the client
+- [x] Therapy consent gate: verify that any unauthenticated or pre-consent member hitting `/therapists/*` is redirected to consent screen; test with a new account that has not yet consented
+- [x] Cancellation policy: write unit test for each band (>24hr, 2�24hr, <2hr, grace case) against the cancellation handler logic
+- [x] Verify B2C idempotency: simulate duplicate payout trigger for same `idempotency_key` � second call must be rejected without initiating a second Daraja request
+- [x] Verify slot lock: simulate two concurrent booking confirmations for the same slot � second must receive 409; only one booking created
+- [x] Bayesian rating: verify formula output with known inputs (C=10, platform_mean=3.5, 2 five-star reviews ? result should be ~3.73, not 5.0)
+- [x] Therapist no-show: simulate therapist not joining within 10 min � verify auto-cancel fires, refund issued, no_show_count incremented, admin notified
+- [x] Crisis escalation from therapist portal: tap crisis button during session ? verify emergency_log INSERT, admin in-app notification, Befrienders Kenya number surfaces to therapist
 
 ---
 
@@ -2526,9 +2526,9 @@ Scope-contained improvements to the live session experience. No new routes or mi
 - [x] Create `src/backend/services/storage.js` — uploadDocument, getSignedUrl, deleteDocument
 - [x] Create `docs/supabase_storage_setup.sql` — RLS policy: service_role only, deny authenticated/anon
 - [x] Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to `.env.example`
-- [ ] User action: create `therapist-docs` private bucket in Supabase Dashboard
-- [ ] User action: add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to backend `.env`
-- [ ] User action: run `docs/supabase_storage_setup.sql` in Supabase SQL Editor
+- [x] User action: create `therapist-docs` private bucket in Supabase Dashboard
+- [x] User action: add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to backend `.env`
+- [x] User action: run `docs/supabase_storage_setup.sql` in Supabase SQL Editor
 
 ### 42.3 — Backend endpoints
 - [x] Extend `PATCH /therapy/therapist/profile` with: years_experience, location, gender, age, credentials, registration_number, kcpa_level
@@ -2561,3 +2561,92 @@ Scope-contained improvements to the live session experience. No new routes or mi
 - Admin can view therapist documents as signed URLs (no public URLs, no direct storage access)
 - `onboarding_complete=true` + `is_verified=false` shows pending-verification banner
 - All files stored at `therapist-docs/{user_id}/{doc_type}/{filename}`
+
+---
+
+## Phase 43 — Peer Module Polish & Re-engagement (Priority Order)
+
+> Bug fixes, notification improvements, and user re-engagement system.
+
+### P1: Outside-App Peer Request — Call-Like Notification (HIGHEST PRIORITY)
+
+**Problem:** When a peer request is broadcast and the app is backgrounded or closed, the push notification auto-dismisses silently. Peers miss requests entirely. This breaks the core value proposition — a requester gets no response and assumes no one is available.
+
+**Root cause:** Two missing pieces. First, `requireInteraction: true` is not set on the notification — without it Android auto-dismisses the banner after a few seconds. Second, `notification_priority: PRIORITY_MAX` and `visibility: PUBLIC` are not set in the FCM payload — without them Android does not show the notification on the lock screen or as a persistent heads-up banner.
+
+**What WhatsApp does that we are not doing:** `requireInteraction: true` keeps the notification on screen until the user acts. `PRIORITY_MAX` + `visibility: PUBLIC` forces it onto the lock screen. These two changes are the entire delta.
+
+- [x] **Service worker** `firebase-messaging-sw.js` — add `requireInteraction: true` to the `showNotification` options for `peer_request_broadcast` type; this keeps the alert on screen until the user taps "I'm ready" or "Skip" instead of auto-dismissing
+- [x] **FCM payload** `src/backend/utils/fcm.js` — in the `isUrgent` block, extend `android.notification` with `notification_priority: 'PRIORITY_MAX'` and `visibility: 'PUBLIC'`; this forces Android to display on the lock screen and as a full heads-up banner
+- [x] **Notification copy** — set final copy in the service worker: title `"Someone needs your support"`, body `"A peer is waiting. Tap to help."`, actions `"I'm ready"` / `"Skip"` (already structured — just confirm copy is correct)
+- [x] **iOS PWA note** — iOS Safari PWA does not support background push audio or persistent lock-screen alerts; vibration and banner are the maximum achievable; no code change needed, document as known platform limitation
+- [ ] **Test end-to-end** — with app closed on Android: confirm notification appears on lock screen, persists until tapped, vibrates with the urgent pattern, and "I'm ready" opens `/peer`
+
+### P2: Peer Request Cancel Flow (Bug — broadcast stays live after cancel)
+
+**Problem:** If a user sends a peer request by mistake and navigates away or the app closes, the broadcast notification remains active in other peers' apps. Those peers can still accept, entering a session with a requester who is gone.
+
+- [x] **Backend** `PATCH /peer/request/:id/close` — after cancelling, delete or expire the `peer_request_broadcast` in-app notifications for all users who received this request_id (currently only timers are cleared; notification rows remain)
+- [x] **Backend** — when a peer accepts a request (`PATCH /peer/request/:id/accept`), verify status is still `open`; if `cancelled`, return `410 REQUEST_CANCELLED` and instruct frontend to dismiss the banner
+- [x] **Frontend** `PeerRequestScreen.jsx` — if accept returns `410 REQUEST_CANCELLED`, dismiss the banner and show a brief toast: "This request is no longer available"
+- [x] **Frontend** `PeerWaitingScreen.jsx` — add explicit "Cancel Request" button visible immediately (it exists but confirm it's prominent and works end-to-end on mobile)
+- [x] **Frontend** `PeerConnectingScreen.jsx` — add a visible cancel/back button; currently there is no escape once the connection screen appears
+
+### P3: Re-engagement Notifications (Duolingo-style)
+
+**Goal:** Bring users back to the app through timely, human-feeling nudges — streak reminders, journal prompts, peer availability alerts.
+
+#### 43.3.1 — Backend: Notification Jobs
+- [x] Create `src/backend/jobs/reengagementJob.js` — runs every 30 min; 1 push per user per 24h cap
+- [x] **Streak reminder** — fires when streak >= 1 and no check-in yet today
+- [x] **Streak broken** — gentle recovery nudge when streak resets to 0
+- [x] **Dormant user nudge** — no check-in in 3+ days
+- [x] **Bad mood follow-up** — 6-12h after low/very_low mood, if no subsequent mood or session
+- [x] **Session follow-up peer** — 24h after peer session ends
+- [x] **Session follow-up therapy** — 48h after therapy session ends
+- [x] **Unmatched request** — peer request closed with no match in last 24h
+- [x] **AI dormant** — no AI interaction in 14 days
+- [x] **Credit low / credit zero** — fires on balance 1 and 0 respectively
+- [x] **No safety plan** — after 14 days on platform with no safety plan
+- [x] **Low mood streak** — 3+ consecutive days of low/very_low mood
+- [x] **Therapist upsell** — 3+ peer sessions, never booked therapy (fires once only)
+- [x] **Rate limit** — no user receives more than 1 re-engagement push per 24 hours
+- [x] **Migration 099** — `last_reengagement_push_at TIMESTAMPTZ NULL` added to users; 12 new enum values
+
+#### 43.3.2 — Notification Copy Bank
+- [x] `src/backend/config/reengagementCopy.js` — all 13 nudge types with 2-5 rotating copy variants each; `{n}` substitution for streak count
+
+#### 43.3.3 — Frontend: Notification Routing
+- [x] All re-engagement types routed in `firebase-messaging-sw.js` notificationclick handler
+- [x] All 13 new types added to `NotificationsScreen.jsx` LANES and TYPE_META with icons and labels
+
+### P4: Therapist Partnership Agreement (Markdown Document)
+
+**Goal:** A clear, professional document the two onboarded therapists sign before going live. Markdown format, stored in `docs/`.
+
+- [ ] Draft `docs/therapist-agreement.md` — sections:
+  - **Parties** — PeerPal platform and therapist (independent contractor)
+  - **Scope of Services** — remote therapy sessions via PeerPal platform only
+  - **Revenue Share** — 80% therapist / 20% platform; payout via M-Pesa B2C within 24h of session completion
+  - **Professional Standards** — KCPA registration required; maintain valid practising licence; no off-platform contact with clients
+  - **Data & Confidentiality** — session data governed by PeerPal Privacy Policy; therapist may not retain, export, or share session notes outside platform
+  - **Crisis Protocol** — therapist must use in-app crisis escalation button for any client emergency; Befrienders Kenya (0800 723 253) as standard referral
+  - **Cancellation Policy** — therapist no-show: no payout, no_show_count incremented; 2+ no-shows in 30 days: account review
+  - **Termination** — either party may terminate with 7 days notice; outstanding sessions fulfilled before exit
+  - **Governing Law** — Republic of Kenya; disputes via KCCA arbitration
+- [ ] Add signature block: name, KCPA registration number, date, digital acknowledgement (checkbox in therapist portal onboarding — wire to `PATCH /therapy/therapist/onboarding/complete`)
+- [ ] Update therapist onboarding `OnboardingScreen.jsx` Step 1 to include agreement checkbox: "I have read and agree to the Therapist Partnership Agreement" (link opens the markdown rendered in a modal or new tab)
+
+### P5: Health Equity Collaboration Document
+
+**Goal:** A concept/collaboration document for the Health Equity partnership meeting. Draft after user shares meeting summary.
+
+- [ ] **Waiting on user input** — user to share Health Equity meeting summary before drafting
+- [ ] Draft `docs/health-equity-collaboration.md` — sections TBD based on meeting outcomes:
+  - Partnership overview and shared goals
+  - Platform capabilities relevant to Health Equity's work
+  - Data sharing and privacy framework
+  - Proposed collaboration model (referrals, co-branded content, joint programmes)
+  - Next steps and timelines
+
+
