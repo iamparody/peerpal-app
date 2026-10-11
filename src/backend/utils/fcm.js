@@ -45,7 +45,7 @@ async function sendPushNotification(fcm_token, title, body, data = {}) {
       data: cleanData,
     };
     if (isUrgent) {
-      msg.android = { priority: 'high', notification: { channel_id: 'peer_requests', notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC', default_vibrate_timings: true } };
+      msg.android = { priority: 'high', notification: { channel_id: 'peer_requests', notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC', default_sound: true, default_vibrate_timings: true } };
       msg.apns = { headers: { 'apns-priority': '10', 'apns-push-type': 'alert' } };
       msg.webpush = { headers: { Urgency: 'high', TTL: '30' } };
     }
