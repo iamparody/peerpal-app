@@ -1,0 +1,1 @@
+-- Enum values cannot be removed in Postgres — no rollback possible.
