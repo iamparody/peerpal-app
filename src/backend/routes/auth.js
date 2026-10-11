@@ -44,7 +44,7 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(409).json({ error: 'Email already registered', code: 'EMAIL_TAKEN' });
     }
 
-    const password_hash = await bcrypt.hash(password, 12);
+    const password_hash = await bcrypt.hash(password, 10);
     const alias = await generateAlias();
 
     const verifyToken = crypto.randomBytes(32).toString('hex');
@@ -313,7 +313,7 @@ router.post('/reset-password', authLimiter, async (req, res) => {
     });
   }
 
-  const password_hash = await bcrypt.hash(new_password, 12);
+  const password_hash = await bcrypt.hash(new_password, 10);
 
   // Update password and invalidate all existing sessions via jwt_issued_before
   await query(
