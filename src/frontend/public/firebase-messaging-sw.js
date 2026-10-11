@@ -20,16 +20,17 @@ messaging.onBackgroundMessage((payload) => {
   const isPeerRequest = data.type === 'peer_request_broadcast';
 
   const options = {
-    body:     notif.body || 'You have a new notification.',
-    icon:     '/pwa-192x192.png',
-    badge:    '/pwa-64x64.png',
-    tag:      data.type || 'peerpal',
+    body:              isPeerRequest ? 'A peer is waiting. Tap to help.' : (notif.body || 'You have a new notification.'),
+    icon:              '/pwa-192x192.png',
+    badge:             '/pwa-64x64.png',
+    tag:               data.type || 'peerpal',
     data,
-    renotify: isPeerRequest,              // re-alert if a previous one was dismissed
-    vibrate:  isPeerRequest
-                ? [300, 100, 300, 100, 300, 200, 600]   // urgent pulse: 3 short + 1 long
-                : [200],
-    actions: isPeerRequest
+    renotify:          isPeerRequest,
+    requireInteraction: isPeerRequest,   // stay on screen until user acts — not auto-dismissed
+    vibrate:           isPeerRequest
+                         ? [300, 100, 300, 100, 300, 200, 600]
+                         : [200],
+    actions:           isPeerRequest
       ? [
           { action: 'accept', title: "I'm ready" },
           { action: 'skip',   title: 'Skip'      },
