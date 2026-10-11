@@ -510,10 +510,10 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
   );
 
   if (!rowCount) {
-    // Either not found or already accepted/escalated
     const { rows: check } = await query('SELECT status, user_id FROM peer_requests WHERE id = $1', [req.params.id]);
     if (!check.length) return res.status(404).json({ error: 'Request not found', code: 'NOT_FOUND' });
     if (check[0].user_id === req.user.id) return res.status(403).json({ error: 'Cannot accept your own request', code: 'FORBIDDEN' });
+    if (check[0].status === 'cancelled') return res.status(410).json({ error: 'This request was cancelled by the user', code: 'REQUEST_CANCELLED' });
     return res.status(409).json({ error: 'Request is no longer open', code: 'REQUEST_UNAVAILABLE' });
   }
 
@@ -687,6 +687,11 @@ router.patch('/request/:id/close', auth, async (req, res) => {
         requesterId, creditCost, null, channel_preference,
         `Your ${channel_preference === 'voice' ? 'voice call' : 'text chat'} request was cancelled — ${creditCost} credit${creditCost > 1 ? 's' : ''} refunded.`
       );
+      // Expire broadcast notifications so peers no longer see this request
+      await query(
+        `DELETE FROM notifications WHERE type = 'peer_request_broadcast' AND payload::jsonb->>'request_id' = $1`,
+        [String(req.params.id)]
+      ).catch(() => {});
     }
 
     return res.status(200).json({ cancelled: true });

@@ -363,10 +363,9 @@ export default function PeerRequestScreen() {
         setQuizDone(false);
         return;
       }
-      if (code === 'REQUEST_UNAVAILABLE') {
-        // Remove the stale request from the list immediately
+      if (code === 'REQUEST_UNAVAILABLE' || code === 'REQUEST_CANCELLED') {
         setOpenRequests(prev => prev.filter(r => r.id !== request.id));
-        setError('This request is no longer available — the user may have cancelled it.');
+        setError('This request is no longer available.');
         return;
       }
       setError(err.response?.data?.error || 'Could not accept request. Please try again.');
