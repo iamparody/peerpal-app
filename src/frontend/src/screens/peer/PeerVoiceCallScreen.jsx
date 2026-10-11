@@ -311,7 +311,15 @@ export default function PeerVoiceCallScreen() {
           }
         }, 35000);
 
-        ws.onopen = () => { ws.send(JSON.stringify({ type: 'join', session_id: sessionId })); };
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'join', session_id: sessionId }));
+          // Keepalive ping every 20s to prevent Render free tier from dropping idle WS connections
+          const pingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+            else clearInterval(pingInterval);
+          }, 20000);
+          ws._pingInterval = pingInterval;
+        };
 
         ws.onerror = () => {
           clearTimeout(connectTimeoutRef.current);

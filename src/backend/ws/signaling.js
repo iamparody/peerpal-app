@@ -219,6 +219,9 @@ function createSignalingServer(httpServer) {
         }
       }
 
+      // Keepalive ping from client — do not relay, just absorb.
+      if (msg.type === 'ping') return;
+
       if (['offer', 'answer', 'ice'].includes(msg.type)) {
         console.log(`[signal] room=${short} relay ${msg.type}`);
       }
