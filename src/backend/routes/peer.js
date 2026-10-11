@@ -340,6 +340,27 @@ router.post('/request', auth, async (req, res) => {
     return res.status(200).json({ request_id: existing[0].id, reused: true });
   }
 
+  // Cooldown: 2+ cancels within 10 minutes → 90s cooldown from the last cancel
+  const { rows: recentCancels } = await query(
+    `SELECT updated_at FROM peer_requests
+     WHERE user_id = $1 AND status = 'cancelled' AND updated_at > NOW() - INTERVAL '10 minutes'
+     ORDER BY updated_at DESC`,
+    [req.user.id]
+  );
+  if (recentCancels.length >= 2) {
+    const lastCancel = new Date(recentCancels[0].updated_at);
+    const secondsElapsed = (Date.now() - lastCancel.getTime()) / 1000;
+    const cooldownSeconds = 90;
+    if (secondsElapsed < cooldownSeconds) {
+      const retryAfter = Math.ceil(cooldownSeconds - secondsElapsed);
+      return res.status(429).json({
+        error: 'You have cancelled multiple requests. Please wait before trying again.',
+        code: 'COOLDOWN_ACTIVE',
+        retry_after: retryAfter,
+      });
+    }
+  }
+
   // Validate topic_slug
   let topicRow = null;
   if (topic_slug) {

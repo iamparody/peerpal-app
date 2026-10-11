@@ -138,6 +138,10 @@ export default function PeerConnectingScreen() {
             navigate('/credits', { replace: true });
             return;
           }
+          if (code === 'COOLDOWN_ACTIVE') {
+            navigate('/peer', { replace: true, state: { cooldown: err.response.data.retry_after || 90 } });
+            return;
+          }
           // Hard errors (4xx) don't benefit from retrying
           if (err.response?.status >= 400 && err.response?.status < 500) {
             setPhase('error');

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin, BellRinging, BellSlash } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
@@ -183,6 +183,7 @@ function ConfidenceOverlay({ request, topicLabel, onAccept, onDecline }) {
 
 export default function PeerRequestScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tab, setTab] = useState('support');
   const [balance, setBalance] = useState(null);
   const [openRequests, setOpenRequests] = useState([]);
@@ -195,6 +196,8 @@ export default function PeerRequestScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0); // seconds remaining
+  const cooldownRef = useRef(null);
   const [confidenceRequest, setConfidenceRequest] = useState(null); // request pending confidence check
   const prevReqLenRef = useRef(0);
   const [availableUntil, setAvailableUntil] = useState(null); // ISO string or null
@@ -238,7 +241,19 @@ export default function PeerRequestScreen() {
       } catch { /* non-fatal */ }
     }, 3000);
 
-    return () => clearInterval(poll);
+    // Seed cooldown if navigated back from PeerConnectingScreen after a COOLDOWN_ACTIVE error
+    const seedCooldown = location.state?.cooldown;
+    if (seedCooldown > 0) {
+      setCooldown(seedCooldown);
+      cooldownRef.current = setInterval(() => {
+        setCooldown(prev => {
+          if (prev <= 1) { clearInterval(cooldownRef.current); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => { clearInterval(poll); clearInterval(cooldownRef.current); };
   }, []);
 
   // Auto-dismiss confidence overlay if the request was cancelled while the peer was deciding
@@ -338,6 +353,19 @@ export default function PeerRequestScreen() {
       navigate(`/peer/waiting/${data.request_id}`, { replace: true });
     } catch (err) {
       const status = err.response?.status;
+      const code = err.response?.data?.code;
+      if (code === 'COOLDOWN_ACTIVE') {
+        const secs = err.response.data.retry_after || 90;
+        setCooldown(secs);
+        clearInterval(cooldownRef.current);
+        cooldownRef.current = setInterval(() => {
+          setCooldown(prev => {
+            if (prev <= 1) { clearInterval(cooldownRef.current); return 0; }
+            return prev - 1;
+          });
+        }, 1000);
+        return;
+      }
       setError(status === 402
         ? 'Insufficient credits.'
         : err.response?.data?.error || 'Could not submit request. Please try again.');
@@ -379,6 +407,7 @@ export default function PeerRequestScreen() {
   }
 
   function handleTopicPick(slug, label) {
+    if (cooldown > 0) return;
     const cost = COST_INFO[channel].cost;
     if (balance < cost) {
       setCreditGate({ cost, channel });
@@ -605,6 +634,15 @@ export default function PeerRequestScreen() {
               </div>
             )}
 
+            {cooldown > 0 && (
+              <div style={{
+                background: 'rgba(220,60,60,0.10)', border: '1px solid var(--color-danger)',
+                borderRadius: 'var(--radius-md)', padding: '12px 16px',
+                fontSize: '0.85rem', color: 'var(--color-danger)', textAlign: 'center',
+              }}>
+                Too many cancelled requests. Please wait {cooldown}s before trying again.
+              </div>
+            )}
             {error && <div className="error-msg">{error}</div>}
 
             {balance < COST_INFO[channel].cost && (
