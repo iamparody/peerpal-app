@@ -47,7 +47,7 @@ export default function PeerConnectingScreen() {
   const location = useLocation();
   const { user } = useAuth();
 
-  const [phase, setPhase] = useState('submitting'); // submitting | waiting | connected | error
+  const [phase, setPhase] = useState('submitting'); // submitting | waking | waiting | connected | error
   const [requestId, setRequestId] = useState(null);
   const [sessionChannel, setSessionChannel] = useState(location.state?.channel || 'text');
   const [topicLabel, setTopicLabel] = useState(location.state?.topicLabel || '');
@@ -64,9 +64,11 @@ export default function PeerConnectingScreen() {
     initRef.current = true;
 
     async function init() {
-      // Retry once on network/timeout errors (Render free tier cold starts ~20-30s)
-      let attempt = 0;
-      while (attempt < 2) {
+      setPhase('submitting');
+
+      // On a network error, poll /api/health until alive (Render free tier cold start ~20-30s),
+      // then retry the actual request once automatically.
+      for (let attempt = 0; attempt < 2; attempt++) {
         try {
           // 1. Recover any existing active request (handles refresh / remount)
           const { data: activeData } = await client.get('/api/peer/request/active', { timeout: 35000 });
@@ -130,7 +132,7 @@ export default function PeerConnectingScreen() {
             } catch { /* keep polling on transient errors */ }
           }, 2000);
 
-          return; // success — exit retry loop
+          return; // success
 
         } catch (err) {
           const code = err.response?.data?.code;
@@ -142,19 +144,37 @@ export default function PeerConnectingScreen() {
             navigate('/peer', { replace: true, state: { cooldown: err.response.data.retry_after || 90 } });
             return;
           }
-          // Hard errors (4xx) don't benefit from retrying
+          // Hard 4xx errors don't benefit from retrying
           if (err.response?.status >= 400 && err.response?.status < 500) {
             setPhase('error');
             setErrorMsg(err.response?.data?.error || 'Something went wrong. Please try again.');
             return;
           }
-          attempt++;
-          if (attempt < 2) {
-            // Wait 3s then retry (gives Render cold start time to complete)
-            await new Promise(r => setTimeout(r, 3000));
+          // Network/timeout error — server is cold-starting. Show 'waking' state and
+          // poll /api/health every 5s (up to 45s) before retrying the request automatically.
+          if (attempt === 0) {
+            setPhase('waking');
+            const deadline = Date.now() + 45000;
+            let alive = false;
+            while (Date.now() < deadline) {
+              try {
+                await client.get('/health', { timeout: 8000 });
+                alive = true;
+                break;
+              } catch {
+                await new Promise(r => setTimeout(r, 5000));
+              }
+            }
+            if (!alive) {
+              setPhase('error');
+              setErrorMsg('Server is taking too long to respond. Please try again.');
+              return;
+            }
+            setPhase('submitting');
+            // loop continues — attempt 1
           } else {
             setPhase('error');
-            setErrorMsg('Server is waking up — please try again in a moment.');
+            setErrorMsg('Could not connect to the server. Please try again.');
           }
         }
       }
@@ -301,6 +321,7 @@ export default function PeerConnectingScreen() {
               textAlign: 'center', lineHeight: 1.5, fontWeight: phase === 'connected' ? 600 : 400,
             }}>
               {phase === 'submitting' && 'Getting things ready…'}
+              {phase === 'waking' && 'Starting up, please wait…'}
               {phase === 'waiting' && 'Looking for the right peer…'}
               {phase === 'connected' && 'Peer found — joining your session…'}
               {phase === 'error' && errorMsg}
