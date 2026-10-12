@@ -308,9 +308,17 @@ export default function PeerRequestScreen() {
     function tick() {
       const diffMs = new Date(availableUntil) - Date.now();
       if (diffMs <= 0) { setAvailableUntil(null); setAvailNow(''); return; }
-      const mins = Math.floor(diffMs / 60000);
-      const secs = Math.floor((diffMs % 60000) / 1000);
-      setAvailNow(`${mins}:${String(secs).padStart(2, '0')}`);
+      const totalMins = Math.floor(diffMs / 60000);
+      let display;
+      if (totalMins >= 60) {
+        const hrs = Math.floor(totalMins / 60);
+        const remainMins = totalMins % 60;
+        display = remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+      } else {
+        const secs = Math.floor((diffMs % 60000) / 1000);
+        display = `${totalMins}:${String(secs).padStart(2, '0')}`;
+      }
+      setAvailNow(display);
     }
     tick();
     const t = setInterval(tick, 1000);
