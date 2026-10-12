@@ -212,6 +212,7 @@ export default function PeerRequestScreen() {
   const [availSetting, setAvailSetting] = useState(false); // loading indicator for save
   const [customHours, setCustomHours] = useState(2);
   const [fcmStatus, setFcmStatus] = useState(null); // null | 'active' | 'denied' | 'pending' | 'unsupported' | 'error'
+  const [fcmErrorCode, setFcmErrorCode] = useState(null);
   const [fcmChecking, setFcmChecking] = useState(false);
   const highlightRef = useRef(null); // ref to highlighted request card
 
@@ -349,6 +350,7 @@ export default function PeerRequestScreen() {
     setFcmChecking(true);
     const result = await getFCMStatus();
     setFcmStatus(result.status);
+    setFcmErrorCode(result.errorCode || null);
     if (result.status === 'active' && result.token) {
       await client.patch('/api/profile', { fcm_token: result.token }).catch(() => {});
     }
@@ -897,7 +899,10 @@ export default function PeerRequestScreen() {
                   <WarningCircle size={18} weight="fill" color="var(--color-warning)" />
                   <span style={{ fontSize: '0.85rem', color: 'var(--color-warning)', fontWeight: 600 }}>Registration failed</span>
                 </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>Could not register for push notifications. This may be a browser or network issue.</p>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>Could not register for push notifications.</p>
+                {fcmErrorCode && (
+                  <p style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'var(--color-text-muted)', background: 'rgba(0,0,0,0.06)', borderRadius: 4, padding: '3px 6px', marginBottom: 8, wordBreak: 'break-all' }}>{fcmErrorCode}</p>
+                )}
                 <button className="btn btn--secondary" onClick={handleEnablePush} disabled={fcmChecking}>Retry</button>
               </div>
             )}

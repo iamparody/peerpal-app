@@ -66,8 +66,9 @@ export async function getFCMStatus() {
     });
     return token ? { status: 'active', token } : { status: 'error', token: null };
   } catch (err) {
-    console.warn('[FCM] status check failed:', err.message);
-    return { status: 'error', token: null };
+    const code = err.code || err.message || 'unknown';
+    console.warn('[FCM] status check failed:', code, err);
+    return { status: 'error', token: null, errorCode: code };
   }
 }
 
