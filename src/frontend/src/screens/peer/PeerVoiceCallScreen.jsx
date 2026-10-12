@@ -344,10 +344,13 @@ export default function PeerVoiceCallScreen() {
         ws.onmessage = async (e) => {
           const msg = JSON.parse(e.data);
           if (msg.type === 'peer_joined') {
-            isInitiator.current = true;
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            ws.send(JSON.stringify({ type: 'offer', sdp: offer, session_id: sessionId }));
+            if (!msg.isCallee) {
+              // We are the initiator — create the WebRTC offer.
+              isInitiator.current = true;
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              ws.send(JSON.stringify({ type: 'offer', sdp: offer, session_id: sessionId }));
+            }
           } else if (msg.type === 'offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
             remoteDescSet = true;

@@ -76,4 +76,9 @@ async function getCurrentBalance(user_id) {
   return rows[0]?.balance ?? 0;
 }
 
-module.exports = { deductCredit, refundCredit };
+// Returns credit costs per channel. Defaults: 1 for text, 2 for voice.
+async function getCreditCosts() {
+  return { text: 1, voice: 2 };
+}
+
+module.exports = { deductCredit, refundCredit, getCreditCosts };

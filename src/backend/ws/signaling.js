@@ -176,11 +176,16 @@ function createSignalingServer(httpServer) {
         // Tell already-connected peers a new participant arrived.
         // The voice screen uses this to know it should create the WebRTC offer.
         if (peers.length > 1) {
-          const peerJoinedMsg = JSON.stringify({ type: 'peer_joined' });
+          // Existing peers are the initiators — they create the WebRTC offer.
+          const initiatorMsg = JSON.stringify({ type: 'peer_joined' });
+          // New joiner is the callee — they unlock but do NOT create a duplicate offer.
+          const calleeMsg = JSON.stringify({ type: 'peer_joined', isCallee: true });
           let sent = 0;
           for (let i = 0; i < peers.length - 1; i++) {
-            if (peers[i].readyState === WebSocket.OPEN) { peers[i].send(peerJoinedMsg); sent++; }
+            if (peers[i].readyState === WebSocket.OPEN) { peers[i].send(initiatorMsg); sent++; }
           }
+          // Also notify the new joiner so text/voice screens unlock immediately.
+          if (ws.readyState === WebSocket.OPEN) { ws.send(calleeMsg); sent++; }
           console.log(`[signal] room=${short} peer_joined sent to ${sent} peer(s)`);
         }
 
