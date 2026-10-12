@@ -7,7 +7,7 @@
 
 All 9 peer module bug fixes verified complete. Re-engagement notification system redesigned.
 
-**NEXT ACTION → Phase 38 — Activities Marketplace (previously deferred, now unblocked)**
+**NEXT ACTION → Phase 45 — Re-engagement Engine** (then 46 Referral, then 47 Free Trial/Promo, then Phase 38 Activities Marketplace)
 
 ### Phase 44 sub-phases — all complete ✅
 

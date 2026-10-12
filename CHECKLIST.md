@@ -48,7 +48,177 @@
 
 ---
 
-## Phase 1 � Database Setup & Migrations
+## Phase 45 — Re-engagement Engine (Funnel-Based)
+
+> Users have three steps to get value from PeerPal: (1) complete onboarding → (2) complete first session → (3) return within 7 days (converted). This phase tracks which step each user is on and sends targeted, contextual nudges to move them forward. The goal is conversion and purchase, not just return visits.
+>
+> Step triggers must fire within the user's session — not from a cron job — so state is always fresh. The cron job only sends notifications; it never decides step state.
+
+### 45.1 Schema — Migration
+
+- [ ] Migration: add `onboarding_completed_at TIMESTAMPTZ NULL` to `users` — set when persona + first mood are both done
+- [ ] Migration: add `first_session_completed_at TIMESTAMPTZ NULL` to `users` — set on first peer or AI session end
+- [ ] Migration: add `last_session_at TIMESTAMPTZ NULL` to `users` — updated on every session end (peer or AI)
+- [ ] Migration: add `reengagement_step VARCHAR(30) NOT NULL DEFAULT 'step1_incomplete'` to `users` — values: `step1_incomplete` | `step2_incomplete` | `step3_incomplete` | `converted`
+- [ ] Migration: add `last_reengagement_push_at TIMESTAMPTZ NULL` to `users` — prevents more than one re-engagement push per user per 24 hours (separate from `last_reengagement_push_at` already added in Phase 43 — verify column does not already exist before adding)
+- [ ] Migration: add notification type enum values: `reengagement_step1`, `reengagement_step2`, `reengagement_step3`, `reengagement_purchase`
+
+### 45.2 Backend — Step transition hooks
+
+- [ ] `POST /onboarding/persona` success path: after INSERT ai_personas, if `users.onboarding_completed_at IS NULL` → `UPDATE users SET onboarding_completed_at = NOW(), reengagement_step = 'step2_incomplete'`
+- [ ] `POST /ai/session/:id/end` success path: if `users.first_session_completed_at IS NULL` → `UPDATE users SET first_session_completed_at = NOW(), reengagement_step = 'step3_incomplete', last_session_at = NOW()`
+- [ ] `PATCH /peer/request/:id/close` success path (session ended, not cancelled): if `users.first_session_completed_at IS NULL` → same as above. If already set → `UPDATE users SET last_session_at = NOW()`
+- [ ] Conversion trigger: on any session end (peer or AI), if `reengagement_step = 'step3_incomplete'` AND `first_session_completed_at < NOW() - INTERVAL '7 days'` is NOT true (i.e., second session within 7 days of first) → `UPDATE users SET reengagement_step = 'converted'`
+- [ ] Conversion trigger on purchase: `POST /credits/mpesa-callback` success → if `reengagement_step != 'converted'` → `UPDATE users SET reengagement_step = 'converted'`
+
+### 45.3 Backend — reengagementJob.js (cron, every 2 hours)
+
+- [ ] Create `src/backend/jobs/reengagementJob.js`
+- [ ] **Step 1 nudge** — target: `reengagement_step = 'step1_incomplete'` AND `created_at < NOW() - INTERVAL '24 hours'` AND (`last_reengagement_push_at IS NULL` OR `last_reengagement_push_at < NOW() - INTERVAL '24 hours'`). Message: "Your companion is waiting — it only takes 2 minutes to set up." Action route: `/onboarding/persona`. Notification type: `reengagement_step1`
+- [ ] **Step 2 nudge — first session** — target: `reengagement_step = 'step2_incomplete'` AND `onboarding_completed_at < NOW() - INTERVAL '24 hours'`. Message: "Your companion hasn't heard from you yet. How are you doing today?" Action route: `/ai-chat`. Type: `reengagement_step2`
+- [ ] **Step 2 nudge — 7-day lapse** — target: `reengagement_step = 'step3_incomplete'` AND `first_session_completed_at < NOW() - INTERVAL '7 days'`. Message: "It's been a while — we've been thinking about you. How are you?" Action route: `/dashboard`. Type: `reengagement_step3`
+- [ ] **Purchase nudge** — target: `reengagement_step = 'step3_incomplete'` AND `credits.balance = 0` AND `first_session_completed_at IS NOT NULL`. Message: "You've used your free credits. Keep the momentum going — top up from KSh 100." Action route: `/credits`. Type: `reengagement_purchase`
+- [ ] All nudges: send push + in-app, update `last_reengagement_push_at = NOW()` after send, skip users already notified within 24 hours
+- [ ] Wire `reengagementJob.js` into `server.js` — schedule with node-cron, every 2 hours (`0 */2 * * *`)
+
+### 45.4 Notification SW rendering
+
+- [ ] Add `reengagement_step1`, `reengagement_step2`, `reengagement_step3`, `reengagement_purchase` to `NOTIF_TYPES` map in `firebase-messaging-sw.js` with appropriate title/body/vibration (gentle, non-intrusive — no `requireInteraction`)
+
+---
+
+## Phase 46 — Referral System
+
+> If a user refers someone and that person makes their first credit purchase, the referrer earns 2 credits. The referred user gets +1 bonus credit at signup (3 total instead of 2). No referral link, no money — credits only. Simple, auditable, zero marginal cost.
+
+### 46.1 Schema — Migration
+
+- [ ] Migration: add `referral_code VARCHAR(10) UNIQUE NULL` to `users` — generated at signup, 6-char uppercase alphanumeric (e.g. `BRIGHT`, `KE7MX2`)
+- [ ] Migration: add `referred_by UUID NULL REFERENCES users(id)` to `users` — set at registration if a valid referral code is provided
+- [ ] Migration: create `referral_rewards` table:
+  - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+  - `referrer_user_id UUID NOT NULL REFERENCES users(id)`
+  - `referred_user_id UUID NOT NULL REFERENCES users(id)`
+  - `status VARCHAR(20) NOT NULL DEFAULT 'pending'` — `pending` | `credited`
+  - `credits_awarded INTEGER NOT NULL DEFAULT 2`
+  - `triggered_by VARCHAR(50) NOT NULL` — `'first_purchase'`
+  - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+  - `credited_at TIMESTAMPTZ NULL`
+  - `UNIQUE(referrer_user_id, referred_user_id)` — one reward per pair
+- [ ] Migration: add `'referral_reward'` to `credit_tx_type` enum and `'referral'` to `credit_tx_channel` enum (verify not already present from Phase 26)
+- [ ] Migration: add notification type `referral_reward_credited` to `notification_type` enum
+
+### 46.2 Backend — Registration
+
+- [ ] `src/backend/utils/referralCode.js` — `generateReferralCode()`: generates 6-char uppercase base36 string, checks `users.referral_code` for collision, retries up to 5 times
+- [ ] `POST /auth/register`: generate and store `referral_code` for every new user
+- [ ] `POST /auth/register`: accept optional `referral_code` field in body. If provided: look up owner (`SELECT id FROM users WHERE referral_code = $1 AND is_active = true`). If found: set `referred_by = owner.id`, award +1 bonus credit to the new user (total signup bonus becomes 3), INSERT `referral_rewards` record with `status = 'pending'`
+- [ ] Invalid or unknown referral code at registration: silently ignore (do not return error — do not block signup)
+
+### 46.3 Backend — Reward trigger
+
+- [ ] `POST /credits/mpesa-callback` success handler: after crediting the user's balance, check if this is their first confirmed purchase (`SELECT COUNT(*) FROM credit_transactions WHERE user_id = $1 AND type = 'purchase' AND status = 'confirmed'` = 1). If yes and `referred_by IS NOT NULL`: find pending `referral_rewards` record for this user → award 2 credits to referrer via `deductCredit` inverse (direct balance UPDATE + credit_transaction INSERT type=`referral_reward`, channel=`referral`) → UPDATE `referral_rewards SET status = 'credited', credited_at = NOW()` → INSERT `referral_reward_credited` notification to referrer: "[Referred user alias] joined using your link — you've earned 2 credits."
+- [ ] Entire reward block wrapped in a DB transaction; failure is non-fatal (purchase still succeeds, reward logged as error)
+
+### 46.4 Backend — Stats endpoint
+
+- [ ] `GET /referrals/my-stats` (auth required): returns `{ referral_code, total_referred, total_credits_earned, pending_count }`. `total_credited` from SUM of `credits_awarded` WHERE `status = 'credited'`. `pending_count` from COUNT WHERE `status = 'pending'`
+
+### 46.5 Frontend
+
+- [ ] `ProfileScreen`: add "Refer a Friend" card below the Credits card. Shows referral link (`[APP_URL]/?ref=[code]`), tap-to-copy button, stats row ("N friends referred · N credits earned"). Copy: "Share your link — earn 2 credits when a friend makes their first top-up."
+- [ ] `RegisterScreen`: add optional "Have a referral code?" expander below the main form. Collapsed by default. Expands to a single text input. Passes `referral_code` in the register POST body if filled.
+- [ ] `NotificationsScreen`: `referral_reward_credited` notifications render with a gift icon and distinct highlight — not the generic notification row style
+- [ ] `firebase-messaging-sw.js`: add `referral_reward_credited` to NOTIF_TYPES — title: "You earned 2 credits", body uses `d.referred_alias` if present, route: `/profile`
+
+---
+
+## Phase 47 — Free Trial & Campus Promo Codes
+
+> Users should experience the product before paying. The free trial is a 7-day window with daily credit drips and a capped AI session allowance. Promo codes let admins deploy campus-specific access. Both are positioned as onramps to the paid product, not permanent free tiers.
+>
+> **Locked trial design:** 7 days · 2 credits/day (dripped at midnight EAT) · 10 AI sessions total across trial · Peer text (1cr) and voice (2cr) accessible at normal cost · One claim per account ever · Day 6 expiry warning push · Credits expire at trial end · AI cap reverts to normal 5/day after trial
+
+### 47.1 Schema — Migration
+
+- [ ] Migration: add to `users`:
+  - `trial_claimed_at TIMESTAMPTZ NULL` — when trial was activated
+  - `trial_ends_at TIMESTAMPTZ NULL` — `trial_claimed_at + INTERVAL '7 days'`
+  - `trial_credits_balance INTEGER NOT NULL DEFAULT 0` — separate from real credits; drained first on any spend; zeroed at trial end
+  - `trial_last_drip_date DATE NULL` — prevents double-drip on same day
+  - `trial_ai_sessions_used INTEGER NOT NULL DEFAULT 0` — counts toward 10-session cap; resets never (trial cap is total, not daily)
+- [ ] Migration: add notification type `trial_expiry_warning` and `trial_expired` to enum
+
+### 47.2 Backend — Claim endpoint
+
+- [ ] `POST /trial/claim` (auth required):
+  - Return 409 if `trial_claimed_at IS NOT NULL` (already claimed — one per account)
+  - Set `trial_claimed_at = NOW()`, `trial_ends_at = NOW() + INTERVAL '7 days'`
+  - Drip first day immediately: `trial_credits_balance = 2`, `trial_last_drip_date = CURRENT_DATE`
+  - INSERT in-app notification: "Your 7-day free trial has started. 2 credits added — your first session is on us."
+  - Return `{ trial_ends_at, trial_credits_balance: 2 }`
+
+### 47.3 Backend — Credit deduction (trial credits drain first)
+
+- [ ] `utils/creditDeductor.js` — `deductCredit()`: before checking `credits.balance`, check if user is on active trial (`trial_ends_at > NOW() AND trial_credits_balance > 0`). If yes: drain from `trial_credits_balance` first. If trial credits cover full cost: deduct from trial balance only, no deduction from real balance. If trial credits partially cover: drain trial to zero, deduct remainder from real balance. Always write a single `credit_transactions` record for the total amount deducted (include a `from_trial: true` note in a JSONB `meta` column if that column exists, otherwise omit)
+- [ ] `utils/creditDeductor.js` — `getCreditCosts()` unchanged — trial uses same pricing
+
+### 47.4 Backend — AI session trial cap
+
+- [ ] `POST /ai/session/start`: if user is on active trial (`trial_ends_at > NOW()`), check `trial_ai_sessions_used >= 10` → return 429 with `code: 'TRIAL_AI_LIMIT'` and message "You've used all 10 AI sessions in your free trial. Top up to continue." If under cap: proceed normally, INCREMENT `trial_ai_sessions_used` on session end (`POST /ai/session/:id/end`)
+
+### 47.5 Backend — Daily drip cron job
+
+- [ ] Create `src/backend/jobs/trialDripJob.js` — runs daily at midnight EAT (21:00 UTC): `SELECT id FROM users WHERE trial_ends_at > NOW() AND trial_last_drip_date < CURRENT_DATE` → for each: `UPDATE users SET trial_credits_balance = trial_credits_balance + 2, trial_last_drip_date = CURRENT_DATE WHERE id = $1`. Batch update preferred (single UPDATE with `WHERE id = ANY(...)`) for performance
+- [ ] Wire `trialDripJob.js` into `server.js` with node-cron at `0 21 * * *` (UTC = midnight EAT)
+
+### 47.6 Backend — Trial expiry handling
+
+- [ ] `trialDripJob.js` also handles expiry: query users where `trial_ends_at BETWEEN NOW() - INTERVAL '1 day' AND NOW() + INTERVAL '1 day'` and `trial_ends_at > NOW() - INTERVAL '1 hour'` → these are within the expiry window. On the day before expiry (`trial_ends_at - NOW() < INTERVAL '2 days'`): send `trial_expiry_warning` push + in-app: "Your free trial ends tomorrow at midnight. Any unused credits expire — top up to keep going." → `/credits`
+- [ ] On expiry (trial_ends_at ≤ NOW()): `UPDATE users SET trial_credits_balance = 0 WHERE trial_ends_at <= NOW() AND trial_credits_balance > 0` — run in the drip job's expiry sweep. Send `trial_expired` in-app notification: "Your free trial has ended. Top up from KSh 100 to continue." No push — in-app only (non-intrusive)
+
+### 47.7 Backend — Promo codes
+
+- [ ] Migration: create `promo_codes` table:
+  - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+  - `code VARCHAR(20) UNIQUE NOT NULL`
+  - `credit_value INTEGER NOT NULL`
+  - `max_uses INTEGER NULL` — NULL = unlimited
+  - `uses_count INTEGER NOT NULL DEFAULT 0`
+  - `valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+  - `valid_until TIMESTAMPTZ NULL`
+  - `created_by UUID NOT NULL REFERENCES users(id)`
+  - `description VARCHAR(100) NOT NULL` — e.g. "JOOUST Campus Pilot Oct 2026"
+  - `is_active BOOLEAN NOT NULL DEFAULT true`
+  - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- [ ] Migration: create `promo_code_redemptions` table:
+  - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+  - `promo_code_id UUID NOT NULL REFERENCES promo_codes(id)`
+  - `user_id UUID NOT NULL REFERENCES users(id)`
+  - `credits_awarded INTEGER NOT NULL`
+  - `redeemed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+  - `UNIQUE(promo_code_id, user_id)` — one redemption per user per code
+- [ ] `POST /promo/redeem` (auth required): validate code exists + is_active + not expired + `uses_count < max_uses` (or unlimited) + user hasn't redeemed this code. If valid: add `credit_value` to `credits.balance`, INCREMENT `uses_count`, INSERT redemption record, INSERT credit_transaction (type=`bonus`, channel=`purchase`, note the promo code). Return `{ credits_awarded, new_balance }`. Error messages: "That code doesn't exist", "That code has expired", "You've already used this code", "This code has reached its limit"
+- [ ] `POST /admin/promo-codes` (adminAuth): create new promo code. Validate code is uppercase alphanumeric, unique, credit_value > 0
+- [ ] `GET /admin/promo-codes` (adminAuth): list all codes with `uses_count`, `max_uses`, `valid_until`, `is_active`
+- [ ] `PATCH /admin/promo-codes/:id` (adminAuth): update `is_active`, `valid_until`, `max_uses`
+- [ ] `GET /admin/promo-codes/:id/redemptions` (adminAuth): list users who redeemed (alias + redeemed_at)
+
+### 47.8 Frontend — Trial card and positioning
+
+- [ ] `CreditsScreen`: add a "Free Trial" card at the top of the packages list (above paid packages). Visible only if `trial_claimed_at IS NULL` (fetch from profile or a new `GET /trial/status` endpoint). Card copy: "7-day free trial — No payment needed. 2 credits/day, 10 AI sessions." CTA button: "Claim free trial" → `POST /trial/claim` → success toast "Your trial has started — 2 credits added" → invalidate balance query
+- [ ] `CreditsScreen`: trial progress banner — visible while `trial_ends_at > NOW()`. Shows days remaining, trial credits balance, AI sessions used/remaining. "Top up to keep going after your trial" with a subtle CTA
+- [ ] `CreditsScreen`: promo code entry — "Have a promo code?" text link below packages → expands inline input field → POST /promo/redeem → success: "+ N credits added" toast → invalidate balance. Error: inline error text below the input
+- [ ] `OnboardingFirstMoodScreen` (post-onboarding bonus screen): replace the quiet 3-second toast with a dedicated full-screen moment: "You have 2 free credits — no payment needed to get started. Use them for your first peer session." Primary CTA: "Start my first session" → `/peer`. Secondary: "Explore first" → `/dashboard`. This is the first impression of value — it must land clearly
+- [ ] `firebase-messaging-sw.js`: add `trial_expiry_warning` to NOTIF_TYPES — title: "Trial ends tomorrow", body: "Your free credits expire at midnight. Top up to keep going.", requireInteraction: false, vibrate: [100], action: topup
+
+### 47.9 Frontend — Admin promo codes tab
+
+- [ ] `src/admin/src/tabs/PromoCodesTab.jsx`: list all codes (code, credit value, uses/limit, expiry, active status). Create code form (code, credits, max uses, expiry date, description). Deactivate toggle per code. "View redemptions" expander per code showing alias + date. Add "Promo Codes" as Tab 9 in `src/admin/src/App.jsx`
+
+---
+
+## Phase 1 — Database Setup & Migrations
 
 ### 1.0 Project Infrastructure
 - [x] Create directory structure: src/backend/, src/backend/migrations/, src/backend/db/, src/backend/routes/, src/backend/middleware/, src/backend/utils/, src/backend/jobs/, src/backend/ws/, src/frontend/
