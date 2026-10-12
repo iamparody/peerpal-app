@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin, BellRinging, BellSlash } from '@phosphor-icons/react';
+import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin, BellRinging, BellSlash, WarningCircle, Bell } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
+import { getFCMStatus, registerFCMToken } from '../../utils/firebase';
 
 const COST_INFO = {
   text:  { cost: 1, label: 'Text Chat',  desc: '1 credit · 30 min' },
@@ -200,13 +201,19 @@ export default function PeerRequestScreen() {
   const prevReqLenRef = useRef(0);
   const [availableUntil, setAvailableUntil] = useState(null); // ISO string or null
   const [availNow, setAvailNow] = useState('');    // live countdown string
-  const [availToggling, setAvailToggling] = useState(false);
   const [creditGate, setCreditGate] = useState(null); // { cost, channel } — shown when balance < cost
 
   // Leaderboard state
   const [stats, setStats] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [boardLoading, setBoardLoading] = useState(false);
+
+  // Availability tab state
+  const [availSetting, setAvailSetting] = useState(false); // loading indicator for save
+  const [customHours, setCustomHours] = useState(2);
+  const [fcmStatus, setFcmStatus] = useState(null); // null | 'active' | 'denied' | 'pending' | 'unsupported' | 'error'
+  const [fcmChecking, setFcmChecking] = useState(false);
+  const highlightRef = useRef(null); // ref to highlighted request card
 
   useEffect(() => {
     async function load() {
@@ -255,6 +262,20 @@ export default function PeerRequestScreen() {
     return () => { clearInterval(poll); clearInterval(cooldownRef.current); };
   }, []);
 
+  // Scroll to and pulse a highlighted request (from notification tap)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const highlightId = params.get('highlight');
+    if (!highlightId || loading) return;
+    const el = highlightRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.transition = 'box-shadow 0.3s ease';
+      el.style.boxShadow = '0 0 0 3px var(--color-accent)';
+      setTimeout(() => { if (el) el.style.boxShadow = ''; }, 2500);
+    }
+  }, [loading, location.search]);
+
   // Auto-dismiss confidence overlay if the request was cancelled while the peer was deciding
   useEffect(() => {
     if (!confidenceRequest) return;
@@ -296,21 +317,6 @@ export default function PeerRequestScreen() {
     return () => clearInterval(t);
   }, [availableUntil]);
 
-  async function handleAvailToggle() {
-    if (availToggling) return;
-    setAvailToggling(true);
-    try {
-      if (availableUntil) {
-        await client.delete('/api/peer/availability');
-        setAvailableUntil(null);
-      } else {
-        const { data } = await client.post('/api/peer/availability', { hours: 2 });
-        setAvailableUntil(data.available_until);
-      }
-    } catch { /* non-fatal */ }
-    finally { setAvailToggling(false); }
-  }
-
   async function loadLeaderboard() {
     if (stats) return;
     setBoardLoading(true);
@@ -328,6 +334,41 @@ export default function PeerRequestScreen() {
   function handleTabChange(t) {
     setTab(t);
     if (t === 'leaderboard') loadLeaderboard();
+    if (t === 'availability' && fcmStatus === null) checkFCMStatus();
+  }
+
+  async function checkFCMStatus() {
+    setFcmChecking(true);
+    const result = await getFCMStatus();
+    setFcmStatus(result.status);
+    if (result.status === 'active' && result.token) {
+      await client.patch('/api/profile', { fcm_token: result.token }).catch(() => {});
+    }
+    setFcmChecking(false);
+  }
+
+  async function handleSetAvailability(mode, hours) {
+    if (availSetting) return;
+    setAvailSetting(true);
+    try {
+      if (mode === 'off') {
+        await client.delete('/api/peer/availability');
+        setAvailableUntil(null);
+      } else {
+        const body = mode === 'all_day' ? { mode: 'all_day' } : { hours };
+        const { data } = await client.post('/api/peer/availability', body);
+        setAvailableUntil(data.available_until);
+      }
+    } catch { /* non-fatal */ }
+    finally { setAvailSetting(false); }
+  }
+
+  async function handleEnablePush() {
+    setFcmChecking(true);
+    await registerFCMToken();
+    const result = await getFCMStatus();
+    setFcmStatus(result.status);
+    setFcmChecking(false);
   }
 
   function handleAcceptIntent(request) {
@@ -411,7 +452,7 @@ export default function PeerRequestScreen() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        {[['support', 'Support'], ['leaderboard', 'Leaderboard']].map(([val, label]) => (
+        {[['support', 'Support'], ['leaderboard', 'Leaderboard'], ['availability', 'Availability']].map(([val, label]) => (
           <button
             key={val}
             onClick={() => handleTabChange(val)}
@@ -433,44 +474,30 @@ export default function PeerRequestScreen() {
           {/* Scrollable body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', paddingBottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom) + 16px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-            {/* ── Availability toggle ── */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '10px 14px',
-              borderRadius: 'var(--radius-md)',
-              border: `1.5px solid ${availableUntil ? 'rgba(143,175,154,0.6)' : 'var(--color-border)'}`,
-              background: availableUntil ? 'rgba(143,175,154,0.08)' : 'var(--color-surface-card)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {availableUntil
-                  ? <BellRinging size={18} weight="duotone" color="var(--color-calm)" />
-                  : <BellSlash size={18} weight="duotone" color="var(--color-text-muted)" />}
-                <div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: availableUntil ? 'var(--color-calm)' : 'var(--color-text)' }}>
-                    {availableUntil ? `Available for ${availNow}` : 'Be available to help'}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 1 }}>
-                    {availableUntil ? 'You\'ll receive push alerts for new requests' : 'Get notified when someone needs support'}
-                  </div>
+            {/* ── Availability status banner ── */}
+            <button
+              onClick={() => handleTabChange('availability')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                border: `1.5px solid ${availableUntil ? 'rgba(143,175,154,0.6)' : 'var(--color-border)'}`,
+                background: availableUntil ? 'rgba(143,175,154,0.08)' : 'var(--color-surface-card)',
+                width: '100%', cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              {availableUntil
+                ? <BellRinging size={18} weight="duotone" color="var(--color-calm)" />
+                : <BellSlash size={18} weight="duotone" color="var(--color-text-muted)" />}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: availableUntil ? 'var(--color-calm)' : 'var(--color-text)' }}>
+                  {availableUntil ? `Available · ${availNow} remaining` : 'You are not available'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 1 }}>
+                  {availableUntil ? 'You\'ll receive push alerts for new requests' : 'Tap to set your availability'}
                 </div>
               </div>
-              <button
-                onClick={handleAvailToggle}
-                disabled={availToggling}
-                style={{
-                  padding: '5px 12px', borderRadius: 'var(--radius-pill)',
-                  border: 'none', cursor: availToggling ? 'default' : 'pointer',
-                  fontSize: '0.75rem', fontWeight: 600,
-                  background: availableUntil ? 'rgba(220,60,60,0.12)' : 'var(--color-calm)',
-                  color: availableUntil ? 'var(--color-danger)' : '#fff',
-                  opacity: availToggling ? 0.6 : 1,
-                  transition: 'opacity 150ms',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {availableUntil ? 'Stop' : '+ 2 hours'}
-              </button>
-            </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>›</span>
+            </button>
 
             {/* ── Accept card — always at top if requests exist ── */}
             {openRequests.length > 0 && (
@@ -488,8 +515,9 @@ export default function PeerRequestScreen() {
                 ) : (
                   openRequests.map((req) => {
                     const topicInfo = topics.find(t => t.slug === req.topic_slug);
+                    const highlightId = new URLSearchParams(location.search).get('highlight');
                     return (
-                      <div key={req.id} style={{ marginBottom: 8 }}>
+                      <div key={req.id} ref={req.id === highlightId ? highlightRef : null} style={{ marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                           {req.channel_preference === 'voice'
                             ? <Microphone size={15} weight="duotone" color="var(--color-calm)" />
@@ -733,6 +761,139 @@ export default function PeerRequestScreen() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {tab === 'availability' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px', paddingBottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom) + 16px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Status card */}
+          <div style={{
+            padding: '20px 18px', borderRadius: 'var(--radius-lg)',
+            background: availableUntil ? 'rgba(143,175,154,0.10)' : 'var(--color-surface-card)',
+            border: `2px solid ${availableUntil ? 'var(--color-calm)' : 'var(--color-border)'}`,
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+              background: availableUntil ? 'rgba(143,175,154,0.20)' : 'rgba(194,164,138,0.10)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {availableUntil
+                ? <BellRinging size={24} weight="duotone" color="var(--color-calm)" />
+                : <BellSlash size={24} weight="duotone" color="var(--color-text-muted)" />}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: availableUntil ? 'var(--color-calm)' : 'var(--color-text)' }}>
+                {availableUntil ? 'You are available' : 'You are not available'}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                {availableUntil
+                  ? `Receiving requests · ${availNow} remaining`
+                  : 'Set a window below to start receiving requests'}
+              </div>
+            </div>
+          </div>
+
+          {/* Options */}
+          <div>
+            <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Set availability</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              <button
+                className="btn btn--secondary"
+                style={{ justifyContent: 'flex-start', gap: 12, padding: '14px 16px', opacity: availSetting ? 0.6 : 1 }}
+                disabled={availSetting}
+                onClick={() => handleSetAvailability('all_day')}
+              >
+                <BellRinging size={20} weight="duotone" color="var(--color-calm)" />
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>All day</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 1 }}>Available until midnight tonight</div>
+                </div>
+              </button>
+
+              <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                  <Bell size={20} weight="duotone" color="var(--color-accent)" />
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Custom duration</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  {[1, 2, 4, 8].map(h => (
+                    <button
+                      key={h}
+                      onClick={() => setCustomHours(h)}
+                      style={{
+                        flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', fontWeight: 600,
+                        border: `1.5px solid ${customHours === h ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                        background: customHours === h ? 'rgba(200,148,58,0.12)' : 'transparent',
+                        color: customHours === h ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {h}h
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="btn btn--primary"
+                  style={{ opacity: availSetting ? 0.6 : 1 }}
+                  disabled={availSetting}
+                  onClick={() => handleSetAvailability('hours', customHours)}
+                >
+                  {availSetting ? 'Saving…' : `Set for ${customHours} hour${customHours > 1 ? 's' : ''}`}
+                </button>
+              </div>
+
+              {availableUntil && (
+                <button
+                  className="btn btn--muted"
+                  style={{ opacity: availSetting ? 0.6 : 1 }}
+                  disabled={availSetting}
+                  onClick={() => handleSetAvailability('off')}
+                >
+                  {availSetting ? 'Saving…' : 'Turn off availability'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* FCM status */}
+          <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '14px 16px' }}>
+            <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Push notifications</p>
+            {fcmChecking ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Checking…</div>
+            ) : fcmStatus === null ? (
+              <button className="btn btn--secondary" onClick={checkFCMStatus} style={{ fontSize: '0.85rem' }}>Check status</button>
+            ) : fcmStatus === 'active' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle size={18} weight="fill" color="var(--color-calm)" />
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-calm)', fontWeight: 600 }}>Active — you will receive push alerts</span>
+              </div>
+            ) : fcmStatus === 'denied' ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <WarningCircle size={18} weight="fill" color="var(--color-danger)" />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--color-danger)', fontWeight: 600 }}>Notifications blocked</span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Enable notifications in your browser or phone settings, then return here.</p>
+              </div>
+            ) : fcmStatus === 'pending' ? (
+              <div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>Notifications not yet enabled on this device.</p>
+                <button className="btn btn--primary" onClick={handleEnablePush} disabled={fcmChecking}>Enable push notifications</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <WarningCircle size={18} weight="fill" color="var(--color-warning)" />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--color-warning)', fontWeight: 600 }}>Registration failed</span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>Could not register for push notifications. This may be a browser or network issue.</p>
+                <button className="btn btn--secondary" onClick={handleEnablePush} disabled={fcmChecking}>Retry</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

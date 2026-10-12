@@ -16,31 +16,58 @@ function getApp() {
 }
 
 // Call once after the user logs in.
-// Requests notification permission, registers the SW, obtains the FCM token,
-// and sends it to the backend via PATCH /api/profile.
+// Prompts for notification permission if not yet decided, then registers the FCM
+// token and sends it to the backend via PATCH /api/profile.
 export async function registerFCMToken() {
-  if (!('Notification' in window)) return;
-  if (!('serviceWorker' in navigator)) return;
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
   if (!import.meta.env.VITE_FIREBASE_API_KEY) return;
+  if (Notification.permission === 'denied') return;
 
   try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
-
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+    }
     const messaging = getMessaging(getApp());
-    // Use the VitePWA-generated Workbox SW (which imports firebase-messaging-sw.js)
-    // instead of registering a second SW at the same scope — two SWs at '/' conflict.
     const sw = await navigator.serviceWorker.ready;
     const token = await getToken(messaging, {
       vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: sw,
     });
-
     if (token) {
-      await client.patch('/api/profile', { fcm_token: token });
+      await client.patch('/api/profile', { fcm_token: token }).catch(() => {});
     }
   } catch (err) {
     console.warn('[FCM] token registration failed:', err.message);
+  }
+}
+
+// Returns the current FCM registration state without side effects.
+// status: 'active' | 'denied' | 'pending' | 'unsupported' | 'error'
+export async function getFCMStatus() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    return { status: 'unsupported', token: null };
+  }
+  if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+    return { status: 'unsupported', token: null };
+  }
+  if (Notification.permission === 'denied') {
+    return { status: 'denied', token: null };
+  }
+  if (Notification.permission === 'default') {
+    return { status: 'pending', token: null };
+  }
+  try {
+    const messaging = getMessaging(getApp());
+    const sw = await navigator.serviceWorker.ready;
+    const token = await getToken(messaging, {
+      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+      serviceWorkerRegistration: sw,
+    });
+    return token ? { status: 'active', token } : { status: 'error', token: null };
+  } catch (err) {
+    console.warn('[FCM] status check failed:', err.message);
+    return { status: 'error', token: null };
   }
 }
 

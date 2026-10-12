@@ -1130,10 +1130,19 @@ router.post('/session/:id/requester-feedback', auth, async (req, res) => {
 });
 
 // ─── POST /peer/availability ─────────────────────────────────────────────────
-// Opt in to FCM push broadcasts for a timed window (default 2 h, max 8 h).
+// Opt in to FCM push broadcasts. mode='all_day' sets until midnight (Nairobi),
+// mode='hours' sets a timed window (default 2h, max 8h).
 router.post('/availability', auth, async (req, res) => {
-  const hours = Math.min(8, Math.max(0.5, parseFloat(req.body.hours) || 2));
-  const until = new Date(Date.now() + hours * 3600 * 1000);
+  let until;
+  if (req.body.mode === 'all_day') {
+    // End of today in Africa/Nairobi (UTC+3): 23:59:59 EAT = 20:59:59 UTC
+    const nairobiNow = new Date(Date.now() + 3 * 3600 * 1000);
+    nairobiNow.setUTCHours(20, 59, 59, 999);
+    until = nairobiNow;
+  } else {
+    const hours = Math.min(8, Math.max(0.5, parseFloat(req.body.hours) || 2));
+    until = new Date(Date.now() + hours * 3600 * 1000);
+  }
   await query(
     'UPDATE users SET peer_available_until = $1, updated_at = NOW() WHERE id = $2',
     [until.toISOString(), req.user.id]

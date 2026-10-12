@@ -53,8 +53,9 @@ self.addEventListener('notificationclick', (event) => {
   if (action === 'skip') return;
 
   let path = d.route || '/';
-  if (d.type === 'peer_request_broadcast')                               path = '/peer';
+  if (d.type === 'peer_request_broadcast')                               path = `/peer?highlight=${d.request_id || ''}`;
   else if (d.type === 'peer_matching_update' && d.cta === 'calm_space') path = '/calm-space';
+  else if (d.type === 'session_confirmation' && d.session_id)            path = `/peer/session/${d.session_id}/bridge`;
   else if (d.type === 'peer_left')                                       path = '/peer';
   else if (d.type === 'streak_reminder')                                 path = '/mood';
   else if (d.type === 'streak_broken')                                   path = '/mood';
