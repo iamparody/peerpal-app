@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useBlocker } from 'react-router-dom';
 import { Heart, CheckCircle, Clock, ChatText, PaperPlaneTilt, Flag } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
@@ -214,6 +214,20 @@ export default function PeerTextChatScreen() {
   const timerRef = useRef(null);
   const promptShownRef = useRef(false); // track per-block so it only fires once
   const warnTimerRef = useRef(null);
+
+  // Block accidental navigation (back swipe, browser back) while session is live.
+  const blocker = useBlocker(peerJoined && !sessionEnded && !peerLeft && !peerLeftEnded);
+  useEffect(() => {
+    if (blocker.state === 'blocked') setShowEndConfirm(true);
+  }, [blocker.state]);
+
+  // Warn on browser tab close / refresh during active session.
+  useEffect(() => {
+    if (!peerJoined || sessionEnded || peerLeft) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [peerJoined, sessionEnded, peerLeft]);
 
   const handleEndSession = useCallback(async (reason = 'manual') => {
     clearInterval(timerRef.current);
@@ -551,8 +565,8 @@ export default function PeerTextChatScreen() {
             <h3 style={{ marginBottom: 8 }}>End session?</h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>Your peer will be notified that you left.</p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn--danger" style={{ flex: 1 }} onClick={() => { setShowEndConfirm(false); handleEndSession('manual'); }}>End session</button>
-              <button className="btn btn--muted" style={{ flex: 1 }} onClick={() => setShowEndConfirm(false)}>Stay</button>
+              <button className="btn btn--danger" style={{ flex: 1 }} onClick={() => { setShowEndConfirm(false); if (blocker.state === 'blocked') blocker.reset(); handleEndSession('manual'); }}>End session</button>
+              <button className="btn btn--muted" style={{ flex: 1 }} onClick={() => { setShowEndConfirm(false); if (blocker.state === 'blocked') blocker.reset(); }}>Stay</button>
             </div>
           </div>
         </div>
