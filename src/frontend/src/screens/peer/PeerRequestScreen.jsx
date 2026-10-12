@@ -190,11 +190,9 @@ export default function PeerRequestScreen() {
   const [topics, setTopics] = useState([]);
   const [quizDone, setQuizDone] = useState(true); // optimistic: hide gate until loaded
   const [channel, setChannel] = useState('text');
-  const [topicSlug, setTopicSlug] = useState('');
-  const [secondaryTopicSlug, setSecondaryTopicSlug] = useState('');
+
   const [topicOpen, setTopicOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(0); // seconds remaining
   const cooldownRef = useRef(null);
@@ -330,49 +328,6 @@ export default function PeerRequestScreen() {
   function handleTabChange(t) {
     setTab(t);
     if (t === 'leaderboard') loadLeaderboard();
-  }
-
-  async function handleRequest() {
-    if (!topicSlug) {
-      setError('Please choose a topic before requesting support.');
-      return;
-    }
-    const cost = COST_INFO[channel].cost;
-    if (balance < cost) {
-      setError(`You need ${cost} credit${cost > 1 ? 's' : ''} for a ${COST_INFO[channel].label.toLowerCase()}. Top up to continue.`);
-      return;
-    }
-    setError('');
-    setSubmitting(true);
-    try {
-      const { data } = await client.post('/api/peer/request', {
-        channel_preference: channel,
-        topic_slug: topicSlug,
-        secondary_topic_slug: secondaryTopicSlug || undefined,
-      });
-      trackEvent('peer_request_created', { channel, topic_slug: topicSlug });
-      navigate(`/peer/waiting/${data.request_id}`, { replace: true });
-    } catch (err) {
-      const status = err.response?.status;
-      const code = err.response?.data?.code;
-      if (code === 'COOLDOWN_ACTIVE') {
-        const secs = err.response.data.retry_after || 90;
-        setCooldown(secs);
-        clearInterval(cooldownRef.current);
-        cooldownRef.current = setInterval(() => {
-          setCooldown(prev => {
-            if (prev <= 1) { clearInterval(cooldownRef.current); return 0; }
-            return prev - 1;
-          });
-        }, 1000);
-        return;
-      }
-      setError(status === 402
-        ? 'Insufficient credits.'
-        : err.response?.data?.error || 'Could not submit request. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
   }
 
   function handleAcceptIntent(request) {
