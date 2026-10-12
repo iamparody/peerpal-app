@@ -3,6 +3,51 @@
 
 ---
 
+## Phase 44 — Peer Module Bug Fixes
+
+> Functional audit 2026-10-12. All 9 items must be complete before Phase 38.
+
+### 44.1 Session endpoint: topic + peer alias ✅
+- [x] `GET /peer/session/:id` in `peer.js`: JOIN `topics` on `pr.topic_slug` to get `topic_label`. JOIN `users` on the other participant's id (requester sees responder alias; responder sees requester alias) to get `peer_alias`. Add both to the JSON response.
+- [x] `PeerVoiceCallScreen`: read `session.topic_label` and `session.peer_alias` from the session fetch. Display topic label below the "Voice Call" heading. Replace "Anonymous · Peer" with peer alias.
+- [x] `PeerTextChatScreen`: same — display topic label in header. Replace "Peer" in message bubble attribution with peer alias.
+
+### 44.2 Text chat peer_joined gate ✅
+- [x] `PeerTextChatScreen`: add `peerJoined` state (false by default). In `ws.onmessage`, handle `msg.type === 'peer_joined'` → `setPeerJoined(true)`.
+- [x] Show "Waiting for peer to join…" status label instead of "Connected" until `peerJoined` is true.
+- [x] Disable message send textarea and send button until `peerJoined` is true. Placeholder text: "Waiting for peer to connect…".
+
+### 44.3 End session confirmation ✅
+- [x] `PeerTextChatScreen`: replace immediate `handleEndSession('manual')` on "End" button tap with a confirm bottom-sheet. Sheet: "End this session?" body, "End Session" (danger) + "Keep Talking" (muted) buttons.
+- [x] `PeerVoiceCallScreen`: replace immediate `endCall('manual')` on red hang-up tap with same confirm sheet. Sheet must not block the mute button.
+
+### 44.4 In-session report button ✅
+- [x] `PeerVoiceCallScreen`: add a flag/report icon button accessible during `callState === 'active'`. Position alongside mute/hang-up row or as a small text link below. Opens `ReportModal`.
+- [x] `PeerTextChatScreen`: add report icon in the session header row (beside the timer and End button). Opens `ReportModal`.
+
+### 44.5 Timer from actual connection ✅
+- [x] `PeerVoiceCallScreen`: in `pc.ontrack` callback, `startTimer(Date.now() + SESSION_SECONDS * 1000)`. User gets the full 30 minutes from when audio connects, not from when the session row was created.
+- [x] `PeerTextChatScreen`: `startTimer` called inside `peer_joined` WS event handler. Timer frozen at 30:00 until peer joins.
+
+### 44.6 Peer bridge screen ✅
+- [x] Create `src/frontend/src/screens/peer/PeerBridgeScreen.jsx`. Shows topic label and channel. Copy: "You're about to support someone." with a 3-second auto-advance and a "I'm ready" skip button.
+- [x] Add route `/peer/session/:id/bridge` to `App.jsx`. Add to `HIDE_NAV_ON`.
+- [x] `PeerConnectingScreen` and poll status check navigate to bridge on peer accept.
+
+### 44.7 Consolidate request flows — retire PeerWaitingScreen ✅
+- [x] `/peer/waiting/:id` route removed from `App.jsx`. `PeerConnectingScreen` handles recovery.
+- [x] `PeerRequestScreen.handleRequest()` navigates to `/peer/connecting` with `{ topic, channel }` state.
+- [x] Cancel from `PeerConnectingScreen` calls `PATCH /peer/request/:id/close`. `PeerWaitingScreen` retired.
+
+### 44.8 Text WS reconnect ping keepalive ✅
+- [x] `ws2.onopen` sends `join` and calls `setupPing(ws2)` — 20s interval assigned to `ws2._pingInterval`.
+- [x] `setupPing` self-clears interval when socket state is not OPEN on next tick.
+
+### 44.9 Pause open-request poll when tab hidden ✅
+- [x] Poll checks `document.visibilityState === 'hidden'` on each tick and returns early — no network request when tab is hidden.
+
+---
+
 ## Phase 1 � Database Setup & Migrations
 
 ### 1.0 Project Infrastructure

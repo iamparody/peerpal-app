@@ -3,16 +3,43 @@
 ---
 
 ## Current Phase
+**Phase 44 — COMPLETE (2026-10-12)**
+
+All 9 peer module bug fixes verified complete. Re-engagement notification system redesigned.
+
+**NEXT ACTION → Phase 38 — Activities Marketplace (previously deferred, now unblocked)**
+
+### Phase 44 sub-phases — all complete ✅
+
+- [x] **44.1** — Session endpoint exposes topic_label and peer_alias. Both session screens display them.
+- [x] **44.2** — Text chat peer_joined gate: disabled input + "Waiting for peer…" until WS peer_joined fires.
+- [x] **44.3** — End session confirmation bottom-sheet on both text and voice screens.
+- [x] **44.4** — In-session report button: Flag icon in text header, Flag circle alongside voice controls.
+- [x] **44.5** — Timer starts from actual connection (pc.ontrack for voice, peer_joined WS for text).
+- [x] **44.6** — Peer bridge screen at `/peer/session/:id/bridge` with 3s auto-advance and skip.
+- [x] **44.7** — PeerWaitingScreen retired. All flows route through PeerConnectingScreen.
+- [x] **44.8** — WS reconnect (ws2) sends join + starts ping keepalive on onopen.
+- [x] **44.9** — Open-request poll skips fetch when tab is hidden (visibilityState check).
+
+### Re-engagement redesign — complete ✅
+
+- FCM push suppressed during Nairobi quiet hours (22:00–07:00 EAT); in-app always fires
+- Dedup map (token:requestId, 35-min TTL) prevents double-push from tier1+tier2 broadcasts
+- broadcastToUsers enriched with topic_label and channel_preference in FCM data payload
+- firebase-messaging-sw.js: 20 notification types with bespoke title, body, vibration, actions
+- session_confirmation and peer_request_broadcast: requireInteraction, action buttons, urgency vibration
+
+---
+
 **Phase 42 COMPLETE — Therapist Onboarding Form**
 
 All steps 42.1–42.6 complete. End-to-end verified: new therapist login → 3-step onboarding form → document upload to Supabase Storage → portal access with pending-verification banner.
 
-**NEXT ACTION → Phase 38 — Activities Marketplace (first checklist item: schema migrations)**
+**Phase 43 COMPLETE — P3 Re-engagement Notifications + Session Bug Fixes**
 
-Pending small fixes (Phase 43 polish):
-- Peer call accept button colour (brown → green)
-- Peer call ringtone (same tone as therapist portal)
-- Payment screen mobile responsiveness
+Re-engagement notification job (13 nudge types, 1 push/user/24h cap), migration 099 (notification types + last_reengagement_push_at), migration 100 (peer_request_status 'cancelled' enum fix). WebSocket keepalive pings. bcrypt cost 10. Login resilience. Cold-start probe.
+
+**Phase 38 — Activities Marketplace — deferred until Phase 44 complete**
 
 ---
 
