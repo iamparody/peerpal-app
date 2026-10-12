@@ -610,12 +610,26 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
   // Step 8 — audit log: accepted
   await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'accepted', responder_id: req.user.id });
 
-  // Notify requester — in-app only (blueprint: session_confirmation)
+  // Notify requester — in-app + FCM push so a backgrounded app wakes up
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, 'session_confirmation', $2, 'in_app')`,
     [requesterId, JSON.stringify({ session_id: sessionId, channel: channel_preference })]
   );
+  {
+    const { enqueuePushNotification } = require('../utils/fcm');
+    const { rows: fcmRows } = await query('SELECT fcm_token FROM users WHERE id = $1', [requesterId]);
+    const fcmToken = fcmRows[0]?.fcm_token;
+    if (fcmToken) {
+      const label = channel_preference === 'voice' ? 'Voice call' : 'Chat session';
+      enqueuePushNotification(
+        fcmToken,
+        `Your peer is ready — ${label} starting`,
+        'Tap to join your peer support session.',
+        { type: 'session_confirmation', session_id: sessionId, channel: channel_preference, route: `/peer/session/${sessionId}/bridge` }
+      ).catch(err => console.warn('[accept] requester FCM error:', err.message));
+    }
+  }
 
   // Start 25-min warning + 30-min auto-close timers
   const responderId = req.user.id;

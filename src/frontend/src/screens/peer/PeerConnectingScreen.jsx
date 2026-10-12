@@ -57,6 +57,7 @@ export default function PeerConnectingScreen() {
   const initRef = useRef(false);
   const pollRef = useRef(null);
   const userCancelledRef = useRef(false);
+  const requestIdRef = useRef(null); // mirrors requestId state for use in cancel during submitting phase
   const initials = getInitials(user?.alias);
 
   useEffect(() => {
@@ -104,6 +105,7 @@ export default function PeerConnectingScreen() {
           }
 
           setRequestId(rid);
+          requestIdRef.current = rid;
           setPhase('waiting');
 
           // Outgoing request tone — same pattern as therapist call (660→880 Hz)
@@ -191,7 +193,8 @@ export default function PeerConnectingScreen() {
   function handleCancel() {
     userCancelledRef.current = true;
     clearInterval(pollRef.current);
-    if (requestId) client.patch(`/api/peer/request/${requestId}/close`).catch(() => {});
+    const rid = requestIdRef.current || requestId;
+    if (rid) client.patch(`/api/peer/request/${rid}/close`).catch(() => {});
     navigate('/peer', { replace: true });
   }
 
@@ -345,13 +348,10 @@ export default function PeerConnectingScreen() {
           {phase !== 'error' && (
             <button
               onClick={handleCancel}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: '0.82rem', color: 'var(--color-text-muted)',
-                padding: '4px 8px', textDecoration: 'underline',
-              }}
+              className="btn btn--muted"
+              style={{ width: '100%', maxWidth: 360 }}
             >
-              Not right now
+              Cancel request
             </button>
           )}
           {phase === 'error' && (
