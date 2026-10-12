@@ -384,8 +384,7 @@ export default function PeerRequestScreen() {
     setError('');
     try {
       const { data } = await client.patch(`/api/peer/request/${request.id}/accept`);
-      const ch = data.channel || 'text';
-      navigate(`/peer/session/${data.session_id}/${ch}`, { replace: true });
+      navigate(`/peer/session/${data.session_id}/bridge`, { replace: true });
     } catch (err) {
       const code = err.response?.data?.code;
       if (code === 'QUIZ_REQUIRED') {

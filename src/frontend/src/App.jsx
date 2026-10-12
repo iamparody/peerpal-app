@@ -58,6 +58,7 @@ import CreditsScreen from './screens/CreditsScreen';
 import PeerRequestScreen    from './screens/peer/PeerRequestScreen';
 import PeerConnectingScreen from './screens/peer/PeerConnectingScreen';
 import PeerWaitingScreen    from './screens/peer/PeerWaitingScreen';
+import PeerBridgeScreen     from './screens/peer/PeerBridgeScreen';
 import PeerTextChatScreen from './screens/peer/PeerTextChatScreen';
 import PeerVoiceCallScreen from './screens/peer/PeerVoiceCallScreen';
 
@@ -334,6 +335,7 @@ function Layout() {
         <Route path="/peer"              element={<ProtectedRoute><PeerRequestScreen /></ProtectedRoute>} />
         <Route path="/peer/connecting"   element={<ProtectedRoute><PeerConnectingScreen /></ProtectedRoute>} />
         <Route path="/peer/waiting/:id"  element={<ProtectedRoute><PeerWaitingScreen /></ProtectedRoute>} />
+        <Route path="/peer/session/:id/bridge" element={<ProtectedRoute><PeerBridgeScreen /></ProtectedRoute>} />
         <Route path="/peer/session/:id/text"  element={<ProtectedRoute><PeerTextChatScreen /></ProtectedRoute>} />
         <Route path="/peer/session/:id/voice" element={<ProtectedRoute><PeerVoiceCallScreen /></ProtectedRoute>} />
 

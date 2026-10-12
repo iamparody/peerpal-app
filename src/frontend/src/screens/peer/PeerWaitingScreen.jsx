@@ -48,7 +48,7 @@ export default function PeerWaitingScreen() {
             beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
           } catch { /* AudioContext not available */ }
           qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
-          navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
+          navigate(`/peer/session/${data.session_id}/bridge`, { replace: true });
         }
         // If request is stuck 'locked' for >10s due to a failed accept, reset it server-side
         // by letting it time out — nothing to do on the client, just keep waiting

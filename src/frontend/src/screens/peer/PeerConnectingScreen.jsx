@@ -81,9 +81,9 @@ export default function PeerConnectingScreen() {
             setSessionChannel(r.channel_preference || 'text');
             if (r.topic_label) setTopicLabel(r.topic_label);
 
-            // Already matched — go straight to session
+            // Already matched — go straight to bridge
             if (r.status === 'active' && r.session_id) {
-              navigate(`/peer/session/${r.session_id}/${r.channel_preference || 'text'}`, { replace: true });
+              navigate(`/peer/session/${r.session_id}/bridge`, { replace: true });
               return;
             }
           } else {
@@ -119,7 +119,7 @@ export default function PeerConnectingScreen() {
               const { data } = await client.get(`/api/peer/request/${rid}/status`);
               if (data.status === 'active' && data.session_id) {
                 clearInterval(pollRef.current);
-                navigate(`/peer/session/${data.session_id}/${data.channel_preference || 'text'}`, { replace: true });
+                navigate(`/peer/session/${data.session_id}/bridge`, { replace: true });
               } else if (data.status === 'closed' || data.status === 'escalated') {
                 clearInterval(pollRef.current);
                 if (!userCancelledRef.current) {
