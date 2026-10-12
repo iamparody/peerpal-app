@@ -233,8 +233,9 @@ export default function PeerRequestScreen() {
     }
     load();
 
-    // Poll for new/closed requests so broadcasts appear without a page reload
+    // Poll for new/closed requests — paused when tab is hidden to avoid wasted requests
     const poll = setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
       try {
         const { data } = await client.get('/api/peer/requests/open');
         setOpenRequests(data.requests ?? data ?? []);

@@ -866,9 +866,15 @@ router.patch('/request/:id/close', auth, async (req, res) => {
 router.get('/session/:id', auth, async (req, res) => {
   const { rows } = await query(
     `SELECT s.id, s.type, s.channel, s.status, s.credit_cost, s.started_at, s.ended_at,
-            pr.id AS request_id, pr.channel_preference, pr.user_id AS requester_id, pr.accepted_by AS responder_id
+            pr.id AS request_id, pr.channel_preference, pr.user_id AS requester_id, pr.accepted_by AS responder_id,
+            pr.topic_slug,
+            t.label AS topic_label,
+            CASE WHEN s.user_id = $2 THEN u_peer.alias ELSE u_req.alias END AS peer_alias
      FROM sessions s
      JOIN peer_requests pr ON pr.session_id = s.id
+     LEFT JOIN topics t ON t.slug = pr.topic_slug
+     LEFT JOIN users u_req ON u_req.id = pr.user_id
+     LEFT JOIN users u_peer ON u_peer.id = pr.accepted_by
      WHERE s.id = $1 AND s.type = 'peer'
        AND (s.user_id = $2 OR pr.accepted_by = $2)`,
     [req.params.id, req.user.id]

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Heart, CheckCircle, Clock, Microphone, MicrophoneSlash, PhoneDisconnect } from '@phosphor-icons/react';
+import { Heart, CheckCircle, Clock, Microphone, MicrophoneSlash, PhoneDisconnect, Flag } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 import { useAuth } from '../../context/AuthContext';
@@ -194,6 +194,9 @@ export default function PeerVoiceCallScreen() {
   const [showReflection, setShowReflection] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [peerLeftMsg, setPeerLeftMsg] = useState(false);
+  const [peerAlias, setPeerAlias] = useState('');
+  const [topicLabel, setTopicLabel] = useState('');
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const wsRef = useRef(null);
   const pcRef = useRef(null);
@@ -259,8 +262,8 @@ export default function PeerVoiceCallScreen() {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         requestIdRef.current = data.session?.request_id ?? null;
         isPeerRef.current = data.session?.responder_id === user?.id;
-
-        const startedAt = data.session?.started_at ? new Date(data.session.started_at) : new Date();
+        setPeerAlias(data.session?.peer_alias || 'Peer');
+        setTopicLabel(data.session?.topic_label || '');
         // Timer starts only when WebRTC actually connects (pc.ontrack), not at session creation
 
         const iceServers = data.ice_servers || [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -279,8 +282,8 @@ export default function PeerVoiceCallScreen() {
           clearTimeout(connectTimeoutRef.current);
           callWasActiveRef.current = true;
           setCallState('active');
-          // Start 30-min countdown from session start (or now if start was recent)
-          startTimer(startedAt.getTime() + SESSION_SECONDS * 1000);
+          // Timer starts from actual audio connection, not session creation timestamp
+          startTimer(Date.now() + SESSION_SECONDS * 1000);
         };
 
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
@@ -536,15 +539,17 @@ export default function PeerVoiceCallScreen() {
 
       <div style={{ textAlign: 'center', marginBottom: 'var(--space-2xl)' }}>
         <Microphone size={64} weight="duotone" color="var(--color-accent)" style={{ marginBottom: 'var(--space-md)' }} />
-        <h2 style={{ marginBottom: 'var(--space-sm)' }}>
-          {callState === 'connecting' ? 'Connecting…' : callState === 'active' ? 'Voice Call' : 'Call Ended'}
+        <h2 style={{ marginBottom: 4 }}>
+          {callState === 'connecting' ? 'Connecting…' : callState === 'active' ? (peerAlias || 'Voice Call') : 'Call Ended'}
         </h2>
-        <p style={{ fontSize: '0.9rem' }}>
-          {callState === 'active' ? 'Anonymous · Peer' : callState === 'connecting' ? 'Establishing connection…' : 'Your peer has left the call'}
+        <p style={{ fontSize: '0.85rem', color: 'rgba(245,237,228,0.55)', marginBottom: 0 }}>
+          {callState === 'active'
+            ? (topicLabel || 'Peer support session')
+            : callState === 'connecting' ? 'Establishing connection…' : 'Your peer has left the call'}
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 'var(--space-lg)' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-lg)', alignItems: 'center' }}>
         <button
           onClick={toggleMute}
           style={{
@@ -559,7 +564,7 @@ export default function PeerVoiceCallScreen() {
           {muted ? <MicrophoneSlash size={28} weight="duotone" /> : <Microphone size={28} weight="duotone" />}
         </button>
         <button
-          onClick={() => endCall('manual')}
+          onClick={() => setShowEndConfirm(true)}
           style={{
             width: 72, height: 72, borderRadius: '50%',
             background: 'var(--color-danger)', border: 'none',
@@ -571,7 +576,36 @@ export default function PeerVoiceCallScreen() {
         >
           <PhoneDisconnect size={28} weight="fill" />
         </button>
+        {callState === 'active' && (
+          <button
+            onClick={() => setShowReport(true)}
+            style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: 'rgba(194,164,138,0.12)',
+              border: '1px solid rgba(194,164,138,0.25)',
+              color: 'rgba(245,237,228,0.55)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            aria-label="Report peer"
+          >
+            <Flag size={20} weight="duotone" />
+          </button>
+        )}
       </div>
+
+      {/* End call confirmation */}
+      {showEndConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 120, display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
+            <h3 style={{ marginBottom: 8 }}>End call?</h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>Your peer will be notified that you left.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn--danger" style={{ flex: 1 }} onClick={() => { setShowEndConfirm(false); endCall('manual'); }}>End call</button>
+              <button className="btn btn--muted" style={{ flex: 1 }} onClick={() => setShowEndConfirm(false)}>Stay</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {callState === 'ended' && (
         <button className="btn btn--ghost" style={{ marginTop: 'var(--space-xl)', width: 'auto', padding: '10px 24px' }} onClick={() => navigate('/peer', { replace: true })}>

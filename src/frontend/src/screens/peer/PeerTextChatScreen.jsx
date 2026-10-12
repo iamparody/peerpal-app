@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Heart, CheckCircle, Clock, ChatText, PaperPlaneTilt } from '@phosphor-icons/react';
+import { Heart, CheckCircle, Clock, ChatText, PaperPlaneTilt, Flag } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 import { useAuth } from '../../context/AuthContext';
@@ -198,6 +198,10 @@ export default function PeerTextChatScreen() {
   const [showReflection, setShowReflection] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [peerLeftEnded, setPeerLeftEnded] = useState(false);
+  const [peerJoined, setPeerJoined] = useState(false);
+  const [peerAlias, setPeerAlias] = useState('Peer');
+  const [topicLabel, setTopicLabel] = useState('');
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const isPeerRef = useRef(false);
 
   const [contactWarning, setContactWarning] = useState(false);
@@ -260,50 +264,61 @@ export default function PeerTextChatScreen() {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         requestIdRef.current = data.session?.request_id ?? null;
         isPeerRef.current = data.session?.responder_id === user?.id;
-
-        // Calculate end time from session start (or now if start not available)
-        const startedAt = data.session?.started_at ? new Date(data.session.started_at) : new Date();
-        const endTime = startedAt.getTime() + SESSION_SECONDS * 1000;
-        startTimer(endTime);
+        setPeerAlias(data.session?.peer_alias || 'Peer');
+        setTopicLabel(data.session?.topic_label || '');
+        // Timer starts on peer_joined, not session creation (44.5)
 
         const ws = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
         wsRef.current = ws;
+
+        function setupPing(socket) {
+          const pingInterval = setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping' }));
+            else clearInterval(pingInterval);
+          }, 20000);
+          socket._pingInterval = pingInterval;
+        }
+
         ws.onopen = () => {
           setConnected(true);
           ws.send(JSON.stringify({ type: 'join', session_id: sessionId }));
-          // Keepalive ping every 20s to prevent Render free tier from dropping idle WS connections
-          const pingInterval = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
-            else clearInterval(pingInterval);
-          }, 20000);
-          ws._pingInterval = pingInterval;
+          setupPing(ws);
         };
-        ws.onmessage = (e) => {
+
+        function handleMessage(e) {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'chat') {
+          if (msg.type === 'peer_joined') {
+            setPeerJoined(true);
+            // Start timer from actual peer connection, not session creation
+            startTimer(Date.now() + SESSION_SECONDS * 1000);
+          } else if (msg.type === 'chat') {
             hadContactRef.current = true;
             setMessages((prev) => [...prev, { from: 'peer', text: msg.text, ts: msg.ts || Date.now() }]);
           } else if (msg.type === 'peer_left') {
             setPeerLeft(true);
-            // End this party's session too — session is already closed server-side
             handleEndSession('peer_left');
           } else if (msg.type === 'contact_warning') {
             setContactWarning(true);
             clearTimeout(warnTimerRef.current);
             warnTimerRef.current = setTimeout(() => setContactWarning(false), 8000);
           }
-        };
+        }
+
+        ws.onmessage = handleMessage;
         ws.onclose = (ev) => {
           clearInterval(ws._pingInterval);
           setConnected(false);
-          // Don't reconnect on intentional close (code 1000/1005) or after session ended
           if (ev.code === 1000 || ev.code === 1005) return;
           setTimeout(() => {
             if (wsRef.current?.readyState !== WebSocket.OPEN) {
               const ws2 = new WebSocket(`${WS_URL}/ws/signal?session=${sessionId}`);
               wsRef.current = ws2;
-              ws2.onopen = () => { setConnected(true); ws2.send(JSON.stringify({ type: 'join', session_id: sessionId })); };
-              ws2.onmessage = ws.onmessage;
+              ws2.onopen = () => {
+                setConnected(true);
+                ws2.send(JSON.stringify({ type: 'join', session_id: sessionId }));
+                setupPing(ws2);
+              };
+              ws2.onmessage = handleMessage;
               ws2.onclose = ws.onclose;
             }
           }, 2000);
@@ -418,13 +433,20 @@ export default function PeerTextChatScreen() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--color-bg-primary)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ChatText size={18} weight="duotone" /> Peer Chat
+            <ChatText size={18} weight="duotone" /> {peerAlias}
           </div>
-          <div style={{ fontSize: '0.7rem', color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-            {peerLeft ? 'Peer has left' : connected ? 'Connected' : 'Connecting…'}
+          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+            {peerLeft ? 'Peer has left' : !peerJoined ? 'Waiting for peer…' : connected ? topicLabel || 'Peer support session' : 'Reconnecting…'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setShowReport(true)}
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+            aria-label="Report peer"
+          >
+            <Flag size={18} weight="duotone" />
+          </button>
           <span style={{
             fontSize: '0.85rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
             color: isLow ? 'var(--color-danger)' : 'var(--color-text-muted)',
@@ -432,7 +454,7 @@ export default function PeerTextChatScreen() {
           }}>
             {formatTime(secondsLeft)}
           </span>
-          <button onClick={() => handleEndSession('manual')} style={{ background: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+          <button onClick={() => setShowEndConfirm(true)} style={{ background: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
             End
           </button>
         </div>
@@ -484,14 +506,16 @@ export default function PeerTextChatScreen() {
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--color-bg-primary)' }}>
         {messages.length === 0 && !peerLeft && (
           <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 24, fontSize: '0.9rem' }}>
-            You are connected. Neither party can see the other's identity.
+            {peerJoined
+              ? 'You are connected. Neither party can see the other\'s identity.'
+              : 'Waiting for your peer to join…'}
           </div>
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`bubble ${msg.from === 'me' ? 'bubble--user' : 'bubble--peer'}`}>
             {msg.text}
             <div style={{ fontSize: '0.65rem', opacity: 0.7, marginTop: 4, textAlign: msg.from === 'me' ? 'right' : 'left' }}>
-              {msg.from === 'me' ? 'You' : 'Peer'} · {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {msg.from === 'me' ? 'You' : peerAlias} · {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         ))}
@@ -507,12 +531,12 @@ export default function PeerTextChatScreen() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message…"
-          disabled={peerLeft || !connected}
+          disabled={peerLeft || !connected || !peerJoined}
           style={{ resize: 'none', flex: 1 }}
         />
         <button
           onClick={handleSend}
-          disabled={!input.trim() || !connected || peerLeft}
+          disabled={!input.trim() || !connected || peerLeft || !peerJoined}
           className="btn btn--primary"
           style={{ width: 'auto', padding: '0 16px', flexShrink: 0 }}
           aria-label="Send"
@@ -520,6 +544,19 @@ export default function PeerTextChatScreen() {
           <PaperPlaneTilt size={20} weight="fill" />
         </button>
       </div>
+
+      {showEndConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 120, display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 'var(--space-lg)', width: '100%' }}>
+            <h3 style={{ marginBottom: 8 }}>End session?</h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>Your peer will be notified that you left.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn--danger" style={{ flex: 1 }} onClick={() => { setShowEndConfirm(false); handleEndSession('manual'); }}>End session</button>
+              <button className="btn btn--muted" style={{ flex: 1 }} onClick={() => setShowEndConfirm(false)}>Stay</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showReport && <ReportModal sessionId={sessionId} onClose={() => setShowReport(false)} />}
       {showReflection && (
