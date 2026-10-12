@@ -29,13 +29,25 @@ export async function registerFCMToken() {
       if (perm !== 'granted') return;
     }
     const messaging = getMessaging(getApp());
-    const sw = await navigator.serviceWorker.ready;
-    const token = await getToken(messaging, {
-      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
-      serviceWorkerRegistration: sw,
-    });
-    if (token) {
-      await client.patch('/api/profile', { fcm_token: token }).catch(() => {});
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const sw = await navigator.serviceWorker.ready;
+        const token = await getToken(messaging, {
+          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+          serviceWorkerRegistration: sw,
+        });
+        if (token) {
+          await client.patch('/api/profile', { fcm_token: token }).catch(() => {});
+        }
+        return;
+      } catch (err) {
+        if ((err.code === 20 || err.name === 'AbortError') && attempt === 0) {
+          await new Promise(r => setTimeout(r, 1500));
+          continue;
+        }
+        console.warn('[FCM] token registration failed:', err.message);
+        return;
+      }
     }
   } catch (err) {
     console.warn('[FCM] token registration failed:', err.message);
@@ -57,18 +69,26 @@ export async function getFCMStatus() {
   if (Notification.permission === 'default') {
     return { status: 'pending', token: null };
   }
-  try {
-    const messaging = getMessaging(getApp());
-    const sw = await navigator.serviceWorker.ready;
-    const token = await getToken(messaging, {
-      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
-      serviceWorkerRegistration: sw,
-    });
-    return token ? { status: 'active', token } : { status: 'error', token: null };
-  } catch (err) {
-    const code = err.code || err.message || 'unknown';
-    console.warn('[FCM] status check failed:', code, err);
-    return { status: 'error', token: null, errorCode: code };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const messaging = getMessaging(getApp());
+      const sw = await navigator.serviceWorker.ready;
+      const token = await getToken(messaging, {
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+        serviceWorkerRegistration: sw,
+      });
+      return token ? { status: 'active', token } : { status: 'error', token: null };
+    } catch (err) {
+      const code = err.code || err.message || 'unknown';
+      // AbortError (code 20) means the SW was updating when getToken() ran.
+      // Wait for it to stabilise and retry once.
+      if ((err.code === 20 || err.name === 'AbortError') && attempt === 0) {
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+      console.warn('[FCM] status check failed:', code, err);
+      return { status: 'error', token: null, errorCode: code };
+    }
   }
 }
 
