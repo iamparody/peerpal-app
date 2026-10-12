@@ -19,21 +19,41 @@ const routingTimers = new Map();
 // In-process session timers: { [session_id]: { warning: Timeout, close: Timeout } }
 const sessionTimers = new Map();
 
+// Dedup map for peer_request_broadcast FCM pushes: `${token}:${requestId}` → expiresAt (ms)
+// Prevents duplicate pushes when tier1 + tier2 broadcast to the same peer for the same request.
+const broadcastSent = new Map();
+
+// Returns true if the current time in Nairobi (EAT = UTC+3) is within the quiet window 22:00–07:00.
+// Non-urgent broadcast pushes are suppressed during this window; critical ones (session_confirmation)
+// always fire.
+function isQuietHour() {
+  const eatHour = (new Date().getUTCHours() + 3) % 24;
+  return eatHour >= 22 || eatHour < 7;
+}
+
 const VALID_CHANNELS = ['text', 'voice'];
 
 // ─── Routing helpers (Phase 31.5) ─────────────────────────────────────────────
 
 // Batch-insert notifications for a list of user IDs and fire FCM to available peers.
-async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug) {
+// topicLabel is the human-readable label for the topic (e.g. "Grief & Loss"); may be null.
+async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug, topicLabel) {
   if (!userIds.length) return;
   const payload = JSON.stringify({ request_id: requestId, channel_preference: channelPreference, topic_slug: topicSlug || null });
 
-  // In-app notification for all candidate peers
+  // In-app notification for all candidate peers (always — no quiet-hour suppression for in-app)
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'in_app'`,
     [userIds, payload]
   );
+
+  // FCM push suppressed during Nairobi quiet hours (22:00–07:00 EAT).
+  // In-app notification above always fires so peers see it when they next open the app.
+  if (isQuietHour()) {
+    console.log('[broadcast] quiet hours — skipping FCM push for request', String(requestId).slice(0, 8));
+    return;
+  }
 
   // FCM push: only to peers who have opted in (availability window active),
   // have an FCM token, and are not currently in an active session.
@@ -52,22 +72,51 @@ async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug
 
   if (!pushTargets.length) return;
 
-  const { enqueuePushNotification } = require('../utils/fcm');
-  for (const { fcm_token } of pushTargets) {
-    await enqueuePushNotification(
-      fcm_token,
-      'Someone needs support',
-      'A peer is looking for help. Tap to see if you can assist.',
-      { type: 'peer_request_broadcast', request_id: String(requestId), _urgent: 'true' }
-    ).catch((err) => console.warn('[broadcast] FCM enqueue error:', err.message));
+  // Purge stale dedup entries (keeps the Map from growing unbounded)
+  const now = Date.now();
+  for (const [k, exp] of broadcastSent) {
+    if (exp < now) broadcastSent.delete(k);
   }
 
-  const pushIds = pushTargets.map(r => r.id);
-  await query(
-    `INSERT INTO notifications (user_id, type, payload, channel)
-     SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'push'`,
-    [pushIds, payload]
-  );
+  const { enqueuePushNotification } = require('../utils/fcm');
+  const sentThisRound = [];
+
+  for (const { id, fcm_token } of pushTargets) {
+    const dedupKey = `${fcm_token}:${requestId}`;
+    if (broadcastSent.has(dedupKey)) {
+      console.log('[broadcast] dedup skip — token already notified for request', String(requestId).slice(0, 8));
+      continue;
+    }
+
+    // Mark as sent for 35 minutes (covers the full escalation window)
+    broadcastSent.set(dedupKey, now + 35 * 60 * 1000);
+
+    const channelLabel = channelPreference === 'voice' ? 'Voice session' : 'Text session';
+    const body = topicLabel ? `${topicLabel} · ${channelLabel}` : channelLabel;
+
+    await enqueuePushNotification(
+      fcm_token,
+      'Someone needs your support',
+      body,
+      {
+        type: 'peer_request_broadcast',
+        request_id: String(requestId),
+        topic_label: topicLabel || '',
+        channel_preference: channelPreference || 'text',
+        _urgent: 'true',
+      }
+    ).catch((err) => console.warn('[broadcast] FCM enqueue error:', err.message));
+
+    sentThisRound.push(id);
+  }
+
+  if (sentThisRound.length) {
+    await query(
+      `INSERT INTO notifications (user_id, type, payload, channel)
+       SELECT unnest($1::uuid[]), 'peer_request_broadcast', $2, 'push'`,
+      [sentThisRound, payload]
+    );
+  }
 }
 
 // Returns IDs of peers eligible for the specialist tier.
@@ -132,12 +181,15 @@ async function appendRoutingAudit(requestId, entry) {
 // is safe to call from the DB-polling cron job after a server restart.
 async function broadenToGeneralTier(requestId, requesterId) {
   const { rows } = await query(
-    'SELECT status, channel_preference, topic_slug FROM peer_requests WHERE id = $1',
+    `SELECT pr.status, pr.channel_preference, pr.topic_slug, t.label AS topic_label
+     FROM peer_requests pr
+     LEFT JOIN topics t ON t.slug = pr.topic_slug
+     WHERE pr.id = $1`,
     [requestId]
   );
   if (!rows.length || rows[0].status !== 'open') return;
 
-  const { channel_preference, topic_slug } = rows[0];
+  const { channel_preference, topic_slug, topic_label } = rows[0];
 
   // Derive already-notified IDs from the DB so we never need in-memory state
   const { rows: alreadyRows } = await query(
@@ -150,7 +202,7 @@ async function broadenToGeneralTier(requestId, requesterId) {
   const generalIds = await getGeneralPeerIds(requesterId, alreadyNotifiedIds);
 
   if (generalIds.length > 0) {
-    await broadcastToUsers(generalIds, requestId, channel_preference, topic_slug);
+    await broadcastToUsers(generalIds, requestId, channel_preference, topic_slug, topic_label || null);
   }
 
   await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'tier2_broadcast', peer_count: generalIds.length });
@@ -395,7 +447,7 @@ router.post('/request', auth, async (req, res) => {
   // Step 2 — Broadcast to specialist tier (permission-filtered when PEER_SCREENING_LIVE=true)
   const userId = req.user.id;
   const specialistIds = await getSpecialistPeerIds(topic_slug, userId);
-  await broadcastToUsers(specialistIds, requestId, channel_preference, topic_slug);
+  await broadcastToUsers(specialistIds, requestId, channel_preference, topic_slug, topicRow?.label || null);
   await appendRoutingAudit(requestId, { ts: new Date().toISOString(), event: 'tier1_broadcast', peer_count: specialistIds.length, topic_slug: topic_slug || null });
 
   // Notify requester: search has started
