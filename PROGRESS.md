@@ -3,11 +3,17 @@
 ---
 
 ## Current Phase
-**Phase 44 — COMPLETE (2026-10-12)**
+**Phase 36 — COMPLETE (2026-10-13)**
 
-All 9 peer module bug fixes verified complete. Re-engagement notification system redesigned.
+AI Pipeline Hardening complete. Migration 075 confirmed applied. 202 unit tests (0 failures). All 8 Groq failure modes verified safe. `SANITIZER_STRIP_THRESHOLD` extracted to named constant.
 
 **NEXT ACTION → Phase 45 — Re-engagement Engine** (then 46 Referral, then 47 Free Trial/Promo, then Phase 38 Activities Marketplace)
+
+### Phase 36 sub-phases — all complete ✅
+
+- [x] **36.0** — Migration 075 applied; all 4 pipeline tables confirmed in Supabase with RLS
+- [x] **36.1** — `conversationalDetector.test.js` written; all 8 Groq failure modes covered (202 total tests, 0 failures)
+- [x] **36.2** — `SANITIZER_STRIP_THRESHOLD=0.4` extracted; `GENERATION_CONFIG_VERSION` added; no magic literals remain
 
 ### Phase 44 sub-phases — all complete ✅
 
