@@ -238,8 +238,8 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(title, {
     body,
-    icon:               '/pwa-192x192.png',
-    badge:              '/pwa-64x64.png',
+    icon:               '/blob-neutral.png',
+    badge:              '/badge.png',
     tag:                type || 'peerpal-general',
     data:               d,
     vibrate:            cfg.vibrate,
