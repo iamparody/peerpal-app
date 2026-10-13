@@ -78,6 +78,12 @@ export default function DashboardScreen() {
     queryKey: ['moods', 'history', 1],
     queryFn:  () => client.get('/api/moods/history?limit=1').then(r => r.data),
   });
+  const { data: sessionData } = useQuery({
+    queryKey: ['peer', 'has-completed-session'],
+    queryFn:  () => client.get('/api/peer/has-completed-session').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+  const showFirstCallCard = sessionData?.hasCompletedSession === false;
 
   if (isLoading && !moodHistData) return <DashboardSkeleton />;
 
@@ -190,6 +196,30 @@ export default function DashboardScreen() {
       </div>
 
       <div style={{ height: 1, background: 'var(--color-divider)', margin: '0 var(--space-md)' }} />
+
+      {/* First-call card — shown only until user completes a peer session */}
+      {showFirstCallCard && (
+        <div
+          style={{
+            margin: 'var(--space-md) var(--space-md) 0',
+            background: 'var(--color-bg-primary)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px var(--space-md)',
+            textAlign: 'center',
+          }}
+        >
+          <p style={{ fontSize: 16, fontWeight: 500, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 'var(--space-md)', fontFamily: 'var(--font-editorial)' }}>
+            Whatever brought you here today, it's enough. Someone is ready to listen.
+          </p>
+          <button
+            className="btn btn--primary"
+            style={{ width: '100%' }}
+            onClick={() => navigate('/peer')}
+          >
+            Talk to someone
+          </button>
+        </div>
+      )}
 
       {/* Mood prompt banner */}
       {!moodDone && !moodDismissed && (

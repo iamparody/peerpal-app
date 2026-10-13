@@ -274,6 +274,26 @@ function dormantEventRef(segment) {
   return segment === 'dormant' ? `dormant:${isoMonth()}` : `dormant:${isoWeek()}`;
 }
 
+// ─── First-call nudge: fires once, 24-48h after signup, zero activity ────────
+// Pre-pipeline — checked before Pipeline A or B.
+
+async function checkFirstCallNudge(user) {
+  const accountAgeHours = (Date.now() - new Date(user.created_at).getTime()) / 3600000;
+  if (accountAgeHours < 24 || accountAgeHours > 48) return null;
+
+  const { rows } = await query(
+    `SELECT 1 FROM (
+       SELECT user_id FROM moods           WHERE user_id = $1 LIMIT 1
+       UNION ALL
+       SELECT user_id FROM ai_interactions WHERE user_id = $1 LIMIT 1
+       UNION ALL
+       SELECT user_id FROM sessions        WHERE user_id = $1 LIMIT 1
+     ) t LIMIT 1`,
+    [user.id]
+  );
+  return rows.length === 0 ? user.id : null;
+}
+
 // ─── Pipeline A: event-driven, fires for ALL users ────────────────────────────
 
 async function runPipelineA(user) {
@@ -364,8 +384,14 @@ async function runReengagementJob() {
     try {
       if (hadRecentPush(user)) continue;
 
+      // First-call nudge: once only, 24-48h after signup, zero activity
+      const firstCallRef = await checkFirstCallNudge(user);
+      let fired = firstCallRef
+        ? await sendNudge(user, 'first_call_nudge', 'first_call_nudge', {}, '/peer', `firstcall:${user.id}`)
+        : false;
+
       // Pipeline A: event-driven, all users
-      let fired = await runPipelineA(user);
+      if (!fired) fired = await runPipelineA(user);
 
       // Pipeline B: churn nudges, non-healthy only
       if (!fired && user.engagement_segment && user.engagement_segment !== 'healthy') {

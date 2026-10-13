@@ -974,6 +974,18 @@ router.get('/history', auth, async (req, res) => {
   return res.status(200).json({ sessions: rows, total, page, pages: Math.ceil(total / limit) });
 });
 
+// ─── GET /peer/has-completed-session ─────────────────────────────────────────
+// Single boolean — used by dashboard to gate the first-call card.
+router.get('/has-completed-session', auth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT 1 FROM sessions
+     WHERE user_id = $1 AND status = 'completed'
+     LIMIT 1`,
+    [req.user.id]
+  );
+  return res.json({ hasCompletedSession: rows.length > 0 });
+});
+
 // ─── GET /peer/stats ─────────────────────────────────────────────────────────
 router.get('/stats', auth, async (req, res) => {
   // sessions_completed from peer_requests — authoritative, includes pre-Phase 27 history

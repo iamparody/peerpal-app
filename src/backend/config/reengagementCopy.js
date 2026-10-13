@@ -79,6 +79,10 @@ const COPY = {
     { title: "You're not alone in this", body: "It's okay to ask for support. We're here." },
   ],
 
+  first_call_nudge: [
+    { title: "PeerPal", body: "Someone is ready to listen when you are." },
+  ],
+
   therapist_upsell: [
     { title: "You've been showing up",   body: "Peer support is powerful. A therapist can go even deeper." },
     { title: "Ready for the next step?", body: "You've used peer support. A therapist can help you go further." },
