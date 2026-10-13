@@ -2,12 +2,20 @@
 
 const { v4: uuidv4 }      = require('uuid');
 const Groq                 = require('groq-sdk');
-const { sanitize, stripHtml } = require('../utils/sanitizer');
+const { sanitize, stripHtml, SANITIZER_STRIP_THRESHOLD } = require('../utils/sanitizer');
 
 const GENERATION_MODEL    = process.env.GROQ_PRIMARY_MODEL  || 'openai/gpt-oss-120b';
 const FALLBACK_MODEL      = process.env.GROQ_FALLBACK_MODEL || 'qwen/qwen3.8-27b';
 const GENERATION_MODEL_ID = 'groq/gpt-oss-120b@1.0.0';
 const SCHEMA_VERSION      = '1.0.0';
+
+// Generation config — persisted alongside ai_generated records for audit traceability.
+// SANITIZER_STRIP_THRESHOLD imported from sanitizer.js; both must stay in sync.
+const GENERATION_CONFIG_VERSION = {
+  schema_version:             SCHEMA_VERSION,
+  model_id:                   GENERATION_MODEL_ID,
+  sanitizer_strip_threshold:  SANITIZER_STRIP_THRESHOLD,
+};
 
 // Crisis response template — governed policy artefact (Section 3.6).
 // Changes require DUAL_REVIEW. Do not modify without sign-off.
@@ -151,7 +159,7 @@ async function generate(decided, { systemPrompt, messages = [], userMessage }) {
 
   // If >40% of content was removed, sanitize() returns a safe fallback phrase —
   // treat as PROHIBITED_CONTENT (Section 1.10 FAIL_CLOSED for prohibited output).
-  if (wasCleaned && sanitized.length < stripped.length * 0.6) {
+  if (wasCleaned && sanitized.length < stripped.length * (1 - SANITIZER_STRIP_THRESHOLD)) {
     return {
       generation_id:     uuidv4(),
       decision_ref:      decided.decision_id,
@@ -201,4 +209,5 @@ module.exports = {
   CRISIS_TEMPLATE,
   CRISIS_TEMPLATE_VERSION,
   GENERATION_MODEL_ID,
+  GENERATION_CONFIG_VERSION,
 };

@@ -1,6 +1,11 @@
 // Blueprint section 9.4 — AI output sanitizer
 // Strips diagnostic language and prescriptive statements from LLM output.
-// If >40% of content is stripped, returns a safe fallback instead.
+// If >SANITIZER_STRIP_THRESHOLD of content is stripped, returns a safe fallback instead.
+
+// 40% chosen as the point at which extensive stripping signals the model produced
+// a fundamentally unsafe response rather than one with incidental violations.
+// Revisit during clinical review if the fallback fires too often on benign content.
+const SANITIZER_STRIP_THRESHOLD = 0.4;
 
 const SAFE_FALLBACK =
   "I want to make sure I'm being helpful here. Can you tell me more about what you're feeling right now?";
@@ -45,11 +50,11 @@ function sanitize(text) {
   result = result.replace(/\s{2,}/g, ' ').replace(/\s([.,!?])/g, '$1').trim();
 
   const removedRatio = 1 - result.length / original.length;
-  if (removedRatio > 0.4) {
+  if (removedRatio > SANITIZER_STRIP_THRESHOLD) {
     return SAFE_FALLBACK;
   }
 
   return result || SAFE_FALLBACK;
 }
 
-module.exports = { sanitize, stripHtml };
+module.exports = { sanitize, stripHtml, SANITIZER_STRIP_THRESHOLD };
