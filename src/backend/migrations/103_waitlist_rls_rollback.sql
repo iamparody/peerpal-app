@@ -1,0 +1,1 @@
+ALTER TABLE waitlist_signups DISABLE ROW LEVEL SECURITY;
