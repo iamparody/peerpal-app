@@ -6,7 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import BottomNav from './components/BottomNav';
 import EmergencyButton from './components/EmergencyButton';
 import client from './api/client';
-import { registerFCMToken } from './utils/firebase';
 
 // Auth
 import LoginScreen from './screens/auth/LoginScreen';
@@ -268,12 +267,6 @@ function Layout() {
   const { pathname } = useLocation();
   const { token } = useAuth();
   const hideNav = !token || HIDE_NAV_ON.some((p) => pathname.startsWith(p));
-
-  // Register FCM token once after login — silently, never blocks the UI
-  useEffect(() => {
-    if (!token) return;
-    registerFCMToken();
-  }, [token]);
 
   return (
     <>

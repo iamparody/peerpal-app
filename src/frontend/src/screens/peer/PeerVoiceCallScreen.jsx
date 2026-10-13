@@ -4,6 +4,7 @@ import { Heart, CheckCircle, Clock, Microphone, MicrophoneSlash, PhoneDisconnect
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 import { useAuth } from '../../context/AuthContext';
+import { registerFCMToken } from '../../utils/firebase';
 
 // ── Post-session reflection modal (peer only) ─────────────────────────────────
 const REFLECTION_QUESTIONS = [
@@ -468,6 +469,14 @@ export default function PeerVoiceCallScreen() {
             <a href="tel:0800723253" style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-accent)', textDecoration: 'none' }}>0800 723 253</a>
             <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Free · 24/7</p>
           </div>
+          {typeof Notification !== 'undefined' && Notification.permission === 'default' && (
+            <div style={{ width: '100%', maxWidth: 320, padding: '14px 16px', background: 'var(--color-bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', textAlign: 'left' }}>
+              <p style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 4 }}>Get notified when a peer is available or your companion has something for you.</p>
+              <button className="btn btn--primary" style={{ width: '100%', marginTop: 8 }} onClick={() => registerFCMToken()}>
+                Enable notifications
+              </button>
+            </div>
+          )}
           <button className="btn btn--primary" style={{ maxWidth: 320, width: '100%' }} onClick={() => navigate('/peer', { replace: true })}>
             Back to Peer Support
           </button>

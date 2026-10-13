@@ -4,6 +4,7 @@ import { PaperPlaneRight, Robot } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import { trackEvent } from '../utils/analytics';
+import { registerFCMToken } from '../utils/firebase';
 
 function AIChatSkeleton() {
   return (
@@ -42,6 +43,7 @@ export default function AIChatScreen() {
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [ending, setEnding] = useState(false);
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const bottomRef = useRef(null);
 
   const startSession = useCallback(async () => {
@@ -101,11 +103,38 @@ export default function AIChatScreen() {
     } catch { /* non-fatal */ }
     qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
     trackEvent('ai_session_completed');
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      setShowNotifPrompt(true);
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
+  }
+
+  async function handleNotifEnable() {
+    await registerFCMToken();
     navigate('/dashboard', { replace: true });
   }
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }
+
+  if (showNotifPrompt) {
+    return (
+      <div className="screen screen--no-nav" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 32, textAlign: 'center', gap: 16 }}>
+        <div style={{ fontSize: 40 }}>🔔</div>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: 700, maxWidth: 280 }}>Get notified when a peer is available or your companion has something for you.</h2>
+        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', maxWidth: 280, lineHeight: 1.6 }}>
+          You can turn this off any time in your device settings.
+        </p>
+        <button className="btn btn--primary" style={{ width: '100%', maxWidth: 320 }} onClick={handleNotifEnable}>
+          Enable notifications
+        </button>
+        <button className="btn btn--muted" style={{ width: '100%', maxWidth: 320, fontSize: 13 }} onClick={() => navigate('/dashboard', { replace: true })}>
+          Not now
+        </button>
+      </div>
+    );
   }
 
   if (starting) {
