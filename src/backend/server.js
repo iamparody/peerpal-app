@@ -26,6 +26,7 @@ const { runMemberNoShowJob }           = require('./jobs/memberNoShowJob');
 const { runDraftBookingExpiryJob }     = require('./jobs/draftBookingExpiryJob');
 const { runWaitlistDigestJob }         = require('./jobs/waitlistDigestJob');
 const { runReengagementJob }           = require('./jobs/reengagementJob');
+const { updateEngagementSegments }     = require('./ai/engagementScore');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -106,6 +107,9 @@ cron.schedule('0 0 * * *', () => runPayoutRetryJob().catch(console.error));
 
 // Re-engagement nudges — every 30 min; fires at most 1 push per user per 24h
 cron.schedule('*/30 * * * *', () => runReengagementJob().catch(console.error));
+
+// Engagement scoring — nightly at 02:30 EAT (23:30 UTC); no nudge logic, just stores segment
+cron.schedule('30 23 * * *', () => updateEngagementSegments().catch(console.error));
 
 server.listen(PORT, () => {
   console.log(`PeerPal backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
