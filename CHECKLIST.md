@@ -188,6 +188,62 @@
 
 ---
 
+## Phase 48 — PostHog Analytics
+
+> Goal: instrument the critical user journey before launch so drop-off and conversion data is available from day one.
+
+### 48.1 Setup
+
+- [ ] `cd src/frontend && npm install posthog-js`
+- [ ] Initialize PostHog in `src/frontend/src/main.jsx`: `posthog.init(VITE_POSTHOG_KEY, { api_host: 'https://eu.i.posthog.com', capture_pageview: false })`
+- [ ] Add `VITE_POSTHOG_KEY` to `src/frontend/.env.example` and local `.env`
+- [ ] Create `src/frontend/src/lib/analytics.js` — thin wrapper: `export const track = (event, props) => posthog.capture(event, props)` — all calls go through this so the provider can be swapped later
+
+### 48.2 Core event instrumentation
+
+- [ ] **Onboarding funnel**: `onboarding_started`, `onboarding_persona_created`, `onboarding_mood_submitted`, `onboarding_completed`
+- [ ] **Trial**: `trial_claim_viewed` (TrialWelcomeScreen mount), `trial_claimed` (on success), `trial_nudge_dismissed`
+- [ ] **Peer sessions**: `peer_session_requested`, `peer_session_started`, `peer_session_ended` (with `duration_seconds`)
+- [ ] **AI sessions**: `ai_session_started`, `ai_session_ended`, `ai_trial_limit_hit`
+- [ ] **Credits**: `credits_screen_viewed`, `top_up_initiated` (with `package`), `promo_code_redeemed`
+- [ ] **Re-engagement**: `notification_clicked` (with `type`)
+
+### 48.3 Identity
+
+- [ ] On login/session restore: `posthog.identify(userId, { alias, created_at })` — no PII beyond alias
+- [ ] On logout: `posthog.reset()`
+
+### 48.4 Pageview tracking
+
+- [ ] In `App.jsx` router: call `posthog.capture('$pageview', { path: location.pathname })` on route change (use `useEffect` on `location`)
+
+---
+
+## Phase 49 — Test Data Cleanup
+
+> Real users exist in the database. This phase removes only test/seed data without touching real accounts.
+
+### 49.1 Identify test data
+
+- [ ] Audit `users` table: identify test accounts by alias pattern (e.g. `test_*`, `seed_*`, known dev emails) — produce a list before any deletion
+- [ ] Audit `peer_requests`, `sessions`, `credit_transactions` for orphaned or seed records linked to test users
+- [ ] Identify any credits, notifications, mood entries, journals tied to test user IDs
+
+### 49.2 Safe deletion script
+
+- [ ] Write `src/backend/scripts/cleanup_test_data.js` — dry-run mode by default (`DRY_RUN=true`): logs what would be deleted without touching the DB
+- [ ] Script deletes in FK-safe order: sessions → peer_requests → credit_transactions → notifications → moods → journals → credits → users
+- [ ] Script must never touch users where `created_at` suggests real organic sign-ups — use explicit ID list or alias pattern, not date heuristics alone
+- [ ] Verify dry-run output looks correct before running live
+
+### 49.3 Execute and verify
+
+- [ ] Run `DRY_RUN=false node src/backend/scripts/cleanup_test_data.js` — log counts before and after
+- [ ] Spot-check Supabase dashboard: confirm real user records untouched
+- [ ] Confirm `credits` table balances intact for real users
+
+---
+
 ## Phase 1 — Database Setup & Migrations
 
 ### 1.0 Project Infrastructure

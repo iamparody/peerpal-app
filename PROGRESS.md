@@ -5,7 +5,7 @@
 ## Current Phase
 **Phase 47 — Free Trial & Promo Codes — COMPLETE ✅**
 
-**NEXT ACTION → Begin Phase 48 (check CHECKLIST.md for next phase)**
+**NEXT ACTION → Phase 48: install posthog-js, initialize in main.jsx, create analytics.js wrapper, then instrument core events**
 
 Phase 46 — Referral System: assigned externally, in progress separately.
 
