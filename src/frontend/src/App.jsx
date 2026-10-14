@@ -23,6 +23,7 @@ import FirstMoodScreen from './screens/onboarding/FirstMoodScreen';
 
 // Welcome
 import WelcomeScreen from './screens/WelcomeScreen';
+import TrialWelcomeScreen from './screens/TrialWelcomeScreen';
 import CalmingSoundsScreen from './screens/CalmingSoundsScreen';
 import CalmSpaceScreen from './screens/CalmSpaceScreen';
 import PublicEmergencyScreen from './screens/PublicEmergencyScreen';
@@ -78,7 +79,7 @@ import MyPermissionsScreen  from './screens/training/MyPermissionsScreen';
 
 const HIDE_NAV_ON = [
   '/login', '/register', '/recover', '/email-sent', '/verify-email', '/reset-password',
-  '/onboarding', '/welcome', '/ai-chat', '/peer/session', '/peer/connecting',
+  '/onboarding', '/welcome', '/trial-welcome', '/ai-chat', '/peer/session', '/peer/connecting',
   '/emergency', '/emergency-public',
   '/privacy-policy', '/terms-of-service', '/data-compliance',
   '/persona/edit',
@@ -292,7 +293,8 @@ function Layout() {
         <Route path="/onboarding/first-mood" element={<ProtectedRoute><FirstMoodScreen /></ProtectedRoute>} />
 
         {/* Welcome */}
-        <Route path="/welcome"     element={<ProtectedRoute><WelcomeScreen /></ProtectedRoute>} />
+        <Route path="/welcome"       element={<ProtectedRoute><WelcomeScreen /></ProtectedRoute>} />
+        <Route path="/trial-welcome" element={<ProtectedRoute><TrialWelcomeScreen /></ProtectedRoute>} />
 
         {/* Main app */}
         <Route path="/dashboard"   element={<ProtectedRoute><DashboardScreen /></ProtectedRoute>} />

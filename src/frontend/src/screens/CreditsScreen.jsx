@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Coin, CheckCircle, X, Leaf, Heart, Mountains } from '@phosphor-icons/react';
@@ -63,6 +63,8 @@ function txLabel(tx) {
     if (tx.channel === 'referral') return 'Refund — referral not arranged';
     return 'Refund';
   }
+  if (tx.type === 'trial_drip') return 'Free trial credit';
+  if (tx.type === 'promo') return 'Promo code';
   if (tx.type === 'peer_earning') return 'Earned from peer support';
   if (tx.type === 'debit') {
     if (tx.channel === 'text') return 'Peer text session';
@@ -214,6 +216,56 @@ export default function CreditsScreen() {
   const [showAllTx, setShowAllTx] = useState(false);
   const [showHowCredits, setShowHowCredits] = useState(false);
 
+  // Trial state
+  const [trialClaiming, setTrialClaiming] = useState(false);
+  const { data: trialData, refetch: refetchTrial } = useQuery({
+    queryKey: ['trial', 'status'],
+    queryFn: () => client.get('/api/trial/status').then(r => r.data),
+  });
+
+  // Promo code state
+  const [promoExpanded, setPromoExpanded] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState('');
+  const [promoSuccess, setPromoSuccess] = useState(null);
+  const packagesRef = useRef(null);
+
+  async function handleClaimTrial() {
+    if (trialClaiming) return;
+    setTrialClaiming(true);
+    try {
+      await client.post('/api/trial/claim');
+    } catch (err) {
+      if (err?.response?.status !== 409) {
+        console.error('[CreditsScreen] trial claim failed:', err.message);
+      }
+    }
+    await refetchTrial();
+    qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
+    setTrialClaiming(false);
+  }
+
+  async function handleRedeemPromo() {
+    if (!promoCode.trim() || promoLoading) return;
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      const { data } = await client.post('/api/promo/redeem', { code: promoCode.trim() });
+      setPromoSuccess(data);
+      qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
+      setTimeout(() => {
+        setPromoSuccess(null);
+        setPromoExpanded(false);
+        setPromoCode('');
+      }, 3000);
+    } catch (err) {
+      setPromoError(err?.response?.data?.error || 'Something went wrong');
+    } finally {
+      setPromoLoading(false);
+    }
+  }
+
   const { data: balanceData } = useQuery({
     queryKey: ['credits', 'balance'],
     queryFn: () => client.get('/api/credits/balance').then(r => r.data),
@@ -336,8 +388,69 @@ export default function CreditsScreen() {
           </p>
         </div>
 
+        {/* Trial card */}
+        {trialData && (() => {
+          const { is_claimed, is_active, days_remaining, trial_credits_today, ai_sessions_used, ai_sessions_remaining } = trialData;
+          const dayNum = is_active ? Math.max(1, 7 - days_remaining + 1) : null;
+
+          if (!is_claimed) {
+            return (
+              <div style={{ borderLeft: '3px solid var(--color-accent)', background: 'var(--color-surface-card)', borderRadius: 'var(--radius-md)', padding: '18px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
+                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>Start here</div>
+                <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 16, lineHeight: 1.5 }}>7 days to find out what is possible. No payment needed.</div>
+                <button
+                  className="btn btn--primary"
+                  style={{ width: '100%' }}
+                  onClick={handleClaimTrial}
+                  disabled={trialClaiming}
+                >
+                  {trialClaiming ? 'Claiming...' : 'Claim your trial'}
+                </button>
+              </div>
+            );
+          }
+
+          if (is_active) {
+            return (
+              <div style={{ borderLeft: '3px solid var(--color-accent)', background: 'var(--color-surface-card)', borderRadius: 'var(--radius-md)', padding: '18px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
+                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 10 }}>Day {dayNum} of your trial</div>
+                <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 4 }}>{trial_credits_today} credits added today</div>
+                <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 12 }}>{ai_sessions_used} of 10 AI sessions used</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                  Enjoying it?{' '}
+                  <button
+                    onClick={() => packagesRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Top up
+                  </button>
+                  {' '}anytime to keep going.
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ borderLeft: '3px solid var(--color-border)', background: 'var(--color-surface-card)', borderRadius: 'var(--radius-md)', padding: '18px 20px', opacity: 0.6 }}>
+              <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6, color: 'var(--color-text-muted)' }}>Trial complete</div>
+              <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>Your trial has ended. Everything you experienced is still here.</div>
+              <button
+                onClick={() => packagesRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Top up to keep going.
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* Separator for unclaimed state */}
+        {trialData && !trialData.is_claimed && (
+          <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--color-text-muted)' }}>or choose a package</div>
+        )}
+
         {/* Top up */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div ref={packagesRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PACKAGES.map((pkg) => (
             <button
               key={pkg.id}
@@ -457,6 +570,57 @@ export default function CreditsScreen() {
                     Unused credits refunded if no peer is available
                   </p>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Promo code entry */}
+          <div style={{ marginTop: 8 }}>
+            {!promoExpanded && !promoSuccess && (
+              <button
+                onClick={() => setPromoExpanded(true)}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+              >
+                Have a promo code?
+              </button>
+            )}
+
+            {promoExpanded && !promoSuccess && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                    placeholder="Enter code"
+                    disabled={promoLoading}
+                    style={{
+                      flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--color-border)', background: 'var(--color-surface-card)',
+                      color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)', fontSize: 14,
+                    }}
+                  />
+                  <button
+                    className="btn btn--primary"
+                    onClick={handleRedeemPromo}
+                    disabled={promoLoading || !promoCode.trim()}
+                    style={{ flexShrink: 0, padding: '10px 18px', fontSize: 14 }}
+                  >
+                    {promoLoading ? '...' : 'Redeem'}
+                  </button>
+                </div>
+                {promoError && (
+                  <p style={{ fontSize: 13, color: 'var(--color-danger)', margin: 0 }}>{promoError}</p>
+                )}
+              </div>
+            )}
+
+            {promoSuccess && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src="/blob-neutral.png" alt="" style={{ width: 48, height: 48, objectFit: 'contain' }} />
+                <span style={{ fontSize: 14, color: 'var(--color-calm)' }}>
+                  + {promoSuccess.credits_awarded} credits added. Welcome to PeerPal.
+                </span>
               </div>
             )}
           </div>

@@ -135,9 +135,8 @@
 
 ## Phase 47 — Free Trial & Campus Promo Codes
 
-> Users should experience the product before paying. The free trial is a 7-day window with daily credit drips and a capped AI session allowance. Promo codes let admins deploy campus-specific access. Both are positioned as onramps to the paid product, not permanent free tiers.
->
-> **Locked trial design:** 7 days · 2 credits/day (dripped at midnight EAT) · 10 AI sessions total across trial · Peer text (1cr) and voice (2cr) accessible at normal cost · One claim per account ever · Day 6 expiry warning push · Credits expire at trial end · AI cap reverts to normal 5/day after trial
+> Spec locked in docs/phase47-spec.md. Do not deviate from that document.
+> 7 days · 2 credits/day dripped at 06:00 EAT · 10 AI sessions total · One claim per account ever · Day 6 push reminder · Trial credits expire at end · Promo codes for campus campaigns
 
 ### 47.1 Schema — Migration
 

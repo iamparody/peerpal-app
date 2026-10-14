@@ -1692,4 +1692,81 @@ router.patch('/referrals/:id', async (req, res) => {
   }
 });
 
+// ─── Promo codes ──────────────────────────────────────────────────────────────
+
+router.get('/promo-codes', adminAuth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT id, code, credit_value, max_uses, uses_count,
+            valid_from, valid_until, campaign_label, is_active, created_at
+     FROM promo_codes ORDER BY created_at DESC`
+  );
+  return res.json({ codes: rows });
+});
+
+router.get('/promo-codes/check', adminAuth, async (req, res) => {
+  const code = (req.query.code || '').trim().toUpperCase();
+  if (!code) return res.json({ exists: false });
+  const { rows } = await query('SELECT 1 FROM promo_codes WHERE code = $1', [code]);
+  return res.json({ exists: rows.length > 0 });
+});
+
+router.post('/promo-codes', adminAuth, async (req, res) => {
+  const { code, credit_value, max_uses, valid_until, campaign_label } = req.body;
+  if (!code || !credit_value) {
+    return res.status(400).json({ error: 'code and credit_value are required' });
+  }
+  const clean = code.toString().trim().toUpperCase();
+  if (!/^[A-Z0-9]+$/.test(clean)) {
+    return res.status(400).json({ error: 'Code must be uppercase alphanumeric only' });
+  }
+  if (parseInt(credit_value, 10) < 1) {
+    return res.status(400).json({ error: 'credit_value must be at least 1' });
+  }
+  try {
+    const { rows } = await query(
+      `INSERT INTO promo_codes (code, credit_value, max_uses, valid_until, campaign_label, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [clean, parseInt(credit_value, 10), max_uses || null, valid_until || null, campaign_label || null, req.admin.id]
+    );
+    return res.status(201).json({ code: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'That code already exists' });
+    }
+    throw err;
+  }
+});
+
+router.patch('/promo-codes/:id', adminAuth, async (req, res) => {
+  const { is_active, valid_until, max_uses } = req.body;
+  const { rows } = await query(
+    `UPDATE promo_codes
+     SET is_active   = COALESCE($1, is_active),
+         valid_until = COALESCE($2::timestamptz, valid_until),
+         max_uses    = COALESCE($3, max_uses)
+     WHERE id = $4 RETURNING *`,
+    [
+      is_active !== undefined ? is_active : null,
+      valid_until || null,
+      max_uses !== undefined ? max_uses : null,
+      req.params.id,
+    ]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Code not found' });
+  return res.json({ code: rows[0] });
+});
+
+router.get('/promo-codes/:id/redemptions', adminAuth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT u.alias, r.credits_awarded, r.redeemed_at
+     FROM promo_code_redemptions r
+     JOIN users u ON u.id = r.user_id
+     WHERE r.promo_code_id = $1
+     ORDER BY r.redeemed_at DESC`,
+    [req.params.id]
+  );
+  return res.json({ redemptions: rows });
+});
+
 module.exports = router;

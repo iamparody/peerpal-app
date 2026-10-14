@@ -225,6 +225,15 @@ const NOTIF_TYPES = {
     renotify: false,
     actions: [],
   },
+
+  trial_reminder: {
+    title: () => 'Trial ends tomorrow',
+    body: () => 'Everything you experienced is still here when you top up.',
+    vibrate: [100],
+    requireInteraction: false,
+    renotify: false,
+    actions: [{ action: 'topup', title: 'Top up' }],
+  },
 };
 
 // Fallback config for any type not in the map above.
@@ -297,6 +306,8 @@ self.addEventListener('notificationclick', (event) => {
     low_mood_streak:         '/peer',
     therapist_upsell:        '/therapy/browse',
     unmatched_request:       '/peer',
+    trial_reminder:          '/credits',
+    trial_expired:           '/credits',
   };
 
   const path = routes[d.type] || d.route || '/';

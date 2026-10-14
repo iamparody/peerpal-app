@@ -114,15 +114,27 @@ router.post('/session/start', auth, async (req, res) => {
   const { context, topic_label } = req.body || {};
 
   const { rows: userRows } = await query(
-    'SELECT persona_created, alias, birth_year, free_ai_used_at FROM users WHERE id = $1',
+    `SELECT persona_created, alias, birth_year, free_ai_used_at,
+            trial_claimed_at, trial_ends_at, trial_ai_sessions_used
+     FROM users WHERE id = $1`,
     [req.user.id]
   );
   if (!userRows[0]?.persona_created) {
     return res.status(403).json({ error: 'Complete persona setup before starting AI chat', code: 'PERSONA_REQUIRED' });
   }
 
-  // 1 free AI conversation per rolling 7-day window; paid sessions draw from bundle quota
   const user = userRows[0];
+
+  // Trial AI session cap: 10 sessions total across the 7-day trial
+  const trialActive = user.trial_claimed_at && user.trial_ends_at && new Date(user.trial_ends_at) > new Date();
+  if (trialActive && (user.trial_ai_sessions_used || 0) >= 10) {
+    return res.status(429).json({
+      error: 'You have used all 10 AI sessions in your trial. Top up to continue.',
+      code: 'TRIAL_AI_LIMIT',
+    });
+  }
+
+  // 1 free AI conversation per rolling 7-day window; paid sessions draw from bundle quota
   const isFree = !user.free_ai_used_at ||
     (Date.now() - new Date(user.free_ai_used_at).getTime()) > 7 * 24 * 60 * 60 * 1000;
 
@@ -480,6 +492,16 @@ router.post('/session/:id/end', auth, async (req, res) => {
     [req.params.id, req.user.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
+
+  // Increment trial AI session counter if trial is active
+  query(
+    `UPDATE users
+     SET trial_ai_sessions_used = trial_ai_sessions_used + 1
+     WHERE id = $1
+       AND trial_claimed_at IS NOT NULL
+       AND trial_ends_at > NOW()`,
+    [req.user.id]
+  ).catch((err) => console.error('[ai/session/end] trial counter update failed:', err));
 
   const sessionData = sessionCache.get(req.params.id);
   sessionCache.delete(req.params.id);

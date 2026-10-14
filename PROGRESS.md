@@ -3,9 +3,12 @@
 ---
 
 ## Current Phase
-**Phase 45 — COMPLETE (2026-10-14)**
+**Phase 47 — Free Trial & Promo Codes — IN PROGRESS**
 
-**NEXT ACTION → Phase 46 — Referral System** (then 47 Free Trial/Promo, then Phase 38 Activities Marketplace)
+**NEXT ACTION → 47.1 Write migration (users columns + promo_codes + promo_code_redemptions + notification enum), write rollback, review, then run npm run migrate**
+
+Phase 46 — Referral System: assigned externally, in progress separately.
+Spec locked: docs/phase47-spec.md
 
 ---
 

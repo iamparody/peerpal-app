@@ -65,10 +65,16 @@ export default function WelcomeScreen() {
     Promise.all([
       client.get('/api/moods/history?limit=1').catch(() => ({ data: { entries: [] } })),
       client.get('/api/onboarding/status').catch(() => ({ data: { welcome_seen: true } })),
-    ]).then(([moodRes, statusRes]) => {
+      client.get('/api/trial/status').catch(() => ({ data: { is_claimed: true } })),
+    ]).then(([moodRes, statusRes, trialRes]) => {
       const entries = moodRes.data.entries ?? moodRes.data ?? [];
       if (entries.length > 0) setLastMood(entries[0].mood_level);
-      setWelcomeSeen(statusRes.data.welcome_seen ?? true);
+      const seen = statusRes.data.welcome_seen ?? true;
+      setWelcomeSeen(seen);
+      // First-time user with unclaimed trial: redirect to trial welcome screen
+      if (!seen && !trialRes.data.is_claimed) {
+        navigate('/trial-welcome', { replace: true });
+      }
     });
 
     // Fade greeting in after 200ms

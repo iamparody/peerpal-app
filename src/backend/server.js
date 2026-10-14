@@ -27,6 +27,7 @@ const { runDraftBookingExpiryJob }     = require('./jobs/draftBookingExpiryJob')
 const { runWaitlistDigestJob }         = require('./jobs/waitlistDigestJob');
 const { runReengagementJob }           = require('./jobs/reengagementJob');
 const { updateEngagementSegments }     = require('./ai/engagementScore');
+const { runTrialDrip, runTrialReminder, runTrialExpiry } = require('./jobs/trialDripJob');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -110,6 +111,13 @@ cron.schedule('*/30 * * * *', () => runReengagementJob().catch(console.error));
 
 // Engagement scoring — nightly at 02:30 EAT (23:30 UTC); no nudge logic, just stores segment
 cron.schedule('30 23 * * *', () => updateEngagementSegments().catch(console.error));
+
+// Trial drip — 06:00 EAT (03:00 UTC): issue 2 credits to active trial users
+cron.schedule('0 3 * * *', () => runTrialDrip().catch(console.error));
+
+// Trial Day-6 reminder + expiry — 06:05 EAT (03:05 UTC)
+cron.schedule('5 3 * * *', () => runTrialReminder().catch(console.error));
+cron.schedule('5 3 * * *', () => runTrialExpiry().catch(console.error));
 
 server.listen(PORT, () => {
   console.log(`PeerPal backend listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
