@@ -1,5 +1,6 @@
 const express = require('express');
-const Groq = require('groq-sdk');
+const { OpenAI } = require('@posthog/ai/openai');
+const { PostHog } = require('posthog-node');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
@@ -19,7 +20,18 @@ const router = express.Router();
 
 let _groq = null;
 function getGroq() {
-  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  if (!_groq) {
+    const posthog = new PostHog(process.env.POSTHOG_PROJECT_TOKEN, {
+      host: process.env.POSTHOG_HOST,
+      privacyMode: false,
+      enableExceptionAutocapture: true,
+    });
+    _groq = new OpenAI({
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKey: process.env.GROQ_API_KEY,
+      posthog,
+    });
+  }
   return _groq;
 }
 const PRIMARY_MODEL = process.env.GROQ_PRIMARY_MODEL || 'llama-3.3-70b-versatile';
@@ -307,9 +319,16 @@ router.post('/session/:id/message', auth, async (req, res) => {
     sessionData.flagCount = 0;
   }
 
+  const posthogContext = {
+    sessionId: req.params.id,
+    userId,
+    traceId: uuidv4(),
+  };
+
   // ── Run detection pipeline ────────────────────────────────────────────────
   const { detected, sources } = await pipeline.run(cleanInput, observed, {
     sessionContext: sessionData.messages,
+    posthogContext,
   });
 
   // ── Policy decision ───────────────────────────────────────────────────────
@@ -321,7 +340,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
   // ── CRISIS_RESPONSE: deterministic path — Groq not invoked (Section 3.6) ──
   if (decided.strategy === 'CRISIS_RESPONSE') {
     const crisisGenerated = await generator.generate(decided, {
-      systemPrompt: '', messages: [], userMessage: cleanInput,
+      systemPrompt: '', messages: [], userMessage: cleanInput, posthogContext,
     });
 
     const triggerDetail = sources.keyword?._matched_category
@@ -367,6 +386,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
     systemPrompt: sessionData.systemPrompt,
     messages:     sessionData.messages,
     userMessage:  cleanInput,
+    posthogContext,
   });
 
   // Delivery guard — FAILED generated output is never returned to the user
@@ -509,6 +529,7 @@ router.post('/session/:id/end', auth, async (req, res) => {
   if (sessionData?.messages?.length >= 4) {
     const sessionId = req.params.id;
     const userId = req.user.id;
+    const posthogTraceId = uuidv4();
     const messages = sessionData.messages;
     (async () => {
       try {
@@ -525,6 +546,12 @@ router.post('/session/:id/end', auth, async (req, res) => {
             { role: 'user', content: transcript },
           ],
           max_tokens: 200,
+          posthogDistinctId: userId,
+          posthogTraceId,
+          posthogProperties: {
+            $ai_session_id: sessionId,
+            $ai_provider: 'groq',
+          },
         });
         const summaryText = result.choices[0]?.message?.content?.trim();
         if (summaryText) {

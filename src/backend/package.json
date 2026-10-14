@@ -13,6 +13,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@posthog/ai": "^8.13.6",
     "@sentry/node": "^10.53.1",
     "@supabase/supabase-js": "^2.117.2",
     "@upstash/redis": "^1.37.0",
@@ -29,7 +30,9 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "node-cron": "^3.0.3",
+    "openai": "^6.49.0",
     "pg": "^8.11.5",
+    "posthog-node": "^5.56.0",
     "resend": "^6.12.2",
     "sharp": "^0.35.5",
     "uuid": "^9.0.1",
