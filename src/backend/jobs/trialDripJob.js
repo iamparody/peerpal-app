@@ -52,10 +52,12 @@ async function runTrialReminder() {
     try {
       const title = 'Trial ends tomorrow';
       const body  = 'Everything you experienced is still here when you top up.';
+      const notifPayload = JSON.stringify({ message: body, route: '/credits' });
       await query(
         `INSERT INTO notifications (user_id, type, payload, channel)
-         VALUES ($1, 'trial_reminder', $2, 'push')`,
-        [user.id, JSON.stringify({ message: body, route: '/credits' })]
+         VALUES ($1, 'trial_reminder', $2, 'push'),
+                ($1, 'trial_reminder', $2, 'in_app')`,
+        [user.id, notifPayload]
       );
       const { rows: tokenRows } = await query(
         'SELECT fcm_token FROM users WHERE id = $1', [user.id]
