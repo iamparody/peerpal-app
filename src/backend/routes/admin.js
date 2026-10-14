@@ -1727,7 +1727,7 @@ router.post('/promo-codes', adminAuth, async (req, res) => {
       `INSERT INTO promo_codes (code, credit_value, max_uses, valid_until, campaign_label, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [clean, parseInt(credit_value, 10), max_uses || null, valid_until || null, campaign_label || null, req.admin.id]
+      [clean, parseInt(credit_value, 10), max_uses || null, valid_until || null, campaign_label || null, req.user.id]
     );
     return res.status(201).json({ code: rows[0] });
   } catch (err) {

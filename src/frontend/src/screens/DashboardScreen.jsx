@@ -98,15 +98,15 @@ export default function DashboardScreen() {
     queryFn: () => client.get('/api/trial/status').then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
-  const trialUnclaimed = trialData?.is_claimed === false;
-  const balanceEmpty = balance === 0;
-  // Show when: trial unclaimed AND (balance is zero OR user hasn't permanently dismissed)
-  const showTrialNudge = trialUnclaimed && (balanceEmpty || !trialNudgeDismissed);
 
   if (isLoading && !moodHistData) return <DashboardSkeleton />;
 
-  const balance  = balanceData?.balance ?? null;
-  const balanceLow = balance !== null && balance <= 2;
+  const balance      = balanceData?.balance ?? null;
+  const balanceLow   = balance !== null && balance <= 2;
+  const balanceEmpty = balance === 0;
+  const trialUnclaimed = trialData?.is_claimed === false;
+  // Show when: trial unclaimed AND (balance is zero OR user hasn't permanently dismissed)
+  const showTrialNudge = trialUnclaimed && (balanceEmpty || !trialNudgeDismissed);
   const notifs   = notifsData?.notifications ?? notifsData ?? [];
   const unread   = notifs.filter(n => !n.read_at).length;
   const entries  = moodHistData?.entries ?? [];
