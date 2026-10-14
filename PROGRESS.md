@@ -3,11 +3,62 @@
 ---
 
 ## Current Phase
+**Phase 45 — COMPLETE (2026-10-14)**
+
+**NEXT ACTION → Phase 46 — Referral System** (then 47 Free Trial/Promo, then Phase 38 Activities Marketplace)
+
+---
+
+## Completed this session (2026-10-13 / 2026-10-14)
+
+### Re-engagement Overhaul — all 5 steps complete ✅
+
+**Step 1 — Immediate fixes**
+- Migration 101: `event_ref VARCHAR(100)` + UNIQUE index on `notifications` — INSERT is atomic duplicate claim, 23505 = suppressed
+- `reengagementJob.js`: all nudges pass `event_ref` keyed to triggering record or time window
+- Quiet hours: no sends 21:00–07:00 EAT (18:00–04:00 UTC)
+- `render-blob-icons.js`: renders `blob-neutral.png` (192×192 sage green blob) and `badge.png` (72×72 heartbeat) from SVG
+- Service worker: icon/badge now serve blob assets. Verified on Android — blob renders correctly.
+
+**Step 2 — Engagement scoring**
+- `engagementScore.js`: pure `computeScoreFromMetrics()` + async `computeEngagementScore()`, recency/frequency/breadth/history formula
+- `engagementScore.test.js`: 14 tests (6 spec profiles + 8 boundary values), all passing
+- Migration 102: `engagement_score SMALLINT` + `engagement_segment VARCHAR(10)` on users
+- Nightly cron at 02:30 EAT runs `updateEngagementSegments()` silently
+- Current distribution: 25 dormant, 3 at_risk, 1 healthy (29 active members)
+
+**Step 3 — Pipeline A/B split**
+- Pipeline A: event-driven, all users (bad_mood_followup, unmatched_request, session followups, credit_zero/low)
+- Pipeline B: churn nudges, non-healthy only; dormant = win-back only (monthly); cooling/at_risk = feature nudges via dominant feature detection
+- `getDominantFeature()`: queries last-30d counts → ai/peer/journal/none
+- Privacy copy rewrite: no mood state, no clinical language, no em dashes
+
+**Step 4 — Permission timing**
+- Removed silent `registerFCMToken()` from `App.jsx`
+- Post-first-session opt-in prompt added to `AIChatScreen` (full-screen) and both peer session-ended screens (inline banner)
+- Gate: only shows when `Notification.permission === 'default'`
+
+**Step 5 — Android verification ✅**
+- Blob-neutral.png renders correctly on Android (sage green blob icon confirmed)
+- `first_call_nudge` added to service worker NOTIF_TYPES (was missing, caused "A" fallback)
+- `blob-low.png` and `blob-good.png` deferred — add after next Android verify session
+
+### Phase 45 — First Value Delivery ✅
+- Funnel measured: 48% of signups never take any action; median time to first action = 0h (act now or never)
+- Aha moment defined: first completed free peer call
+- Dashboard first-call card: shown below greeting for users with zero completed sessions; copy locked: "Whatever brought you here today, it's enough. Someone is ready to listen." CTA: "Talk to someone" → /peer
+- `GET /api/peer/has-completed-session`: single boolean endpoint
+- `first_call_nudge`: fires once 24–48h after signup if zero activity; `event_ref = firstcall:{user_id}`
+
+### Other ✅
+- Migration 103: RLS enabled on `waitlist_signups` (blocks Supabase client access to PII)
+- `reengagementCopy.js`: full privacy rewrite, all titles switched to double quotes (apostrophe fix)
+
+---
+
 **Phase 36 — COMPLETE (2026-10-13)**
 
 AI Pipeline Hardening complete. Migration 075 confirmed applied. 202 unit tests (0 failures). All 8 Groq failure modes verified safe. `SANITIZER_STRIP_THRESHOLD` extracted to named constant.
-
-**NEXT ACTION → Phase 45 — Re-engagement Engine** (then 46 Referral, then 47 Free Trial/Promo, then Phase 38 Activities Marketplace)
 
 ### Phase 36 sub-phases — all complete ✅
 
