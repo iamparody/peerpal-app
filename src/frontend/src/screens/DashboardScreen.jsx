@@ -60,6 +60,14 @@ export default function DashboardScreen() {
   const navigate  = useNavigate();
   const qc        = useQueryClient();
   const [moodDismissed, setMoodDismissed] = useState(false);
+  const [trialNudgeDismissed, setTrialNudgeDismissed] = useState(
+    () => localStorage.getItem('trial_nudge_dismissed') === 'true'
+  );
+
+  function dismissTrialNudge() {
+    localStorage.setItem('trial_nudge_dismissed', 'true');
+    setTrialNudgeDismissed(true);
+  }
 
   // ── TanStack Query: cached, stale 5 min ─────────────────────────────────
   const { data: balanceData } = useQuery({
@@ -84,6 +92,16 @@ export default function DashboardScreen() {
     staleTime: 5 * 60 * 1000,
   });
   const showFirstCallCard = sessionData?.hasCompletedSession === false;
+
+  const { data: trialData } = useQuery({
+    queryKey: ['trial', 'status'],
+    queryFn: () => client.get('/api/trial/status').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+  const trialUnclaimed = trialData?.is_claimed === false;
+  const balanceEmpty = balance === 0;
+  // Show when: trial unclaimed AND (balance is zero OR user hasn't permanently dismissed)
+  const showTrialNudge = trialUnclaimed && (balanceEmpty || !trialNudgeDismissed);
 
   if (isLoading && !moodHistData) return <DashboardSkeleton />;
 
@@ -196,6 +214,65 @@ export default function DashboardScreen() {
       </div>
 
       <div style={{ height: 1, background: 'var(--color-divider)', margin: '0 var(--space-md)' }} />
+
+      {/* Trial nudge — shown when trial unclaimed and balance is zero or not yet dismissed */}
+      {showTrialNudge && (
+        <div style={{
+          margin: 'var(--space-md) var(--space-md) 0',
+          background: 'var(--color-surface-card)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '14px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+        }}>
+          <img src="/blob-neutral.png" alt="" style={{ width: 44, height: 44, objectFit: 'contain', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 2 }}>
+              Your free trial is waiting
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+              7 days, 2 credits a day. No payment needed.
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+            <button
+              onClick={() => navigate('/credits')}
+              style={{
+                background: 'var(--color-accent)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                padding: '6px 14px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-ui)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Claim
+            </button>
+            {!balanceEmpty && (
+              <button
+                onClick={dismissTrialNudge}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                  fontFamily: 'var(--font-ui)',
+                }}
+                aria-label="Dismiss"
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* First-call card — shown only until user completes a peer session */}
       {showFirstCallCard && (

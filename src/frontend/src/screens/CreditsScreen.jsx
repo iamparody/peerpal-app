@@ -587,7 +587,7 @@ export default function CreditsScreen() {
 
             {promoExpanded && !promoSuccess && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <input
                     type="text"
                     value={promoCode}
@@ -595,7 +595,8 @@ export default function CreditsScreen() {
                     placeholder="Enter code"
                     disabled={promoLoading}
                     style={{
-                      flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-sm)',
+                      flex: '1 1 160px', minWidth: 0, padding: '10px 12px',
+                      borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--color-border)', background: 'var(--color-surface-card)',
                       color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)', fontSize: 14,
                     }}
@@ -604,7 +605,7 @@ export default function CreditsScreen() {
                     className="btn btn--primary"
                     onClick={handleRedeemPromo}
                     disabled={promoLoading || !promoCode.trim()}
-                    style={{ flexShrink: 0, padding: '10px 18px', fontSize: 14 }}
+                    style={{ flex: '0 0 auto', padding: '10px 20px', fontSize: 14, width: '100%', maxWidth: 120 }}
                   >
                     {promoLoading ? '...' : 'Redeem'}
                   </button>
