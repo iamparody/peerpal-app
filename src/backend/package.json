@@ -10,7 +10,7 @@
     "test:ai": "node --test src/backend/ai/*.test.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.20.0"
   },
   "dependencies": {
     "@posthog/ai": "^8.13.6",

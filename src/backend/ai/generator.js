@@ -2,6 +2,8 @@
 
 const { v4: uuidv4 }      = require('uuid');
 const Groq                 = require('groq-sdk');
+const { OpenAI }           = require('@posthog/ai/openai');
+const { PostHog }          = require('posthog-node');
 const { sanitize, stripHtml, SANITIZER_STRIP_THRESHOLD } = require('../utils/sanitizer');
 
 const GENERATION_MODEL    = process.env.GROQ_PRIMARY_MODEL  || 'openai/gpt-oss-120b';
@@ -32,9 +34,36 @@ const STRATEGY_INSTRUCTIONS = {
 };
 
 let _groq = null;
+let posthogEnabled = false;
 function getGroq() {
-  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  if (!_groq) {
+    const projectToken = process.env.POSTHOG_PROJECT_TOKEN;
+    const host = process.env.POSTHOG_HOST;
+    if (!projectToken || !host) {
+      const missingVariable = projectToken ? 'POSTHOG_HOST' : 'POSTHOG_PROJECT_TOKEN';
+      if (process.env.NODE_ENV !== 'production') {
+        throw new Error(`${missingVariable} variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once ${missingVariable} is configured`);
+      }
+      _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    } else {
+      const posthog = new PostHog(projectToken, {
+        host,
+        privacyMode: true,
+        enableExceptionAutocapture: true,
+      });
+      _groq = new OpenAI({
+        baseURL: 'https://api.groq.com/openai/v1',
+        apiKey: process.env.GROQ_API_KEY,
+        posthog,
+      });
+      posthogEnabled = true;
+    }
+  }
   return _groq;
+}
+
+function withPostHogOptions(options) {
+  return posthogEnabled ? options : {};
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -111,7 +140,7 @@ function failedRecord(decisionId) {
  * @param {object} context  - { systemPrompt, messages, userMessage }
  * @returns GENERATED record (GeneratedSchema-shaped)
  */
-async function generate(decided, { systemPrompt, messages = [], userMessage }) {
+async function generate(decided, { systemPrompt, messages = [], userMessage, posthogContext }) {
   const now = new Date().toISOString();
 
   // ── CRISIS_RESPONSE: deterministic path — LLM not invoked (Section 3.6) ──
@@ -136,15 +165,27 @@ async function generate(decided, { systemPrompt, messages = [], userMessage }) {
     { role: 'user',   content: userMessage },
   ];
   const maxTokens = Math.ceil(decided.max_response_length / 3);
+  const posthogOptions = {
+    posthogDistinctId: posthogContext.userId,
+    posthogTraceId: posthogContext.traceId,
+    posthogProperties: {
+      $ai_session_id: posthogContext.sessionId,
+      $ai_provider: 'groq',
+    },
+  };
 
   let rawContent = '';
   try {
-    const primary = await getGroq().chat.completions.create({ model: GENERATION_MODEL, messages: groqMessages, max_tokens: maxTokens, reasoning_effort: 'low' });
+    const primary = await getGroq().chat.completions.create({
+      model: GENERATION_MODEL, messages: groqMessages, max_tokens: maxTokens, reasoning_effort: 'low', ...withPostHogOptions(posthogOptions),
+    });
     rawContent = primary.choices[0]?.message?.content?.trim() || '';
   } catch (primaryErr) {
     console.error('[generator] primary model failed:', primaryErr?.status, primaryErr?.message);
     try {
-      const fb = await getGroq().chat.completions.create({ model: FALLBACK_MODEL, messages: groqMessages, max_tokens: maxTokens });
+      const fb = await getGroq().chat.completions.create({
+        model: FALLBACK_MODEL, messages: groqMessages, max_tokens: maxTokens, ...withPostHogOptions(posthogOptions),
+      });
       rawContent = fb.choices[0]?.message?.content?.trim() || '';
     } catch (fallbackErr) {
       console.error('[generator] fallback model failed:', fallbackErr?.status, fallbackErr?.message);

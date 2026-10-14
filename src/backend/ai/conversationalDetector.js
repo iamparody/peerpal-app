@@ -2,6 +2,8 @@
 
 const { v4: uuidv4 } = require('uuid');
 const Groq           = require('groq-sdk');
+const { OpenAI }     = require('@posthog/ai/openai');
+const { PostHog }    = require('posthog-node');
 const THRESHOLDS     = require('./thresholds');
 
 const DETECTOR_VERSION  = 'conversational-state-detector@1.0.0';
@@ -12,9 +14,40 @@ const VALID_URGENCY      = new Set(['NONE','LOW','MODERATE','HIGH','CRITICAL']);
 const VALID_EMOTION      = new Set(['DISTRESS','SADNESS','ANXIETY','ANGER','POSITIVE','NEUTRAL','MIXED','UNCLEAR']);
 
 let _groq = null;
+let posthogEnabled = false;
 function getGroq() {
-  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  if (!_groq) {
+    if (process.env.NODE_TEST_CONTEXT) {
+      _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    } else {
+      const projectToken = process.env.POSTHOG_PROJECT_TOKEN;
+      const host = process.env.POSTHOG_HOST;
+      if (!projectToken || !host) {
+        const missingVariable = projectToken ? 'POSTHOG_HOST' : 'POSTHOG_PROJECT_TOKEN';
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(`${missingVariable} variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once ${missingVariable} is configured`);
+        }
+        _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      } else {
+        const posthog = new PostHog(projectToken, {
+          host,
+          privacyMode: true,
+          enableExceptionAutocapture: true,
+        });
+        _groq = new OpenAI({
+          baseURL: 'https://api.groq.com/openai/v1',
+          apiKey: process.env.GROQ_API_KEY,
+          posthog,
+        });
+        posthogEnabled = true;
+      }
+    }
+  }
   return _groq;
+}
+
+function withPostHogOptions(options) {
+  return posthogEnabled ? options : {};
 }
 
 // Prompt is a policy artefact — changes to wording require re-evaluation (Section 4.10).
@@ -126,7 +159,7 @@ function makeInferredField(value, confidence, threshold, observed) {
  * @param {Array}  options.sessionContext - Prior session messages [{role, content}]
  * @returns ConversationalStateSourceSchema-shaped object (with _fallback internal field)
  */
-async function run(text, observed, { sessionContext = [] } = {}) {
+async function run(text, observed, { sessionContext = [], posthogContext } = {}) {
   let raw;
   try {
     const completion = await getGroq().chat.completions.create({
@@ -138,6 +171,14 @@ async function run(text, observed, { sessionContext = [] } = {}) {
       response_format: { type: 'json_object' },
       max_tokens:      200,
       temperature:     0, // deterministic classification
+      ...withPostHogOptions({
+        posthogDistinctId: posthogContext?.userId || observed.user_id,
+        posthogTraceId: posthogContext?.traceId || observed.record_id,
+        posthogProperties: {
+          $ai_session_id: posthogContext?.sessionId || observed.session_id,
+          $ai_provider: 'groq',
+        },
+      }),
     });
     raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
   } catch (err) {

@@ -1,4 +1,5 @@
 const express = require('express');
+const Groq = require('groq-sdk');
 const { OpenAI } = require('@posthog/ai/openai');
 const { PostHog } = require('posthog-node');
 const { v4: uuidv4 } = require('uuid');
@@ -19,20 +20,36 @@ const AI_DAILY_TOKEN_LIMIT = 50000;
 const router = express.Router();
 
 let _groq = null;
+let posthogEnabled = false;
 function getGroq() {
   if (!_groq) {
-    const posthog = new PostHog(process.env.POSTHOG_PROJECT_TOKEN, {
-      host: process.env.POSTHOG_HOST,
-      privacyMode: false,
-      enableExceptionAutocapture: true,
-    });
-    _groq = new OpenAI({
-      baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: process.env.GROQ_API_KEY,
-      posthog,
-    });
+    const projectToken = process.env.POSTHOG_PROJECT_TOKEN;
+    const host = process.env.POSTHOG_HOST;
+    if (!projectToken || !host) {
+      const missingVariable = projectToken ? 'POSTHOG_HOST' : 'POSTHOG_PROJECT_TOKEN';
+      if (process.env.NODE_ENV !== 'production') {
+        throw new Error(`${missingVariable} variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once ${missingVariable} is configured`);
+      }
+      _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    } else {
+      const posthog = new PostHog(projectToken, {
+        host,
+        privacyMode: true,
+        enableExceptionAutocapture: true,
+      });
+      _groq = new OpenAI({
+        baseURL: 'https://api.groq.com/openai/v1',
+        apiKey: process.env.GROQ_API_KEY,
+        posthog,
+      });
+      posthogEnabled = true;
+    }
   }
   return _groq;
+}
+
+function withPostHogOptions(options) {
+  return posthogEnabled ? options : {};
 }
 const PRIMARY_MODEL = process.env.GROQ_PRIMARY_MODEL || 'llama-3.3-70b-versatile';
 const FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-8b-instant';
@@ -546,12 +563,14 @@ router.post('/session/:id/end', auth, async (req, res) => {
             { role: 'user', content: transcript },
           ],
           max_tokens: 200,
-          posthogDistinctId: userId,
-          posthogTraceId,
-          posthogProperties: {
-            $ai_session_id: sessionId,
-            $ai_provider: 'groq',
-          },
+          ...withPostHogOptions({
+            posthogDistinctId: userId,
+            posthogTraceId,
+            posthogProperties: {
+              $ai_session_id: sessionId,
+              $ai_provider: 'groq',
+            },
+          }),
         });
         const summaryText = result.choices[0]?.message?.content?.trim();
         if (summaryText) {
