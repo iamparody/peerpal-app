@@ -3,12 +3,21 @@
 ---
 
 ## Current Phase
-**Phase 47 — Free Trial & Promo Codes — IN PROGRESS**
+**Phase 47 — Free Trial & Promo Codes — COMPLETE ✅**
 
-**NEXT ACTION → 47.1 Write migration (users columns + promo_codes + promo_code_redemptions + notification enum), write rollback, review, then run npm run migrate**
+**NEXT ACTION → Begin Phase 48 (check CHECKLIST.md for next phase)**
 
 Phase 46 — Referral System: assigned externally, in progress separately.
-Spec locked: docs/phase47-spec.md
+
+### Phase 47 fully complete (commit 2d00b5f)
+- Migration 104: trial columns, promo_codes, promo_code_redemptions, enum additions
+- POST /trial/claim, GET /trial/status, POST /promo/redeem routes live
+- Admin promo CRUD endpoints (GET/POST/PATCH/redemptions)
+- trialDripJob: drip 03:00 UTC, reminder+expiry 03:05 UTC; trial_reminder writes push+in_app
+- AI session gate: 10-session cap, counter incremented atomically at session START
+- TrialWelcomeScreen, CreditsScreen 3-state trial card + promo entry, DashboardScreen nudge
+- PromoCodesTab in admin panel with create form, codes table, redemptions side panel
+- All audit checks passing (13/13)
 
 ---
 

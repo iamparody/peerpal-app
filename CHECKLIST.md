@@ -140,80 +140,51 @@
 
 ### 47.1 Schema — Migration
 
-- [ ] Migration: add to `users`:
-  - `trial_claimed_at TIMESTAMPTZ NULL` — when trial was activated
-  - `trial_ends_at TIMESTAMPTZ NULL` — `trial_claimed_at + INTERVAL '7 days'`
-  - `trial_credits_balance INTEGER NOT NULL DEFAULT 0` — separate from real credits; drained first on any spend; zeroed at trial end
-  - `trial_last_drip_date DATE NULL` — prevents double-drip on same day
-  - `trial_ai_sessions_used INTEGER NOT NULL DEFAULT 0` — counts toward 10-session cap; resets never (trial cap is total, not daily)
-- [ ] Migration: add notification type `trial_expiry_warning` and `trial_expired` to enum
+- [x] Migration 104: add to `users`: `trial_claimed_at`, `trial_ends_at`, `trial_credits_issued`, `trial_ai_sessions_used`
+- [x] Migration 104: add `trial_reminder`, `trial_expired` to notification_type enum; `trial_drip`, `promo` to credit_tx_type enum; `trial` to credit_tx_channel enum
 
 ### 47.2 Backend — Claim endpoint
 
-- [ ] `POST /trial/claim` (auth required):
-  - Return 409 if `trial_claimed_at IS NOT NULL` (already claimed — one per account)
-  - Set `trial_claimed_at = NOW()`, `trial_ends_at = NOW() + INTERVAL '7 days'`
-  - Drip first day immediately: `trial_credits_balance = 2`, `trial_last_drip_date = CURRENT_DATE`
-  - INSERT in-app notification: "Your 7-day free trial has started. 2 credits added — your first session is on us."
-  - Return `{ trial_ends_at, trial_credits_balance: 2 }`
+- [x] `POST /trial/claim`: 409 on double-claim, sets 4 columns, does NOT issue credits (drip job does), returns `{ trial_ends_at, message }`
+- [x] `GET /trial/status`: returns `is_active`, `is_claimed`, `days_remaining`, `trial_credits_today`, `ai_sessions_used`, `ai_sessions_remaining`
 
-### 47.3 Backend — Credit deduction (trial credits drain first)
+### 47.3 Backend — Credit deduction
 
-- [ ] `utils/creditDeductor.js` — `deductCredit()`: before checking `credits.balance`, check if user is on active trial (`trial_ends_at > NOW() AND trial_credits_balance > 0`). If yes: drain from `trial_credits_balance` first. If trial credits cover full cost: deduct from trial balance only, no deduction from real balance. If trial credits partially cover: drain trial to zero, deduct remainder from real balance. Always write a single `credit_transactions` record for the total amount deducted (include a `from_trial: true` note in a JSONB `meta` column if that column exists, otherwise omit)
-- [ ] `utils/creditDeductor.js` — `getCreditCosts()` unchanged — trial uses same pricing
+- [x] Trial credits tracked via `credit_transactions.type = 'trial_drip'`; deduction uses shared `credits.balance` (drip adds to real balance)
 
 ### 47.4 Backend — AI session trial cap
 
-- [ ] `POST /ai/session/start`: if user is on active trial (`trial_ends_at > NOW()`), check `trial_ai_sessions_used >= 10` → return 429 with `code: 'TRIAL_AI_LIMIT'` and message "You've used all 10 AI sessions in your free trial. Top up to continue." If under cap: proceed normally, INCREMENT `trial_ai_sessions_used` on session end (`POST /ai/session/:id/end`)
+- [x] `POST /ai/session/start`: trial cap check (`trial_ai_sessions_used >= 10` → 429 `TRIAL_AI_LIMIT`); counter incremented atomically at session START (not end)
 
 ### 47.5 Backend — Daily drip cron job
 
-- [ ] Create `src/backend/jobs/trialDripJob.js` — runs daily at midnight EAT (21:00 UTC): `SELECT id FROM users WHERE trial_ends_at > NOW() AND trial_last_drip_date < CURRENT_DATE` → for each: `UPDATE users SET trial_credits_balance = trial_credits_balance + 2, trial_last_drip_date = CURRENT_DATE WHERE id = $1`. Batch update preferred (single UPDATE with `WHERE id = ANY(...)`) for performance
-- [ ] Wire `trialDripJob.js` into `server.js` with node-cron at `0 21 * * *` (UTC = midnight EAT)
+- [x] `src/backend/jobs/trialDripJob.js`: `runTrialDrip` issues 2 credits/day, caps at 14 total, writes `type='trial_drip'`
+- [x] Wired into `server.js` cron at `'0 3 * * *'` (06:00 EAT)
 
 ### 47.6 Backend — Trial expiry handling
 
-- [ ] `trialDripJob.js` also handles expiry: query users where `trial_ends_at BETWEEN NOW() - INTERVAL '1 day' AND NOW() + INTERVAL '1 day'` and `trial_ends_at > NOW() - INTERVAL '1 hour'` → these are within the expiry window. On the day before expiry (`trial_ends_at - NOW() < INTERVAL '2 days'`): send `trial_expiry_warning` push + in-app: "Your free trial ends tomorrow at midnight. Any unused credits expire — top up to keep going." → `/credits`
-- [ ] On expiry (trial_ends_at ≤ NOW()): `UPDATE users SET trial_credits_balance = 0 WHERE trial_ends_at <= NOW() AND trial_credits_balance > 0` — run in the drip job's expiry sweep. Send `trial_expired` in-app notification: "Your free trial has ended. Top up from KSh 100 to continue." No push — in-app only (non-intrusive)
+- [x] `runTrialReminder`: sends push + in_app `trial_reminder` when `trial_ends_at BETWEEN NOW()+20h AND NOW()+28h`; cron `'5 3 * * *'`
+- [x] `runTrialExpiry`: removes unspent trial credits, sends in-app `trial_expired` (no push); cron `'5 3 * * *'`
 
 ### 47.7 Backend — Promo codes
 
-- [ ] Migration: create `promo_codes` table:
-  - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
-  - `code VARCHAR(20) UNIQUE NOT NULL`
-  - `credit_value INTEGER NOT NULL`
-  - `max_uses INTEGER NULL` — NULL = unlimited
-  - `uses_count INTEGER NOT NULL DEFAULT 0`
-  - `valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-  - `valid_until TIMESTAMPTZ NULL`
-  - `created_by UUID NOT NULL REFERENCES users(id)`
-  - `description VARCHAR(100) NOT NULL` — e.g. "JOOUST Campus Pilot Oct 2026"
-  - `is_active BOOLEAN NOT NULL DEFAULT true`
-  - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-- [ ] Migration: create `promo_code_redemptions` table:
-  - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
-  - `promo_code_id UUID NOT NULL REFERENCES promo_codes(id)`
-  - `user_id UUID NOT NULL REFERENCES users(id)`
-  - `credits_awarded INTEGER NOT NULL`
-  - `redeemed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-  - `UNIQUE(promo_code_id, user_id)` — one redemption per user per code
-- [ ] `POST /promo/redeem` (auth required): validate code exists + is_active + not expired + `uses_count < max_uses` (or unlimited) + user hasn't redeemed this code. If valid: add `credit_value` to `credits.balance`, INCREMENT `uses_count`, INSERT redemption record, INSERT credit_transaction (type=`bonus`, channel=`purchase`, note the promo code). Return `{ credits_awarded, new_balance }`. Error messages: "That code doesn't exist", "That code has expired", "You've already used this code", "This code has reached its limit"
-- [ ] `POST /admin/promo-codes` (adminAuth): create new promo code. Validate code is uppercase alphanumeric, unique, credit_value > 0
-- [ ] `GET /admin/promo-codes` (adminAuth): list all codes with `uses_count`, `max_uses`, `valid_until`, `is_active`
-- [ ] `PATCH /admin/promo-codes/:id` (adminAuth): update `is_active`, `valid_until`, `max_uses`
-- [ ] `GET /admin/promo-codes/:id/redemptions` (adminAuth): list users who redeemed (alias + redeemed_at)
+- [x] Migration 104: `promo_codes` and `promo_code_redemptions` tables with `UNIQUE(promo_code_id, user_id)`
+- [x] `POST /promo/redeem`: SELECT FOR UPDATE, UNIQUE constraint guard, returns `{ credits_awarded, new_balance }`
+- [x] Admin endpoints: `GET /admin/promo-codes`, `GET /admin/promo-codes/check`, `POST /admin/promo-codes`, `PATCH /admin/promo-codes/:id`, `GET /admin/promo-codes/:id/redemptions`
 
 ### 47.8 Frontend — Trial card and positioning
 
-- [ ] `CreditsScreen`: add a "Free Trial" card at the top of the packages list (above paid packages). Visible only if `trial_claimed_at IS NULL` (fetch from profile or a new `GET /trial/status` endpoint). Card copy: "7-day free trial — No payment needed. 2 credits/day, 10 AI sessions." CTA button: "Claim free trial" → `POST /trial/claim` → success toast "Your trial has started — 2 credits added" → invalidate balance query
-- [ ] `CreditsScreen`: trial progress banner — visible while `trial_ends_at > NOW()`. Shows days remaining, trial credits balance, AI sessions used/remaining. "Top up to keep going after your trial" with a subtle CTA
-- [ ] `CreditsScreen`: promo code entry — "Have a promo code?" text link below packages → expands inline input field → POST /promo/redeem → success: "+ N credits added" toast → invalidate balance. Error: inline error text below the input
-- [ ] `OnboardingFirstMoodScreen` (post-onboarding bonus screen): replace the quiet 3-second toast with a dedicated full-screen moment: "You have 2 free credits — no payment needed to get started. Use them for your first peer session." Primary CTA: "Start my first session" → `/peer`. Secondary: "Explore first" → `/dashboard`. This is the first impression of value — it must land clearly
-- [ ] `firebase-messaging-sw.js`: add `trial_expiry_warning` to NOTIF_TYPES — title: "Trial ends tomorrow", body: "Your free credits expire at midnight. Top up to keep going.", requireInteraction: false, vibrate: [100], action: topup
+- [x] `CreditsScreen`: 3-state trial card (unclaimed / active / expired), days remaining, AI sessions used, smooth-scroll to packages
+- [x] `CreditsScreen`: inline promo code entry — expands, calls `POST /promo/redeem`, success collapses after 3s, mobile responsive
+- [x] `TrialWelcomeScreen`: full-screen post-onboarding claim moment; both CTAs call `POST /trial/claim`, handle 409 gracefully
+- [x] `WelcomeScreen`: redirects to `/trial-welcome` if trial not yet claimed
+- [x] `DashboardScreen`: dismissible trial nudge — shows when `trialUnclaimed && (balanceEmpty || !trialNudgeDismissed)`; dismiss hidden when balance=0
+- [x] `firebase-messaging-sw.js`: `trial_reminder` in NOTIF_TYPES; click routes for `trial_reminder` and `trial_expired` → `/credits`
 
 ### 47.9 Frontend — Admin promo codes tab
 
-- [ ] `src/admin/src/tabs/PromoCodesTab.jsx`: list all codes (code, credit value, uses/limit, expiry, active status). Create code form (code, credits, max uses, expiry date, description). Deactivate toggle per code. "View redemptions" expander per code showing alias + date. Add "Promo Codes" as Tab 9 in `src/admin/src/App.jsx`
+- [x] `src/admin/src/tabs/PromoCodesTab.jsx`: create form with live code uniqueness check, codes table with status badges, deactivate toggle, redemptions side panel
+- [x] Added as "Promo Codes" tab in `src/admin/src/App.jsx`
 
 ---
 
