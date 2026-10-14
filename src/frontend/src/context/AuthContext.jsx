@@ -19,8 +19,7 @@ export function AuthProvider({ children }) {
         setToken(storedToken);
         setUser(parsed);
         trackEvent('session_start');
-        // Opt in only if user has previously consented
-        if (parsed?.consented_at) optInAnalytics(parsed.id, parsed.alias);
+        optInAnalytics(parsed.id, parsed.alias);
       } catch {
         localStorage.removeItem('mb_token');
         localStorage.removeItem('mb_user');
@@ -35,7 +34,7 @@ export function AuthProvider({ children }) {
     setToken(newToken);
     setUser(newUser);
     trackEvent('session_start');
-    if (newUser?.consented_at) optInAnalytics(newUser.id, newUser.alias);
+    optInAnalytics(newUser.id, newUser.alias);
   }
 
   function logout() {
