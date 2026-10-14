@@ -199,6 +199,15 @@ const NOTIF_TYPES = {
     actions: [],
   },
 
+  first_call_nudge: {
+    title: () => 'PeerPal',
+    body: () => 'Someone is ready to listen when you are.',
+    vibrate: [100],
+    requireInteraction: false,
+    renotify: false,
+    actions: [{ action: 'peer', title: 'Talk to someone' }],
+  },
+
   bad_mood_followup: {
     title: () => 'Checking in on you',
     body: () => 'You logged a tough mood earlier. How are you feeling now?',
@@ -263,6 +272,7 @@ self.addEventListener('notificationclick', (event) => {
     return event.waitUntil(openOrFocus(`/peer?highlight=${d.request_id || ''}`));
   }
   if (action === 'topup')   return event.waitUntil(openOrFocus('/credits'));
+  if (action === 'peer')    return event.waitUntil(openOrFocus('/peer'));
   if (action === 'checkin') return event.waitUntil(openOrFocus('/mood'));
   if (action === 'journal') return event.waitUntil(openOrFocus('/journal'));
 
