@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../../api/client';
+import { track } from '../../lib/analytics';
 
 const MOODS = [
   { value: 'very_low', label: 'Very Low', emoji: '😔', color: 'var(--mood-very-low)' },
@@ -31,6 +32,7 @@ export default function FirstMoodScreen() {
     setLoading(true);
     try {
       await client.post('/api/moods', { mood_level: mood, note: note.trim() || undefined, tags: tags.map((t) => t.toLowerCase()) });
+      track('onboarding_completed', { first_mood: mood });
       setShowBonus(true);
       setTimeout(() => navigate('/welcome', { replace: true }), 2800);
     } catch (err) {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Heart } from '@phosphor-icons/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { trackPageview } from './lib/analytics';
 import ProtectedRoute from './components/ProtectedRoute';
 import BottomNav from './components/BottomNav';
 import EmergencyButton from './components/EmergencyButton';
@@ -268,6 +269,8 @@ function Layout() {
   const { pathname } = useLocation();
   const { token } = useAuth();
   const hideNav = !token || HIDE_NAV_ON.some((p) => pathname.startsWith(p));
+
+  useEffect(() => { trackPageview(pathname); }, [pathname]);
 
   return (
     <>

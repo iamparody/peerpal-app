@@ -311,7 +311,14 @@ self.addEventListener('notificationclick', (event) => {
   };
 
   const path = routes[d.type] || d.route || '/';
-  event.waitUntil(openOrFocus(path));
+  event.waitUntil(
+    openOrFocus(path).then(() => {
+      // Relay tap to app for analytics tracking
+      return clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+        list.forEach((c) => c.postMessage({ type: 'NOTIFICATION_TAPPED', notif_type: d.type || null, action: action || null }));
+      });
+    })
+  );
 });
 
 function openOrFocus(path) {

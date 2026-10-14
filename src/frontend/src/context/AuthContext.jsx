@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import client from '../api/client';
 import { trackEvent } from '../utils/analytics';
+import { optInAnalytics, optOutAnalytics } from '../lib/analytics';
 
 const AuthContext = createContext(null);
 
@@ -14,9 +15,12 @@ export function AuthProvider({ children }) {
     const storedUser = localStorage.getItem('mb_user');
     if (storedToken && storedUser) {
       try {
+        const parsed = JSON.parse(storedUser);
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        setUser(parsed);
         trackEvent('session_start');
+        // Opt in only if user has previously consented
+        if (parsed?.consented_at) optInAnalytics(parsed.id, parsed.alias);
       } catch {
         localStorage.removeItem('mb_token');
         localStorage.removeItem('mb_user');
@@ -31,6 +35,7 @@ export function AuthProvider({ children }) {
     setToken(newToken);
     setUser(newUser);
     trackEvent('session_start');
+    if (newUser?.consented_at) optInAnalytics(newUser.id, newUser.alias);
   }
 
   function logout() {
@@ -39,6 +44,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('mb_user');
     setToken(null);
     setUser(null);
+    optOutAnalytics();
   }
 
   function updateUser(updates) {

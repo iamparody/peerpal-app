@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
+import { optInAnalytics } from '../../lib/analytics';
 import PrivacyPolicyScreen from '../PrivacyPolicyScreen';
 import TermsScreen from '../TermsScreen';
 
@@ -81,6 +82,8 @@ export default function ConsentScreen() {
         birth_month: parseInt(birthMonth, 10),
         birth_year: parseInt(birthYear, 10),
       });
+      // Consent confirmed — activate analytics from this point forward
+      if (user) optInAnalytics(user.id, user.alias);
       navigate('/onboarding/persona', { replace: true });
     } catch (err) {
       if (err.response?.data?.code === 'UNDERAGE') {

@@ -1,17 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MoodBlob from '../components/MoodBlob';
 import client from '../api/client';
+import { track } from '../lib/analytics';
 
 export default function TrialWelcomeScreen() {
   const navigate = useNavigate();
   const [claiming, setClaiming] = useState(false);
+
+  useEffect(() => { track('trial_claim_viewed'); }, []);
 
   async function claimAndGo(path) {
     if (claiming) return;
     setClaiming(true);
     try {
       await client.post('/api/trial/claim');
+      track('trial_claimed', { cta: path === '/peer' ? 'talk_to_someone' : 'explore_first' });
     } catch (err) {
       // 409 = already claimed, proceed regardless
       if (err?.response?.status !== 409) {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Coin, CheckCircle, X, Leaf, Heart, Mountains } from '@phosphor-icons/react';
 import client from '../api/client';
+import { track } from '../lib/analytics';
 
 const PACKAGES = [
   {
@@ -252,6 +253,7 @@ export default function CreditsScreen() {
     setPromoError('');
     try {
       const { data } = await client.post('/api/promo/redeem', { code: promoCode.trim() });
+      track('promo_code_redeemed', { credits_awarded: data.credits_awarded });
       setPromoSuccess(data);
       qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
       setTimeout(() => {
@@ -289,6 +291,7 @@ export default function CreditsScreen() {
     setModalError('');
     setSubmitting(true);
     try {
+      track('top_up_initiated', { package: pendingPkg.id });
       const { data } = await client.post('/api/credits/purchase', {
         package: pendingPkg.id,
         phone,

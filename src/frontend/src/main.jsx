@@ -7,8 +7,19 @@ import './index.css';
 import App from './App.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import { initSentry } from './services/sentry';
+import { initAnalytics, track } from './lib/analytics';
 
 initSentry();
+initAnalytics();
+
+// Relay notification taps from service worker to PostHog
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'NOTIFICATION_TAPPED') {
+      track('notification_tapped', { notif_type: e.data.notif_type, action: e.data.action });
+    }
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

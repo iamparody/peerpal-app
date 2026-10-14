@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChatText, Microphone, Heart } from '@phosphor-icons/react';
 import client from '../../api/client';
+import { track } from '../../lib/analytics';
 
 const HOLD_SECONDS = 4;
 
@@ -27,6 +28,7 @@ export default function PeerBridgeScreen() {
         const { data } = await client.get(`/api/peer/session/${sessionId}`);
         setTopic(data.session?.topic_label || '');
         setChannel(data.session?.channel || 'text');
+        track('peer_session_started', { channel: data.session?.channel || 'text', topic: data.session?.topic_label || null });
       } catch { /* non-fatal — proceed without topic */ }
       finally { setLoading(false); }
     }

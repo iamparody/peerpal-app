@@ -4,6 +4,7 @@ import { PaperPlaneRight, Robot } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import { trackEvent } from '../utils/analytics';
+import { track } from '../lib/analytics';
 import { registerFCMToken } from '../utils/firebase';
 
 function AIChatSkeleton() {
@@ -55,6 +56,7 @@ export default function AIChatScreen() {
       setSessionId(data.session_id);
       setPersonaName(data.persona_name || 'Your companion');
       setIsFreeSession(data.is_free === true);
+      track('ai_session_started', { is_free: data.is_free === true });
       setMessages([{ role: 'assistant', content: data.greeting || `Hello. I'm ${data.persona_name || 'your companion'}. How are you feeling today?` }]);
     } catch (err) {
       const status = err.response?.status;
@@ -103,6 +105,7 @@ export default function AIChatScreen() {
     } catch { /* non-fatal */ }
     qc.invalidateQueries({ queryKey: ['credits', 'balance'] });
     trackEvent('ai_session_completed');
+    track('ai_session_completed', { rating: rating || null, message_count: messages.length });
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       setShowNotifPrompt(true);
     } else {
