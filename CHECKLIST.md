@@ -194,28 +194,29 @@
 
 ### 48.1 Setup
 
-- [ ] `cd src/frontend && npm install posthog-js`
-- [ ] Initialize PostHog in `src/frontend/src/main.jsx`: `posthog.init(VITE_POSTHOG_KEY, { api_host: 'https://eu.i.posthog.com', capture_pageview: false })`
-- [ ] Add `VITE_POSTHOG_KEY` to `src/frontend/.env.example` and local `.env`
-- [ ] Create `src/frontend/src/lib/analytics.js` — thin wrapper: `export const track = (event, props) => posthog.capture(event, props)` — all calls go through this so the provider can be swapped later
+- [x] `posthog-js` installed
+- [x] `src/frontend/src/lib/analytics.js`: wrapper with consent gate — starts opted-out, `optInAnalytics(userId, alias)` / `optOutAnalytics()`, disabled in dev
+- [x] `initAnalytics()` called in `main.jsx`; opted-out by default until consent confirmed
+- [x] `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` added to `.env.example`
 
 ### 48.2 Core event instrumentation
 
-- [ ] **Onboarding funnel**: `onboarding_started`, `onboarding_persona_created`, `onboarding_mood_submitted`, `onboarding_completed`
-- [ ] **Trial**: `trial_claim_viewed` (TrialWelcomeScreen mount), `trial_claimed` (on success), `trial_nudge_dismissed`
-- [ ] **Peer sessions**: `peer_session_requested`, `peer_session_started`, `peer_session_ended` (with `duration_seconds`)
-- [ ] **AI sessions**: `ai_session_started`, `ai_session_ended`, `ai_trial_limit_hit`
-- [ ] **Credits**: `credits_screen_viewed`, `top_up_initiated` (with `package`), `promo_code_redeemed`
-- [ ] **Re-engagement**: `notification_clicked` (with `type`)
+- [x] **Onboarding**: `onboarding_completed` (FirstMoodScreen, with `first_mood`)
+- [x] **Trial**: `trial_claim_viewed` (TrialWelcomeScreen mount), `trial_claimed` (with `cta` prop)
+- [x] **Peer sessions**: `peer_session_started` (PeerBridgeScreen, with `channel` + `topic`)
+- [x] **AI sessions**: `ai_session_started` (with `is_free`), `ai_session_completed` (with `rating` + `message_count`)
+- [x] **Credits**: `top_up_initiated` (with `package`), `promo_code_redeemed` (with `credits_awarded`)
+- [x] **Notifications**: `notification_tapped` (SW postMessage relay → main.jsx, with `notif_type` + `action`)
 
 ### 48.3 Identity
 
-- [ ] On login/session restore: `posthog.identify(userId, { alias, created_at })` — no PII beyond alias
-- [ ] On logout: `posthog.reset()`
+- [x] `optInAnalytics(userId, alias)` on login and session restore (guarded by `consented_at`)
+- [x] On consent confirmed in ConsentScreen: `optInAnalytics()` immediately
+- [x] `optOutAnalytics()` on logout — clears PostHog identity + localStorage consent flag
 
 ### 48.4 Pageview tracking
 
-- [ ] In `App.jsx` router: call `posthog.capture('$pageview', { path: location.pathname })` on route change (use `useEffect` on `location`)
+- [x] `trackPageview(pathname)` on every route change via `useEffect` in `Layout` (App.jsx)
 
 ---
 

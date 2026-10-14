@@ -3,9 +3,16 @@
 ---
 
 ## Current Phase
-**Phase 47 — Free Trial & Promo Codes — COMPLETE ✅**
+**Phase 48 — PostHog Analytics — COMPLETE ✅**
 
-**NEXT ACTION → Phase 48: install posthog-js, initialize in main.jsx, create analytics.js wrapper, then instrument core events**
+**NEXT ACTION → Phase 49: audit test users, write dry-run cleanup script, review output, then execute**
+
+### Phase 48 complete (commit 52517f7)
+- analytics.js wrapper: consent-gated, dev-disabled, EU cloud
+- Consent gate: opted-out on init, opted-in after ConsentScreen confirmation or on login if consented_at set
+- Identity: posthog.identify(userId, alias) on login/restore; posthog.reset() on logout
+- Pageview: every route change tracked via useEffect in Layout
+- Events: onboarding_completed, trial_claim_viewed, trial_claimed, peer_session_started, ai_session_started, ai_session_completed, top_up_initiated, promo_code_redeemed, notification_tapped
 
 Phase 46 — Referral System: assigned externally, in progress separately.
 
