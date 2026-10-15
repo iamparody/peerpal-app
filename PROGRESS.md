@@ -11,9 +11,22 @@
 ---
 
 ## Current Phase
-**Phase 49 — Test Data Cleanup — COMPLETE ✅**
+**Phase 50 — Peer-Request Push Reliability — CODE COMPLETE, NOT DEPLOYED (branch `feature/peer-request-push`)**
 
-**NEXT ACTION → Phase 50: decide next build phase (check CHECKLIST.md for pending items)**
+**NEXT ACTION → Phase 50.4: get the Firebase service account from the cofounder, set FCM_SERVICE_ACCOUNT_PATH in local src/backend/.env (comment out the placeholder FCM_SERVICE_ACCOUNT_JSON), re-run the device checklist, then merge fix/trial-promo-crash first and this branch second.** Migrations 105 and 106 are already applied to live Supabase (2026-10-15). Local push never delivered: the local .env FCM key is a placeholder (trace shows fcm=off(NOT DELIVERED)). Verified locally: routing, eligibility, in-app notifications, ledger, accept flow.
+
+### Phase 50 (2026-10-15)
+- Design + deploy order: `docs/peer-request-push.md`. Migration 105 MUST run before the backend deploy.
+- New: `services/peerRequestPush.js` (eligibility, quiet hours, TTL, Redis dedup), `scripts/peer_push_report.js` (outcome metric), `public/sw-notifications.js`, `src/utils/peerRequestAlert.js`
+- Product rules (Seka): night pushes only for peers who opt in to night alerts; push stays limited to peers with an active availability window.
+- Bugs fixed along the way: duplicate web notifications, Profile notification toggles never saving, logout request unauthenticated, shared-device token leaking notifications across accounts, `notif_peer_broadcast` ignored.
+- Device checklist (Android Chrome, PWA installed):
+  1. Peer A: set availability, accept permission prompt → status shows Active
+  2. Requester B: request a session → A gets ONE notification, ring vibration, "I'm ready" / "Not now"
+  3. B cancels → A's notification disappears next time A opens the app
+  4. A in app on Dashboard → banner + new three-note ringtone, rings once
+  5. Between 22:00 and 07:00 EAT: no push with Night alerts off; push with it on
+  6. Log out A, log in C on same phone → C does not get A's pushes
 
 ### Phase 49 complete
 - Audited production DB: 23 test accounts identified (mindbridge.test, peerpal.test, mb.test, example.com, test.com domains)

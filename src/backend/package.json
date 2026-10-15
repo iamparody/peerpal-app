@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "migrate": "node migrations/run.js",
     "test:ai": "node --test src/backend/ai/*.test.js",
-    "test:ledger": "node --test tests/creditLedger.test.js"
+    "test:ledger": "node --test tests/creditLedger.test.js",
+    "test:push": "node --test tests/peerRequestPush.test.js"
   },
   "engines": {
     "node": ">=20.20.0"

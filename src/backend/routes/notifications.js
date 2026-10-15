@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-const NOTIF_PREF_COLUMNS = ['notif_peer_broadcast', 'notif_checkin_reminder', 'notif_group_messages', 'notif_credit_low'];
+const NOTIF_PREF_COLUMNS = ['notif_peer_broadcast', 'notif_peer_night', 'notif_checkin_reminder', 'notif_group_messages', 'notif_credit_low'];
 
 // ─── GET /notifications ───────────────────────────────────────────────────────
 router.get('/', auth, async (req, res) => {
