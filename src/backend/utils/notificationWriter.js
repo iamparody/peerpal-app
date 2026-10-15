@@ -11,7 +11,8 @@ async function writeNotification(user_id, type, payload, channel) {
     const { rows } = await query('SELECT fcm_token FROM users WHERE id = $1', [user_id]);
     const fcm_token = rows[0]?.fcm_token;
     if (fcm_token) {
-      await enqueuePushNotification(fcm_token, type, '', payload);
+      // type in data lets the service worker pick the right copy and click route.
+      await enqueuePushNotification(fcm_token, type, '', { ...payload, type });
     }
   }
 }

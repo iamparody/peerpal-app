@@ -67,7 +67,8 @@ export default function ProfileScreen() {
   async function updateNotifPref(key, value) {
     setNotifPrefs((p) => ({ ...p, [key]: value }));
     try {
-      await client.patch('/api/notifications/preferences', { [key]: value });
+      // Backend columns are notif_-prefixed (routes/notifications.js NOTIF_PREF_COLUMNS).
+      await client.patch('/api/notifications/preferences', { [`notif_${key}`]: value });
     } catch {
       setNotifPrefs((p) => ({ ...p, [key]: !value }));
     }
