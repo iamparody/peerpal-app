@@ -9,7 +9,8 @@ async function runTrialDrip() {
     `SELECT id FROM users
      WHERE trial_claimed_at IS NOT NULL
        AND trial_ends_at > NOW()
-       AND trial_credits_issued < 14`
+       AND trial_credits_issued < 14
+       AND trial_claimed_at::date < CURRENT_DATE`
   );
   if (!users.length) return;
 

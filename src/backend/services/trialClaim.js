@@ -15,12 +15,12 @@ async function claimTrial(tx, userId) {
   const { rows } = await tx.query(
     `UPDATE users
      SET trial_claimed_at       = NOW(),
-         trial_ends_at          = NOW() + ($2 || ' days')::interval,
+         trial_ends_at          = NOW() + make_interval(days => $2::int),
          trial_ai_sessions_used = 0,
          trial_credits_issued   = $3
      WHERE id = $1 AND trial_claimed_at IS NULL
      RETURNING trial_ends_at`,
-    [userId, String(TRIAL_DAYS), TRIAL_INITIAL_CREDITS]
+    [userId, TRIAL_DAYS, TRIAL_INITIAL_CREDITS]
   );
   if (!rows.length) return { claimed: false, trial_ends_at: null };
 
