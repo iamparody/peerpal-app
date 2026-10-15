@@ -3,16 +3,23 @@
 ---
 
 ## Current Phase
-**Phase 48 — PostHog Analytics — COMPLETE ✅**
+**Phase 49 — Test Data Cleanup — COMPLETE ✅**
 
-**NEXT ACTION → Phase 49: audit test users, write dry-run cleanup script, review output, then execute**
+**NEXT ACTION → Phase 50: decide next build phase (check CHECKLIST.md for pending items)**
 
-### Phase 48 complete (commit 52517f7)
-- analytics.js wrapper: consent-gated, dev-disabled, EU cloud
-- Consent gate: opted-out on init, opted-in after ConsentScreen confirmation or on login if consented_at set
+### Phase 49 complete
+- Audited production DB: 23 test accounts identified (mindbridge.test, peerpal.test, mb.test, example.com, test.com domains)
+- 3 real developer accounts preserved (tk26437@gmail.com, antonykkiriinya@gmail.com, evyparody@gmail.com)
+- FK constraints resolved: groups/articles/audit_log/therapist_profiles/therapy_disputes/bookings reassigned or deleted
+- Deleted 23 test users; 16 real users remain in DB
+- Scripts: `scripts/audit_test_accounts.js`, `scripts/cleanup_test_data.js`, `scripts/clear_fk_blockers.js`
+
+### Phase 48 complete (commit ca34d44)
+- analytics.js wrapper: dev-disabled, EU cloud, anonymous tracking (no consent gate)
 - Identity: posthog.identify(userId, alias) on login/restore; posthog.reset() on logout
 - Pageview: every route change tracked via useEffect in Layout
 - Events: onboarding_completed, trial_claim_viewed, trial_claimed, peer_session_started, ai_session_started, ai_session_completed, top_up_initiated, promo_code_redeemed, notification_tapped
+- Backend AI observability: @posthog/ai wrapping Groq, privacyMode: true (prompts/responses not stored)
 
 Phase 46 — Referral System: assigned externally, in progress separately.
 

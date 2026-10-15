@@ -226,22 +226,22 @@
 
 ### 49.1 Identify test data
 
-- [ ] Audit `users` table: identify test accounts by alias pattern (e.g. `test_*`, `seed_*`, known dev emails) — produce a list before any deletion
-- [ ] Audit `peer_requests`, `sessions`, `credit_transactions` for orphaned or seed records linked to test users
-- [ ] Identify any credits, notifications, mood entries, journals tied to test user IDs
+- [x] Audit `users` table: identify test accounts by alias pattern (e.g. `test_*`, `seed_*`, known dev emails) — produce a list before any deletion
+- [x] Audit `peer_requests`, `sessions`, `credit_transactions` for orphaned or seed records linked to test users
+- [x] Identify any credits, notifications, mood entries, journals tied to test user IDs
 
 ### 49.2 Safe deletion script
 
-- [ ] Write `src/backend/scripts/cleanup_test_data.js` — dry-run mode by default (`DRY_RUN=true`): logs what would be deleted without touching the DB
-- [ ] Script deletes in FK-safe order: sessions → peer_requests → credit_transactions → notifications → moods → journals → credits → users
-- [ ] Script must never touch users where `created_at` suggests real organic sign-ups — use explicit ID list or alias pattern, not date heuristics alone
-- [ ] Verify dry-run output looks correct before running live
+- [x] Write `src/backend/scripts/cleanup_test_data.js` — dry-run mode by default (`DRY_RUN=true`): logs what would be deleted without touching the DB
+- [x] Script deletes in FK-safe order: sessions → peer_requests → credit_transactions → notifications → moods → journals → credits → users
+- [x] Script must never touch users where `created_at` suggests real organic sign-ups — use explicit ID list or alias pattern, not date heuristics alone
+- [x] Verify dry-run output looks correct before running live
 
 ### 49.3 Execute and verify
 
-- [ ] Run `DRY_RUN=false node src/backend/scripts/cleanup_test_data.js` — log counts before and after
-- [ ] Spot-check Supabase dashboard: confirm real user records untouched
-- [ ] Confirm `credits` table balances intact for real users
+- [x] Run `DRY_RUN=false node src/backend/scripts/cleanup_test_data.js` — log counts before and after
+- [x] Spot-check Supabase dashboard: confirm real user records untouched
+- [x] Confirm `credits` table balances intact for real users
 
 ---
 
