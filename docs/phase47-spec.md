@@ -47,7 +47,7 @@ Run npm run migrate only when migration is finalised and reviewed.
 - Guard: if trial_claimed_at IS NOT NULL return 409 { code: 'TRIAL_ALREADY_CLAIMED', message: 'Trial already claimed' }
 - Set trial_claimed_at = NOW(), trial_ends_at = NOW() + INTERVAL '7 days'
 - Set trial_ai_sessions_used = 0, trial_credits_issued = 0
-- Do NOT issue credits here. Credits issued only by the daily drip job.
+- Issue the first 2 credits immediately, in the same transaction (services/trialClaim.js): credits.balance += 2, credit_transaction type='trial_drip', payment_method='bonus', channel='trial', trial_credits_issued = 2. Guard is atomic (UPDATE ... WHERE trial_claimed_at IS NULL). Changed 2026-10-15 (Seka): a claimed trial with 0 credits dead-ended the "Talk to someone" CTA.
 - Return { trial_ends_at, message: 'Trial active' }
 
 ### GET /trial/status (auth required)
@@ -122,7 +122,7 @@ Gate: shown only if trial_claimed_at IS NULL. If already claimed, skip to /dashb
 - Blob in happy state, centered, 160px
 - Heading (Lora, 24px, cream): "You're all set."
 - Body (Inter, 16px, muted): "Your first peer session is ready when you are."
-- Sub-body (Inter, 13px, muted): "2 credits added to your account today. More tomorrow."
+- Sub-body (Inter, 13px, muted): "2 credits to start, then 2 more each morning this week."
 - Primary CTA (full width): "Talk to someone" → /peer
   - On tap: POST /trial/claim, handle 409 gracefully (just navigate), then navigate
 - Secondary CTA (text link below button): "Explore first" → /dashboard

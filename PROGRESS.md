@@ -5,8 +5,8 @@
 ## Hotfix 2026-10-15 (branch fix/trial-promo-crash)
 - Migration 106 adds 'platform' to credit_payment_method: creditDeductor.js has written it since f323aea (2026-10-03) but the enum never had it, so every credit debit/refund failed (peer requests never broadcast, extensions, referrals, therapy booking charge). Production heals as soon as 106 runs; no deploy needed for that part.
 - Promo redeem + trial drip omitted payment_method (NOT NULL): every promo redeem failed; trial drip added balance with no ledger row and no cap. Now 'bonus', drip atomic per user.
-- TrialWelcomeScreen crashed (MoodBlob mood="happy" unknown) = blank screen for every new sign-up. Fixed + MoodBlob falls back to idle. Copy now: "Your first 2 credits arrive tomorrow morning."
-- Tests: src/backend npm run test:ledger (6), src/frontend node --test tests/moodBlob.test.mjs (3).
+- TrialWelcomeScreen crashed (MoodBlob mood="happy" unknown) = blank screen for every new sign-up. Fixed + MoodBlob falls back to idle. Trial claim now grants the first 2 credits immediately (services/trialClaim.js, one transaction, counts toward the 14 cap); copy: "2 credits to start, then 2 more each morning this week." Spec docs/phase47-spec.md updated.
+- Tests: src/backend npm run test:ledger (10), src/frontend node --test tests/moodBlob.test.mjs (3).
 
 ---
 

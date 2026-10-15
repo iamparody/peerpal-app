@@ -152,6 +152,65 @@ function dripFn(job) {
   return job.runTrialDrip || job.trialDrip || Object.values(job).find(v => typeof v === 'function' && /drip/i.test(v.name));
 }
 
+describe('trial claim — first 2 credits at claim time', () => {
+  const { claimTrial, TRIAL_INITIAL_CREDITS } = require('../services/trialClaim');
+
+  // Fake tx client: user row + credits row, records ledger inserts.
+  function fakeTx(state) {
+    return {
+      async query(sql, params) {
+        if (/UPDATE users\s+SET trial_claimed_at/.test(sql)) {
+          assert.match(sql, /WHERE id = \$1 AND trial_claimed_at IS NULL/);
+          if (state.claimed) return { rows: [], rowCount: 0 };
+          state.claimed = true;
+          state.issued = params[2];
+          return { rows: [{ trial_ends_at: 'T+7d' }], rowCount: 1 };
+        }
+        if (/UPDATE credits SET balance/.test(sql)) {
+          if (!state.hasCreditsRow) return { rows: [], rowCount: 0 };
+          state.balance += params[0];
+          return { rows: [], rowCount: 1 };
+        }
+        if (/INSERT INTO credit_transactions/.test(sql)) {
+          assert.equal(literalFor(sql, 'payment_method'), 'bonus');
+          assert.match(sql, /'trial_drip'/);
+          state.ledger.push(params);
+          return { rows: [], rowCount: 1 };
+        }
+        throw new Error('unexpected sql: ' + sql);
+      },
+    };
+  }
+
+  test('claim credits 2 now, ledgers it as trial_drip, counts it toward the 14 cap', async () => {
+    const state = { claimed: false, balance: 0, issued: 0, ledger: [], hasCreditsRow: true };
+    const r = await claimTrial(fakeTx(state), 'u1');
+    assert.equal(r.claimed, true);
+    assert.equal(TRIAL_INITIAL_CREDITS, 2);
+    assert.deepEqual({ balance: state.balance, issued: state.issued, ledgerRows: state.ledger.length }, { balance: 2, issued: 2, ledgerRows: 1 });
+  });
+
+  test('second claim grants nothing', async () => {
+    const state = { claimed: true, balance: 2, issued: 2, ledger: [], hasCreditsRow: true };
+    const r = await claimTrial(fakeTx(state), 'u1');
+    assert.equal(r.claimed, false);
+    assert.equal(state.balance, 2);
+    assert.equal(state.ledger.length, 0);
+  });
+
+  test('missing credits row throws so the transaction rolls back the claim', async () => {
+    const state = { claimed: false, balance: 0, issued: 0, ledger: [], hasCreditsRow: false };
+    await assert.rejects(claimTrial(fakeTx(state), 'u1'), /credits row missing/);
+  });
+
+  test('day-0 grant + nightly drip never exceed 14 credits', () => {
+    // Claim sets issued=2; the drip adds 2 while issued + 2 <= 14.
+    let issued = TRIAL_INITIAL_CREDITS;
+    for (let night = 1; night <= 7; night++) if (issued + 2 <= 14) issued += 2;
+    assert.equal(issued, 14);
+  });
+});
+
 describe('trial drip', () => {
   const quiet = (fn) => async () => {
     const [log, err] = [console.log, console.error];

@@ -77,7 +77,7 @@ export default function TrialWelcomeScreen() {
           marginBottom: 'var(--space-xl)',
         }}
       >
-        Your first 2 credits arrive tomorrow morning.
+        2 credits to start, then 2 more each morning this week.
       </p>
 
       <button
