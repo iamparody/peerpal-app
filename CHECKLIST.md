@@ -266,7 +266,7 @@
 - [x] Eligibility: during quiet hours only peers with `notif_peer_night = true`
 - [x] `GET /peer/availability` returns `night_alerts`; `PATCH /notifications/preferences` accepts `notif_peer_night`
 - [x] Availability tab: Night alerts toggle
-- [ ] **Run migration 105 on Supabase before the backend deploy** (needs Seka's go-ahead)
+- [x] Migration 105 applied to live Supabase (2026-10-15)
 
 ### 50.3 Alerts UX
 
@@ -277,9 +277,11 @@
 
 ### 50.4 Tests + verification
 
-- [x] Backend gate tests: `npm run test:push` (35)
-- [x] Frontend gate tests: `npm test` (23)
-- [ ] Frontend production build (blocked locally: `posthog-js` not installed; needs `npm install` in `src/frontend`)
+- [x] Backend gate tests: `npm run test:push` (36)
+- [x] Frontend gate tests: `npm test` (26)
+- [x] Frontend production build
+- [x] Local in-app check: routing, eligibility, in-app notification, credit ledger, accept
+- [ ] Push delivery check (blocked: local FCM key is a placeholder; real key is with the cofounder)
 - [ ] Device check on a real Android phone (see PROGRESS.md Phase 50 checklist)
 - [ ] Baseline + 2-week follow-up of `scripts/peer_push_report.js`
 
