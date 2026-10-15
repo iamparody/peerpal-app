@@ -41,10 +41,10 @@ async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug
     [userIds, payload]
   );
 
-  const { enqueuePushNotification } = require('../utils/fcm');
+  const { enqueuePushNotification, isPushEnabled } = require('../utils/fcm');
   await broadcastPeerRequestPush({
     userIds, requestId, channelPreference, topicLabel, escalateAt,
-    query, enqueue: enqueuePushNotification, redis: getRestClient(),
+    query, enqueue: enqueuePushNotification, redis: getRestClient(), pushEnabled: isPushEnabled(),
   }).catch((err) => console.warn('[broadcast] push error:', err.message));
 }
 

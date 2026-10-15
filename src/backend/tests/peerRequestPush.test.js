@@ -192,6 +192,12 @@ describe('broadcastPeerRequestPush', () => {
     assert.equal(lines.length, 1);
     assert.match(lines[0], /^\[peer-push\] request=req-abcd candidates=2 eligible=2 sent=2 dup=0 quiet=false ttl=130$/);
   });
+
+  test('trace says NOT DELIVERED when Firebase has no credentials', async () => {
+    const lines = [];
+    await run({ log: (l) => lines.push(l), pushEnabled: false });
+    assert.match(lines[0], / fcm=off\(NOT DELIVERED\)$/);
+  });
 });
 
 describe('buildFcmMessage', () => {

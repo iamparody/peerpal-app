@@ -96,7 +96,7 @@ function buildPushContent(channelPreference, topicLabel) {
 // as a single trace line, so delivery reach is measurable per request.
 async function broadcastPeerRequestPush({
   userIds, requestId, channelPreference, topicLabel, escalateAt,
-  query, enqueue, redis = null, now = new Date(), log = console.log,
+  query, enqueue, redis = null, now = new Date(), log = console.log, pushEnabled = true,
 }) {
   const quiet = isQuietHour(now);
   const ttl = pushTtlSeconds(escalateAt, now);
@@ -106,7 +106,9 @@ async function broadcastPeerRequestPush({
     quiet, ttl, skipped: null, sentUserIds: [],
   };
 
-  const trace = () => log(`[peer-push] request=${summary.request} candidates=${summary.candidates} eligible=${summary.eligible} sent=${summary.sent} dup=${summary.dup} quiet=${quiet} ttl=${ttl}${summary.skipped ? ` skipped=${summary.skipped}` : ''}`);
+  // `sent` = handed to the push queue. fcm=off means Firebase has no usable credentials and
+  // nothing reaches a device (e.g. a placeholder FCM_SERVICE_ACCOUNT_JSON in a local .env).
+  const trace = () => log(`[peer-push] request=${summary.request} candidates=${summary.candidates} eligible=${summary.eligible} sent=${summary.sent} dup=${summary.dup} quiet=${quiet} ttl=${ttl}${pushEnabled ? '' : ' fcm=off(NOT DELIVERED)'}${summary.skipped ? ` skipped=${summary.skipped}` : ''}`);
 
   if (!userIds.length) { summary.skipped = 'no_candidates'; trace(); return summary; }
   if (ttl < MIN_PUSH_TTL_SECONDS) { summary.skipped = 'request_expiring'; trace(); return summary; }

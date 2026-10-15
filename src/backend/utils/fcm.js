@@ -97,4 +97,11 @@ async function assignFcmToken(query, userId, fcm_token) {
   await query('UPDATE users SET fcm_token = $1, updated_at = NOW() WHERE id = $2', [fcm_token || null, userId]);
 }
 
-module.exports = { sendPushNotification, enqueuePushNotification, buildFcmMessage, assignFcmToken };
+// True when Firebase Admin initialised with a usable service account. Pushes "sent" while
+// this is false are queued and silently dropped, so traces must report it.
+function isPushEnabled() {
+  initFCM();
+  return initialized;
+}
+
+module.exports = { sendPushNotification, enqueuePushNotification, buildFcmMessage, assignFcmToken, isPushEnabled };
