@@ -39,7 +39,7 @@ export default function TrialWelcomeScreen() {
       }}
     >
       <div style={{ marginBottom: 'var(--space-lg)' }}>
-        <MoodBlob mood="happy" size={160} />
+        <MoodBlob mood="great" size={160} />
       </div>
 
       <h1
@@ -77,7 +77,7 @@ export default function TrialWelcomeScreen() {
           marginBottom: 'var(--space-xl)',
         }}
       >
-        2 credits added to your account today. More tomorrow.
+        2 credits to start, then 2 more each morning this week.
       </p>
 
       <button

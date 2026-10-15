@@ -1,4 +1,4 @@
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const { enqueuePushNotification } = require('../utils/fcm');
 
 // ── Trial drip job ────────────────────────────────────────────────────────────
@@ -9,29 +9,35 @@ async function runTrialDrip() {
     `SELECT id FROM users
      WHERE trial_claimed_at IS NOT NULL
        AND trial_ends_at > NOW()
-       AND trial_credits_issued < 14`
+       AND trial_credits_issued < 14
+       AND trial_claimed_at::date < CURRENT_DATE`
   );
   if (!users.length) return;
 
   for (const user of users) {
     try {
-      // Guard: never exceed 14 total (re-fetch to avoid race)
-      const { rows } = await query(
-        'SELECT trial_credits_issued FROM users WHERE id = $1',
-        [user.id]
-      );
-      if (!rows[0] || rows[0].trial_credits_issued + 2 > 14) continue;
+      // One transaction per user: balance, ledger row and counter move together or not at all.
+      // (Previously the balance update committed before a failing ledger insert, so the counter
+      // never advanced and the 14-credit cap never applied.)
+      await transaction(async (client) => {
+        // Guard: never exceed 14 total. FOR UPDATE serialises concurrent runs.
+        const { rows } = await client.query(
+          'SELECT trial_credits_issued FROM users WHERE id = $1 FOR UPDATE',
+          [user.id]
+        );
+        if (!rows[0] || rows[0].trial_credits_issued + 2 > 14) return;
 
-      await query('UPDATE credits SET balance = balance + 2 WHERE user_id = $1', [user.id]);
-      await query(
-        `INSERT INTO credit_transactions (user_id, amount_credits, type, channel, status)
-         VALUES ($1, 2, 'trial_drip', 'trial', 'confirmed')`,
-        [user.id]
-      );
-      await query(
-        'UPDATE users SET trial_credits_issued = trial_credits_issued + 2 WHERE id = $1',
-        [user.id]
-      );
+        await client.query('UPDATE credits SET balance = balance + 2 WHERE user_id = $1', [user.id]);
+        await client.query(
+          `INSERT INTO credit_transactions (user_id, amount_credits, type, payment_method, channel, status)
+           VALUES ($1, 2, 'trial_drip', 'bonus', 'trial', 'confirmed')`,
+          [user.id]
+        );
+        await client.query(
+          'UPDATE users SET trial_credits_issued = trial_credits_issued + 2 WHERE id = $1',
+          [user.id]
+        );
+      });
     } catch (err) {
       console.error(`[trialDrip] user ${user.id}:`, err.message);
     }

@@ -1,7 +1,9 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const auth = require('../middleware/auth');
+const cache = require('../services/cache');
+const { claimTrial, TRIAL_INITIAL_CREDITS } = require('../services/trialClaim');
 
 const router = express.Router();
 
@@ -16,24 +18,23 @@ const claimLimiter = rateLimit({
 
 // POST /trial/claim
 router.post('/claim', claimLimiter, auth, async (req, res) => {
-  const { rows } = await query(
-    'SELECT trial_claimed_at FROM users WHERE id = $1',
-    [req.user.id]
-  );
-  if (rows[0]?.trial_claimed_at) {
+  // Starts the trial and grants the first 2 credits in one transaction (services/trialClaim.js).
+  let result;
+  try {
+    result = await transaction((tx) => claimTrial(tx, req.user.id));
+  } catch (err) {
+    console.error('[trial/claim] error:', err.message);
+    return res.status(500).json({ code: 'TRIAL_CLAIM_FAILED', message: 'Could not start your trial. Please try again.' });
+  }
+  if (!result.claimed) {
     return res.status(409).json({ code: 'TRIAL_ALREADY_CLAIMED', message: 'Trial already claimed' });
   }
-  const { rows: updated } = await query(
-    `UPDATE users
-     SET trial_claimed_at       = NOW(),
-         trial_ends_at          = NOW() + INTERVAL '7 days',
-         trial_ai_sessions_used = 0,
-         trial_credits_issued   = 0
-     WHERE id = $1
-     RETURNING trial_ends_at`,
-    [req.user.id]
-  );
-  return res.json({ trial_ends_at: updated[0].trial_ends_at, message: 'Trial active' });
+  await cache.del(`credits:${req.user.id}`);
+  return res.json({
+    trial_ends_at: result.trial_ends_at,
+    credits_added: TRIAL_INITIAL_CREDITS,
+    message: 'Trial active',
+  });
 });
 
 // GET /trial/status

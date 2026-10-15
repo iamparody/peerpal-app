@@ -73,8 +73,8 @@ router.post('/redeem', redeemLimiter, auth, async (req, res) => {
 
     // Write transaction record
     await client.query(
-      `INSERT INTO credit_transactions (user_id, amount_credits, type, channel, status)
-       VALUES ($1, $2, 'promo', 'purchase', 'confirmed')`,
+      `INSERT INTO credit_transactions (user_id, amount_credits, type, payment_method, channel, status)
+       VALUES ($1, $2, 'promo', 'bonus', 'purchase', 'confirmed')`,
       [req.user.id, pc.credit_value]
     );
 

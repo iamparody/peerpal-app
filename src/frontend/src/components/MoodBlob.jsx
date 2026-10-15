@@ -1,13 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-
-const STATES = {
-  idle:     { rx: 96, ry: 94,  fill: '#B8A9C9', mouthKey: 'neutral' },
-  very_low: { rx: 102, ry: 88, fill: '#7B9BB5', mouthKey: 'very_low' },
-  low:      { rx: 98, ry: 91,  fill: '#C9A96E', mouthKey: 'low' },
-  neutral:  { rx: 96, ry: 94,  fill: '#9BB5A0', mouthKey: 'neutral' },
-  good:     { rx: 92, ry: 98,  fill: '#7EC8A4', mouthKey: 'good' },
-  great:    { rx: 88, ry: 102, fill: '#5FAD8E', mouthKey: 'great' },
-};
+import { MOOD_STATES as STATES, resolveMoodKey } from './moodBlobStates';
 
 const ARIA_LABELS = {
   idle:     'Mood blob — idle',
@@ -19,7 +11,7 @@ const ARIA_LABELS = {
 };
 
 function MoodBlob({ mood, size = 200 }) {
-  const key = mood ?? 'idle';
+  const key = resolveMoodKey(mood);
   const s = STATES[key];
 
   const [bouncing, setBouncing] = useState(false);
