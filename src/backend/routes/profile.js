@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
+const { assignFcmToken } = require('../utils/fcm');
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ router.get('/', auth, async (req, res) => {
   const { rows: userRows } = await query(
     `SELECT u.alias, u.email, u.consent_version, u.consented_at, u.streak_count,
             u.role, u.created_at, c.balance AS credits_balance,
-            u.notif_peer_broadcast, u.notif_checkin_reminder, u.notif_group_messages, u.notif_credit_low,
+            u.notif_peer_broadcast, u.notif_peer_night, u.notif_checkin_reminder, u.notif_group_messages, u.notif_credit_low,
             u.peer_available_until,
             p.persona_name, p.tone, p.response_style, p.formality
      FROM users u
@@ -40,6 +41,7 @@ router.get('/', auth, async (req, res) => {
     streak_count: user.streak_count,
     credits_balance: user.credits_balance,
     notif_peer_broadcast: user.notif_peer_broadcast ?? true,
+    notif_peer_night: user.notif_peer_night ?? false,
     notif_checkin_reminder: user.notif_checkin_reminder ?? true,
     notif_group_messages: user.notif_group_messages ?? true,
     notif_credit_low: user.notif_credit_low ?? true,
@@ -65,6 +67,13 @@ router.patch('/', auth, async (req, res) => {
   }
   if ('fcm_token' in updates && updates.fcm_token !== null && typeof updates.fcm_token !== 'string') {
     return res.status(400).json({ error: 'fcm_token must be a string or null', code: 'INVALID_TOKEN' });
+  }
+
+  // Token goes through assignFcmToken so a device token is owned by exactly one account.
+  if ('fcm_token' in updates) {
+    await assignFcmToken(query, req.user.id, updates.fcm_token);
+    delete updates.fcm_token;
+    if (!Object.keys(updates).length) return res.status(200).json({ updated: true });
   }
 
   const keys = Object.keys(updates);

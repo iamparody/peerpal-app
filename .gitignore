@@ -4,6 +4,11 @@
 .env.*.local
 .env.production
 .env.staging
+# Any downloaded/renamed env file, e.g. "peerpal (1).env" (.env.example stays tracked)
+*.env
+*.env.*
+!*.env.example
+!.env.example
 
 # Dependencies
 node_modules/

@@ -4,6 +4,7 @@ import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope,
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 import { getFCMStatus, registerFCMToken } from '../../utils/firebase';
+import { playPeerRequestTone } from '../../utils/peerRequestAlert';
 
 const COST_INFO = {
   text:  { cost: 1, label: 'Text Chat',  desc: '1 credit · 30 min' },
@@ -214,6 +215,7 @@ export default function PeerRequestScreen() {
   const [fcmStatus, setFcmStatus] = useState(null); // null | 'active' | 'denied' | 'pending' | 'unsupported' | 'error'
   const [fcmErrorCode, setFcmErrorCode] = useState(null);
   const [fcmChecking, setFcmChecking] = useState(false);
+  const [nightAlerts, setNightAlerts] = useState(false); // notif_peer_night: push during 22:00–07:00
   const highlightRef = useRef(null); // ref to highlighted request card
 
   useEffect(() => {
@@ -231,6 +233,7 @@ export default function PeerRequestScreen() {
         setQuizDone(quizRes.data.peer_quiz_done);
         setTopics(topicsRes.data.topics ?? []);
         if (availRes.data.available) setAvailableUntil(availRes.data.available_until);
+        setNightAlerts(!!availRes.data.night_alerts);
       } catch {
         setError('Failed to load. Please try again.');
       } finally {
@@ -294,11 +297,7 @@ export default function PeerRequestScreen() {
       return;
     }
     if (openRequests.length > prevReqLenRef.current) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const beep = (t, f, d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = f; g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.start(t); o.stop(t + d); };
-        beep(ctx.currentTime, 660, 0.2); beep(ctx.currentTime + 0.28, 880, 0.2);
-      } catch { /* AudioContext not available */ }
+      playPeerRequestTone(); // shared gate with the App banner: rings once, not twice
     }
     prevReqLenRef.current = openRequests.length;
   }, [openRequests, loading]); // eslint-disable-line
@@ -360,6 +359,11 @@ export default function PeerRequestScreen() {
   async function handleSetAvailability(mode, hours) {
     if (availSetting) return;
     setAvailSetting(true);
+    // Going available is the moment push matters, so ask for permission here. Started before
+    // any await so the browser still sees the tap as the user gesture behind the prompt.
+    const pushReady = mode !== 'off' && typeof Notification !== 'undefined' && Notification.permission !== 'denied'
+      ? registerFCMToken()
+      : null;
     try {
       if (mode === 'off') {
         await client.delete('/api/peer/availability');
@@ -371,6 +375,21 @@ export default function PeerRequestScreen() {
       }
     } catch { /* non-fatal */ }
     finally { setAvailSetting(false); }
+    if (pushReady) {
+      await pushReady;
+      const result = await getFCMStatus();
+      setFcmStatus(result.status);
+      setFcmErrorCode(result.errorCode || null);
+    }
+  }
+
+  async function handleNightAlerts(value) {
+    setNightAlerts(value);
+    try {
+      await client.patch('/api/notifications/preferences', { notif_peer_night: value });
+    } catch {
+      setNightAlerts(!value);
+    }
   }
 
   async function handleEnablePush() {
@@ -802,6 +821,11 @@ export default function PeerRequestScreen() {
                   ? `Receiving requests · ${availNow} remaining`
                   : 'Set a window below to start receiving requests'}
               </div>
+              {availableUntil && fcmStatus && fcmStatus !== 'active' && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginTop: 4 }}>
+                  Push is off on this device. You will only see requests while PeerPal is open.
+                </div>
+              )}
             </div>
           </div>
 
@@ -867,6 +891,26 @@ export default function PeerRequestScreen() {
               )}
             </div>
           </div>
+
+          {/* Night alerts — quiet hours opt-in (notif_peer_night) */}
+          <label
+            className="toggle-row"
+            style={{ cursor: 'pointer', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+          >
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Night alerts (10pm to 7am)</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                Also send push alerts during quiet hours while you are available. Off means requests at night wait in the app.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={nightAlerts}
+              onChange={(e) => handleNightAlerts(e.target.checked)}
+              aria-label="Night alerts"
+              style={{ width: 20, height: 20, flexShrink: 0, accentColor: 'var(--color-accent)', cursor: 'pointer' }}
+            />
+          </label>
 
           {/* FCM status */}
           <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '14px 16px' }}>

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { query } = require('../db');
 const { generateAccessToken } = require('../utils/jwt');
 const { generateAlias } = require('../utils/aliasGenerator');
+const { assignFcmToken } = require('../utils/fcm');
 const auth = require('../middleware/auth');
 const {
   authLimiter,
@@ -200,8 +201,10 @@ router.post('/login', loginCooldownMiddleware, async (req, res) => {
 
   clearLoginRecord(req.ip);
 
-  if (req.body.fcm_token) {
-    await query('UPDATE users SET fcm_token = $1 WHERE id = $2', [req.body.fcm_token, user.id]);
+  if (typeof req.body.fcm_token === 'string' && req.body.fcm_token) {
+    await assignFcmToken(query, user.id, req.body.fcm_token).catch(
+      (e) => console.warn('[login] fcm token claim failed:', e.message)
+    );
   }
 
   // Send a fresh verification email if account is unverified — user is about to be redirected
@@ -235,6 +238,10 @@ router.post('/logout', auth, async (req, res) => {
      VALUES ($1, NOW() + INTERVAL '7 days')
      ON CONFLICT (jti) DO NOTHING`,
     [req.user.jti]
+  );
+  // Stop pushes to this device; the next account to log in on it re-registers the token.
+  await assignFcmToken(query, req.user.id, null).catch(
+    (e) => console.warn('[logout] fcm token release failed:', e.message)
   );
   return res.status(200).json({ message: 'Logged out successfully' });
 });

@@ -35,10 +35,20 @@ export function AuthProvider({ children }) {
     setUser(newUser);
     trackEvent('session_start');
     optInAnalytics(newUser.id, newUser.alias);
+    // Logout releases this device's push token server-side; claim it for the new account.
+    // Only when permission is already granted: never prompt on login.
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      import('../utils/firebase').then(m => m.registerFCMToken()).catch(() => {});
+    }
   }
 
   function logout() {
-    client.post('/api/auth/logout').catch(() => {});
+    // Pass the token explicitly: axios request interceptors run async, so by the time the
+    // interceptor reads localStorage below has already removed it and the call went out
+    // unauthenticated (JWT never blacklisted, device push token never released).
+    const current = localStorage.getItem('mb_token');
+    client.post('/api/auth/logout', null, current ? { headers: { Authorization: `Bearer ${current}` } } : undefined)
+      .catch(() => {});
     localStorage.removeItem('mb_token');
     localStorage.removeItem('mb_user');
     setToken(null);

@@ -245,6 +245,48 @@
 
 ---
 
+## Phase 50 — Peer-Request Push Reliability
+
+> Design doc: `docs/peer-request-push.md`. Outcome: peer-request match rate (day / night), measured by `scripts/peer_push_report.js`.
+
+### 50.1 Delivery fixes
+
+- [x] FCM messages are data-only (removes duplicate notification from the Firebase SW SDK)
+- [x] Push TTL = time left on the request (was a fixed 30s); skip when < 15s left
+- [x] Dedup moved from in-process Map to Redis SET NX (hashed token key), local fallback
+- [x] Push respects the Profile `notif_peer_broadcast` toggle (was ignored)
+- [x] Profile notification toggles send `notif_*` keys (all 4 were silently failing with 400)
+- [x] One device token per account: claim on set/login, release on logout
+- [x] Logout sends its auth header explicitly (was going out unauthenticated, JWT never blacklisted)
+- [x] `notificationWriter` puts `type` in push data so the SW renders the right copy
+
+### 50.2 Night alerts (product rule: opt-in, still needs an availability window)
+
+- [x] Migration 105 `notif_peer_night` + rollback
+- [x] Eligibility: during quiet hours only peers with `notif_peer_night = true`
+- [x] `GET /peer/availability` returns `night_alerts`; `PATCH /notifications/preferences` accepts `notif_peer_night`
+- [x] Availability tab: Night alerts toggle
+- [x] Migration 105 applied to live Supabase (2026-10-15)
+
+### 50.3 Alerts UX
+
+- [x] Push permission requested when the peer sets availability; status card warns if push is off
+- [x] Distinct in-app ringtone (C5-E5-G5), shared gate (no double ring on /peer), one AudioContext
+- [x] Stale peer-request notifications closed when the request is no longer open
+- [x] SW rendering/routing extracted to `public/sw-notifications.js`
+
+### 50.4 Tests + verification
+
+- [x] Backend gate tests: `npm run test:push` (36)
+- [x] Frontend gate tests: `npm test` (26)
+- [x] Frontend production build
+- [x] Local in-app check: routing, eligibility, in-app notification, credit ledger, accept
+- [ ] Push delivery check (blocked: local FCM key is a placeholder; real key is with the cofounder)
+- [ ] Device check on a real Android phone (see PROGRESS.md Phase 50 checklist)
+- [ ] Baseline + 2-week follow-up of `scripts/peer_push_report.js`
+
+---
+
 ## Phase 1 — Database Setup & Migrations
 
 ### 1.0 Project Infrastructure
