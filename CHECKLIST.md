@@ -386,12 +386,12 @@
 - [ ] Weekly query against log drain (or a cron script) to compute p50/p95/p99 per route and write to `docs/latency-report.md`
 - [ ] If any route exceeds its p99 target: open a bug before the next deploy
 
-### 52.7 Connection pooling
+### 52.7 Connection pooling ✅ COMPLETE
 
-- [ ] Confirm Supabase PgBouncer is enabled in transaction mode on the project dashboard; use the pooler connection string (`port 6543`) in `DATABASE_URL` in production
-- [ ] Set `pg` Pool options in `src/backend/db/index.js`: `max: 10` (safe under Supabase free 60-connection limit with two instances), `idleTimeoutMillis: 30000`, `connectionTimeoutMillis: 5000`
-- [ ] Expose pool stats (`totalCount`, `idleCount`, `waitingCount`) in the `/health` response
-- [ ] Alert (Sentry custom metric) if `waitingCount > 3` for more than 30 s
+- [ ] Confirm Supabase PgBouncer enabled in transaction mode; use pooler string (`port 6543`) in `DATABASE_POOLER_URL` (owner action — already read in `db/index.js`)
+- [x] `pg` Pool `max` lowered to `10` (was 20); `idleTimeoutMillis: 30000`, `connectionTimeoutMillis: 5000` in prod
+- [x] Pool stats (`total`, `idle`, `waiting`) exposed in `/health` and `/health/db`
+- [x] Sentry alert fires if `waitingCount > 3` for >30 s (5 s poll in `db/index.js`)
 
 ### 52.8 N+1 query audit
 

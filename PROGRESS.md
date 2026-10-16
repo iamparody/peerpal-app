@@ -13,7 +13,13 @@
 ## Current Phase
 **Phase 52.3 — CI/CD (GitHub Actions)**
 
-**NEXT ACTION → Phase 52.7: connection pooling config (PgBouncer or pg pool tuning in src/backend/db/index.js).**
+**NEXT ACTION → Phase 45: re-engagement engine (migration + route hooks + reengagementJob.js cron).**
+
+### Phase 52.7 — COMPLETE (2026-10-16)
+- `max` pool size reduced 20 → 10 (Supabase free tier safe)
+- Sentry saturation alert: `waitingCount > 3` for >30 s triggers `captureMessage` warning
+- Pool stats already in `/health` — no changes needed there
+- Owner action pending: enable PgBouncer transaction mode in Supabase dashboard + set `DATABASE_POOLER_URL` on Render
 
 ### Phase 52.3 — COMPLETE (commit 1c34a2f, 2026-10-16)
 

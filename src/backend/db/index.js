@@ -9,16 +9,33 @@ const needsSsl = connStr && connStr.includes('supabase.com');
 const pool = new Pool({
   connectionString: connStr,
   ssl: needsSsl ? { rejectUnauthorized: false } : (isProd ? { rejectUnauthorized: true } : false),
-  max: 20,
+  max: 10,                        // Supabase free = 60 connections; 10 per instance leaves headroom for two instances + migrations
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: isProd ? 5000 : 2000,
 });
 
 pool.on('error', (err) => {
-  // Log but don't exit — a single bad idle client shouldn't bring down the server.
-  // The pool will remove the client and open a fresh one on the next query.
   console.error('[pg-pool] Unexpected client error', err.message);
 });
+
+// Alert Sentry when pool is saturated (waitingCount > 3) for more than 30 s
+let _saturatedSince = null;
+setInterval(() => {
+  const waiting = pool.waitingCount;
+  if (waiting > 3) {
+    if (!_saturatedSince) {
+      _saturatedSince = Date.now();
+    } else if (Date.now() - _saturatedSince >= 30000) {
+      try {
+        const { Sentry } = require('./services/sentry');
+        Sentry.captureMessage(`[pg-pool] saturated: waitingCount=${waiting} for >30s`, 'warning');
+      } catch {}
+      _saturatedSince = null; // reset so we don't spam — next alert after another 30 s window
+    }
+  } else {
+    _saturatedSince = null;
+  }
+}, 5000);
 
 const SLOW_QUERY_MS = 1500;
 
