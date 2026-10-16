@@ -855,6 +855,25 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     }
   }
 
+  // Funnel step hook: first session → step3; second session within 7 days → converted
+  try {
+    await query(
+      `UPDATE users SET
+         last_session_at = NOW(),
+         first_session_completed_at = COALESCE(first_session_completed_at, NOW()),
+         reengagement_step = CASE
+           WHEN first_session_completed_at IS NULL THEN 'step3_incomplete'
+           WHEN reengagement_step = 'step3_incomplete'
+                AND first_session_completed_at >= NOW() - INTERVAL '7 days' THEN 'converted'
+           ELSE reengagement_step
+         END
+       WHERE id = $1`,
+      [req.user.id]
+    );
+  } catch (e) {
+    console.error('[reengagement-hook/peer-close]', e.message);
+  }
+
   return res.status(200).json({ ended_at: sessionRows[0]?.ended_at });
 });
 

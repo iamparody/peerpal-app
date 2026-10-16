@@ -106,8 +106,8 @@ cron.schedule('0 23 * * *', () => runPayoutReconciliationJob().catch(console.err
 // Payout retry — 03:00 EAT daily (retries failed payouts with retry_count <= 1)
 cron.schedule('0 0 * * *', () => runPayoutRetryJob().catch(console.error));
 
-// Re-engagement nudges — every 30 min; fires at most 1 push per user per 24h
-cron.schedule('*/30 * * * *', () => runReengagementJob().catch(console.error));
+// Re-engagement nudges — every 2 hours; fires at most 1 push per user per 24h
+cron.schedule('0 */2 * * *', () => runReengagementJob().catch(console.error));
 
 // Engagement scoring — nightly at 02:30 EAT (23:30 UTC); no nudge logic, just stores segment
 cron.schedule('30 23 * * *', () => updateEngagementSegments().catch(console.error));

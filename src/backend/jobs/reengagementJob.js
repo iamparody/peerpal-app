@@ -274,6 +274,49 @@ function dormantEventRef(segment) {
   return segment === 'dormant' ? `dormant:${isoMonth()}` : `dormant:${isoWeek()}`;
 }
 
+// ─── Pipeline F: funnel-step nudges ──────────────────────────────────────────
+// Fires when a user is stuck at a specific funnel step. Checked before Pipeline A.
+
+async function runFunnelNudge(user) {
+  const now = Date.now();
+  const accountAgeMs = now - new Date(user.created_at).getTime();
+  const ref = `reengfunnel:${isoDate()}`;
+
+  // Step 1 — persona not yet set, account > 24h old
+  if (user.reengagement_step === 'step1_incomplete' && accountAgeMs > 86400000) {
+    return sendNudge(user, 'reengagement_step1', 'reengagement_step1', {}, '/onboarding/persona', `${ref}:${user.id}`);
+  }
+
+  // Step 2 — onboarding done but no first session, > 24h since onboarding
+  if (
+    user.reengagement_step === 'step2_incomplete' &&
+    user.onboarding_completed_at &&
+    now - new Date(user.onboarding_completed_at).getTime() > 86400000
+  ) {
+    return sendNudge(user, 'reengagement_step2', 'reengagement_step2', {}, '/ai-chat', `${ref}:${user.id}`);
+  }
+
+  // Step 3 — first session done but no return in 7 days
+  if (
+    user.reengagement_step === 'step3_incomplete' &&
+    user.first_session_completed_at &&
+    now - new Date(user.first_session_completed_at).getTime() > 7 * 86400000
+  ) {
+    return sendNudge(user, 'reengagement_step3', 'reengagement_step3', {}, '/dashboard', `${ref}:${user.id}`);
+  }
+
+  // Purchase nudge — step3, zero credits, has had at least one session
+  if (
+    user.reengagement_step === 'step3_incomplete' &&
+    user.first_session_completed_at &&
+    parseInt(user.credits_balance || '0', 10) === 0
+  ) {
+    return sendNudge(user, 'reengagement_purchase', 'reengagement_purchase', {}, '/credits', `${ref}:${user.id}`);
+  }
+
+  return false;
+}
+
 // ─── First-call nudge: fires once, 24-48h after signup, zero activity ────────
 // Pre-pipeline — checked before Pipeline A or B.
 
@@ -369,13 +412,17 @@ async function runReengagementJob() {
   const { rows: users } = await query(
     `SELECT u.id, u.fcm_token, u.streak_count, u.created_at,
             u.last_reengagement_push_at, u.engagement_segment,
+            u.reengagement_step, u.onboarding_completed_at,
+            u.first_session_completed_at, u.last_session_at,
+            COALESCE(cr.balance, 0) AS credits_balance,
             MAX(m.created_at) AS last_mood_at
      FROM users u
      LEFT JOIN moods m ON m.user_id = u.id
+     LEFT JOIN credits cr ON cr.user_id = u.id
      WHERE u.is_active = true
        AND u.role = 'member'
        AND u.fcm_token IS NOT NULL
-     GROUP BY u.id`
+     GROUP BY u.id, cr.balance`
   );
 
   let sent = 0;
@@ -384,11 +431,14 @@ async function runReengagementJob() {
     try {
       if (hadRecentPush(user)) continue;
 
+      // Pipeline F: funnel-step nudges (step1/step2/step3/purchase)
+      let fired = await runFunnelNudge(user);
+
       // First-call nudge: once only, 24-48h after signup, zero activity
-      const firstCallRef = await checkFirstCallNudge(user);
-      let fired = firstCallRef
-        ? await sendNudge(user, 'first_call_nudge', 'first_call_nudge', {}, '/peer', `firstcall:${user.id}`)
-        : false;
+      if (!fired) {
+        const firstCallRef = await checkFirstCallNudge(user);
+        if (firstCallRef) fired = await sendNudge(user, 'first_call_nudge', 'first_call_nudge', {}, '/peer', `firstcall:${user.id}`);
+      }
 
       // Pipeline A: event-driven, all users
       if (!fired) fired = await runPipelineA(user);

@@ -93,6 +93,17 @@ router.post('/persona', auth, async (req, res) => {
     [req.user.id]
   );
 
+  // Funnel step hook: onboarding complete → step2
+  try {
+    await query(
+      `UPDATE users SET onboarding_completed_at = NOW(), reengagement_step = 'step2_incomplete'
+       WHERE id = $1 AND onboarding_completed_at IS NULL`,
+      [req.user.id]
+    );
+  } catch (e) {
+    console.error('[reengagement-hook/persona]', e.message);
+  }
+
   return res.status(201).json({ persona_id: personaRows[0].id });
 });
 

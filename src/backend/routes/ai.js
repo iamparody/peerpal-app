@@ -539,6 +539,25 @@ router.post('/session/:id/end', auth, async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
 
+  // Funnel step hook: first session → step3; second session within 7 days → converted
+  try {
+    await query(
+      `UPDATE users SET
+         last_session_at = NOW(),
+         first_session_completed_at = COALESCE(first_session_completed_at, NOW()),
+         reengagement_step = CASE
+           WHEN first_session_completed_at IS NULL THEN 'step3_incomplete'
+           WHEN reengagement_step = 'step3_incomplete'
+                AND first_session_completed_at >= NOW() - INTERVAL '7 days' THEN 'converted'
+           ELSE reengagement_step
+         END
+       WHERE id = $1`,
+      [req.user.id]
+    );
+  } catch (e) {
+    console.error('[reengagement-hook/ai-end]', e.message);
+  }
+
   const sessionData = sessionCache.get(req.params.id);
   sessionCache.delete(req.params.id);
 

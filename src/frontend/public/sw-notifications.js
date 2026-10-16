@@ -228,6 +228,42 @@
       renotify: false,
       actions: [{ action: 'topup', title: 'Top up' }],
     },
+
+    reengagement_step1: {
+      title: () => 'Your companion is waiting',
+      body: () => 'It only takes 2 minutes to set up. Come say hello.',
+      vibrate: [100],
+      requireInteraction: false,
+      renotify: false,
+      actions: [],
+    },
+
+    reengagement_step2: {
+      title: () => "Your companion hasn't heard from you yet",
+      body: () => 'How are you doing today? Start a conversation.',
+      vibrate: [100],
+      requireInteraction: false,
+      renotify: false,
+      actions: [],
+    },
+
+    reengagement_step3: {
+      title: () => "It's been a while",
+      body: () => "We've been thinking about you. How are you?",
+      vibrate: [100],
+      requireInteraction: false,
+      renotify: false,
+      actions: [],
+    },
+
+    reengagement_purchase: {
+      title: () => 'Keep the momentum going',
+      body: () => "You've used your free credits. Top up from KSh 100.",
+      vibrate: [100],
+      requireInteraction: false,
+      renotify: false,
+      actions: [{ action: 'topup', title: 'Top up' }],
+    },
   };
 
   // Fallback for any type not in the map above. title/body come from the FCM data
@@ -264,6 +300,10 @@
     unmatched_request:       '/peer',
     trial_reminder:          '/credits',
     trial_expired:           '/credits',
+    reengagement_step1:      '/onboarding/persona',
+    reengagement_step2:      '/ai-chat',
+    reengagement_step3:      '/dashboard',
+    reengagement_purchase:   '/credits',
   };
 
   const ACTION_ROUTES = {

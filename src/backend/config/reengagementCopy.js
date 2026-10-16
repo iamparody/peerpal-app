@@ -87,6 +87,22 @@ const COPY = {
     { title: "You've been showing up",   body: "Peer support is powerful. A therapist can go even deeper." },
     { title: "Ready for the next step?", body: "You've used peer support. A therapist can help you go further." },
   ],
+
+  reengagement_step1: [
+    { title: "Your companion is waiting", body: "It only takes 2 minutes to set up. Come say hello." },
+  ],
+
+  reengagement_step2: [
+    { title: "Your companion hasn't heard from you yet", body: "How are you doing today? Start a conversation." },
+  ],
+
+  reengagement_step3: [
+    { title: "It's been a while", body: "We've been thinking about you. How are you?" },
+  ],
+
+  reengagement_purchase: [
+    { title: "Keep the momentum going", body: "You've used your free credits. Top up from KSh 100." },
+  ],
 };
 
 function getReengagementCopy(type, vars = {}) {

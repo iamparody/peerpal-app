@@ -177,6 +177,13 @@ router.post('/payment-webhook', async (req, res) => {
             ($1, 'credit_purchase_confirmed', $2, 'in_app')`,
     [user_id, notifPayload]
   ).catch((e) => console.error('[credits/payment-webhook] notify error:', e.message));
+
+  // Funnel step hook: purchase → converted
+  await query(
+    `UPDATE users SET reengagement_step = 'converted'
+     WHERE id = $1 AND reengagement_step != 'converted'`,
+    [user_id]
+  ).catch((e) => console.error('[reengagement-hook/purchase]', e.message));
 });
 
 module.exports = router;
