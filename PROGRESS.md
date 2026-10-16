@@ -11,9 +11,11 @@
 ---
 
 ## Current Phase
-**Phase 50 — Peer-Request Push Reliability — CODE COMPLETE, NOT DEPLOYED (branch `feature/peer-request-push`)**
+**Phase 51 — Therapist Session: Full Meeting Controls + Private Notes Panel**
 
-**NEXT ACTION → Phase 50.4: get the Firebase service account from the cofounder, set FCM_SERVICE_ACCOUNT_PATH in local src/backend/.env (comment out the placeholder FCM_SERVICE_ACCOUNT_JSON), re-run the device checklist, then merge fix/trial-promo-crash first and this branch second.** Migrations 105 and 106 are already applied to live Supabase (2026-10-15). Local push never delivered: the local .env FCM key is a placeholder (trace shows fcm=off(NOT DELIVERED)). Verified locally: routing, eligibility, in-app notifications, ledger, accept flow.
+**NEXT ACTION → Phase 51.1: open `src/therapist/src/components/SessionRoom.jsx` and add the enhanced control bar (speaker volume slider, mic/camera/speaker device selectors, speaking indicator). Then 51.2: add the therapist-only notes drawer. Then 51.3: build + verify in browser at localhost:5176.**
+
+Phase 50 device check is still pending (FCM key placeholder). Get the real Firebase service account from the cofounder and complete Phase 50.4 before declaring Phase 50 fully done.
 
 ### Phase 50 (2026-10-15)
 - Design + deploy order: `docs/peer-request-push.md`. Migration 105 MUST run before the backend deploy.

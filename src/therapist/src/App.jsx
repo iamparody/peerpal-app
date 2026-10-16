@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen      from './components/LoginScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
+import SetPasswordScreen from './screens/SetPasswordScreen';
 import DashboardTab from './tabs/DashboardTab';
 import SessionsTab  from './tabs/SessionsTab';
 import ScheduleTab  from './tabs/ScheduleTab';
@@ -204,6 +205,15 @@ function TherapistShell() {
 
 function AppInner() {
   const { therapist, loading } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
+
+  // Invite link: therapist portal URL has ?set_password=<token>
+  const params = new URLSearchParams(window.location.search);
+  const inviteToken = params.get('set_password');
+  if (inviteToken && !showLogin) {
+    return <SetPasswordScreen token={inviteToken} onDone={() => setShowLogin(true)} />;
+  }
+
   if (loading) return (
     <div style={{
       display: 'flex',

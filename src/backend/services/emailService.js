@@ -155,8 +155,15 @@ async function sendPasswordResetEmail(email, alias, token) {
 }
 
 async function sendTherapistInvite(email, displayName, token) {
-  const link = `${getAppUrl()}/reset-password?token=${token}`;
+  const portalUrl = (process.env.THERAPIST_PORTAL_URL || '').trim() || getAppUrl();
+  const link = `${portalUrl}?set_password=${token}`;
   await enqueueEmail(email, 'Welcome to PeerPal — set your password', inviteTherapistTemplate(displayName, link));
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, deliverEmail };
+async function sendTherapistPasswordReset(email, displayName, token) {
+  const portalUrl = (process.env.THERAPIST_PORTAL_URL || '').trim() || getAppUrl();
+  const link = `${portalUrl}?set_password=${token}`;
+  await enqueueEmail(email, 'Reset your PeerPal therapist password', inviteTherapistTemplate(displayName, link));
+}
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, sendTherapistPasswordReset, deliverEmail };

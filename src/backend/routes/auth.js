@@ -13,7 +13,7 @@ const {
   clearLoginRecord,
   checkResendLimit,
 } = require('../middleware/rateLimit');
-const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
+const { sendVerificationEmail, sendPasswordResetEmail, sendTherapistPasswordReset } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -254,12 +254,12 @@ router.post('/recover', authLimiter, async (req, res) => {
   if (!email) return res.status(200).json({ message: 'If that email exists, a reset link has been sent' });
 
   const { rows } = await query(
-    'SELECT id, alias FROM users WHERE email = $1 AND is_active = true',
+    'SELECT id, alias, role FROM users WHERE email = $1 AND is_active = true',
     [email.toLowerCase().trim()]
   );
 
   if (rows.length > 0) {
-    const { id: userId, alias } = rows[0];
+    const { id: userId, alias, role } = rows[0];
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetHash = hashToken(resetToken);
 
@@ -270,7 +270,11 @@ router.post('/recover', authLimiter, async (req, res) => {
     );
 
     try {
-      await sendPasswordResetEmail(email.toLowerCase().trim(), alias, resetToken);
+      if (role === 'therapist') {
+        await sendTherapistPasswordReset(email.toLowerCase().trim(), alias, resetToken);
+      } else {
+        await sendPasswordResetEmail(email.toLowerCase().trim(), alias, resetToken);
+      }
     } catch (err) {
       console.error('Password reset email failed:', err.message);
     }

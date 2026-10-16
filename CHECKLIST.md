@@ -287,6 +287,174 @@
 
 ---
 
+## Phase 51 — Therapist Session: Full Meeting Controls + Private Notes Panel
+
+> Scope: `src/therapist/src/components/SessionRoom.jsx` only (therapist portal). No backend changes required — notes are never transmitted. Member app is not touched.
+
+### 51.1 Enhanced media control bar
+
+Existing controls (mic mute, camera toggle, end call) stay in place. Add:
+
+- [ ] **Speaker/volume slider** — range input (0–1) bound to `remoteVideoRef.current.volume`; mute-icon click sets volume to 0, drag restores last non-zero value
+- [ ] **Mic device selector** — dropdown populated from `navigator.mediaDevices.enumerateDevices()` filtered to `audioinput`; selecting a device re-acquires the local stream with `{ audio: { deviceId: { exact: id } } }` and replaces the sender track on the peer connection
+- [ ] **Camera device selector** (video sessions only, i.e. `isVideo === true`) — dropdown from `videoinput` devices; same re-acquire + replace-sender-track pattern
+- [ ] **Speaker output selector** — dropdown from `audiooutput` devices; calls `remoteVideoRef.current.setSinkId(deviceId)` (Chrome/Edge); hide the dropdown when `setSinkId` is not supported (`'setSinkId' in HTMLMediaElement.prototype === false`)
+- [ ] **Speaking indicator** — animated ring on the remote video when remote audio level is above threshold; implemented with `AnalyserNode` on the remote stream (no extra permissions needed)
+- [ ] Control bar layout: Zoom-style horizontal row centred at the bottom; group device selectors into a `⌄` chevron next to each primary button (no separate settings page)
+- [ ] All controls degrade gracefully when the session is audio-only (`isVideo === false`): camera selector hidden, volume/speaker controls still shown
+
+### 51.2 Therapist private notes panel
+
+- [ ] **Notes toggle button** in the control bar (notepad icon); shown only in the therapist portal — this component only renders inside `src/therapist/`
+- [ ] Panel renders as a right-side drawer (320 px wide, full session height); does not obscure the remote video (remote video shrinks from 100% width to `calc(100% - 320px)`)
+- [ ] Plain `<textarea>` — no formatting toolbar, no markdown rendering, no transcription, no AI assist
+- [ ] Notes auto-saved to `localStorage` keyed by `session_notes_${booking.id}` on every `onChange` (debounced 500 ms)
+- [ ] Notes are pre-loaded from `localStorage` when the panel opens (therapist can leave and re-open the panel mid-session without losing text)
+- [ ] On session end (`handleEndSession`) notes are **not** cleared automatically — therapist may need them after the call ends
+- [ ] A "Clear notes" button inside the panel lets the therapist explicitly wipe `localStorage` for that booking
+- [ ] Notes are **never sent to the backend** — no API calls from the panel
+- [ ] Panel header: "Session notes · visible only to you" to make the privacy guarantee explicit
+- [ ] Keyboard shortcut `Alt+N` toggles the panel open/closed
+
+### 51.3 Build + verification
+
+- [ ] `cd src/therapist && npm run build` — zero TS/lint errors
+- [ ] Verify in browser (localhost:5176): join a test session, confirm all device selectors populate, volume slider changes remote audio, panel opens/closes, notes survive a panel close/reopen, notes persist after page refresh
+- [ ] Confirm notes panel does not appear in `src/frontend/` (member app) — grep for `session_notes_` returning zero hits outside `src/therapist/`
+- [ ] Commit when all items above are checked
+
+---
+
+## Phase 52 — Production Infrastructure & Operational Maturity
+
+> Goal: move from "commit → prod" to a hardened, observable, recoverable deployment pipeline. Items are ordered by dependency — complete each group before the next.
+
+---
+
+### 52.1 Containerization
+
+- [ ] `src/backend/Dockerfile` — multi-stage build (builder installs devDeps, final image copies only prod files); base `node:20-alpine`; non-root user (`node`); exposes port 3001
+- [ ] `.dockerignore` — exclude `node_modules`, `.env`, `*.local`, `dist`, `coverage`, `migrations/*.sql` test fixtures
+- [ ] `docker-compose.yml` at repo root — services: `backend` (build from Dockerfile), `redis` (redis:7-alpine), `postgres` (postgres:16-alpine with `DATABASE_URL` wired); volumes for postgres data persistence
+- [ ] `GET /health` endpoint — returns `{ status: "ok", db: "ok"|"error", redis: "ok"|"error", uptime_seconds }` by running `SELECT 1` and a Redis PING; used by Docker health check and load balancer
+- [ ] Verify: `docker compose up` brings backend up, `/health` returns 200, migrations run cleanly inside container
+
+### 52.2 Staging environment
+
+- [ ] Create a second Render web service (`peerpal-staging`) using the same Dockerfile; set `NODE_ENV=staging`; point at a separate Supabase project (or a `staging` schema with row isolation)
+- [ ] Create matching staging Vercel projects for frontend, admin, therapist portals; set `VITE_API_URL` to the staging backend URL
+- [ ] Add `STAGING_URL` and `PRODUCTION_URL` to `.env.example`
+- [ ] GitHub branch protection on `main`: require passing CI check + at least 1 approving review before merge
+- [ ] Document staging vs production env var differences in `docs/environments.md`
+- [ ] Smoke-test checklist for staging: register → verify email → book session → push notification → AI response; run before every production deploy
+
+### 52.3 CI/CD (GitHub Actions)
+
+- [ ] `.github/workflows/ci.yml` — triggers on PR to `main`; jobs: `lint` (`eslint`), `test` (`npm run test:ledger`, `npm run test:push`, frontend tests), `build` (`docker build`) — all must pass before merge
+- [ ] `.github/workflows/deploy-staging.yml` — triggers on push to `main`; deploys to Render staging via deploy hook; runs smoke-test script after deploy; fails the workflow if smoke test fails
+- [ ] `.github/workflows/deploy-production.yml` — triggers on GitHub Release published (manual gate); deploys to Render production; requires a passing staging deploy in the last 24 h (enforced via workflow condition)
+- [ ] Secrets stored in GitHub Actions secrets (never in workflow YAML): `RENDER_DEPLOY_HOOK_STAGING`, `RENDER_DEPLOY_HOOK_PROD`, `SUPABASE_SERVICE_KEY`
+- [ ] Vercel preview deployments auto-enabled for frontend PRs (zero config once Vercel GitHub app is installed)
+
+### 52.4 Structured logging
+
+- [ ] Install `pino` + `pino-http` in `src/backend`
+- [ ] Replace all `console.log/warn/error` calls with the pino logger instance; log level controlled by `LOG_LEVEL` env var (default `info` in prod, `debug` in dev)
+- [ ] Request middleware assigns a `requestId` (UUID v4) to every incoming request; propagated in log lines and returned as `X-Request-Id` response header
+- [ ] Log fields: `{ level, time, requestId, userId?, route, method, statusCode, durationMs }` — no raw email, no password, no JWT
+- [ ] In production: pipe logs to Render log drain (Logtail or Papertrail) for search and retention
+
+### 52.5 Monitoring & alerting
+
+- [ ] Install Sentry Node SDK in backend; install Sentry React SDK in all three frontends; DSN in `.env`/`.env.example`
+- [ ] Sentry captures unhandled exceptions and rejected promises; `userId` set on scope after auth middleware (alias only, not email)
+- [ ] Uptime monitor on `/health` via BetterUptime or UptimeRobot; alert on 2 consecutive failures (email + Slack/WhatsApp)
+- [ ] Render auto-restart on crash already enabled — verify it is on for both staging and production services
+- [ ] Alert thresholds (set in Sentry or log drain): error rate > 1 % over 5 min; DB connection wait > 500 ms; p99 response time > 2 s on any route
+
+### 52.6 P99 latency baseline
+
+- [ ] Add response-time middleware (use `pino-http` `responseTime` or a custom `Date.now()` delta); log `durationMs` on every request
+- [ ] Define p99 targets per route group: auth `< 300 ms`, peer-request `< 500 ms`, AI pipeline `< 5 s`, all others `< 200 ms`
+- [ ] Weekly query against log drain (or a cron script) to compute p50/p95/p99 per route and write to `docs/latency-report.md`
+- [ ] If any route exceeds its p99 target: open a bug before the next deploy
+
+### 52.7 Connection pooling
+
+- [ ] Confirm Supabase PgBouncer is enabled in transaction mode on the project dashboard; use the pooler connection string (`port 6543`) in `DATABASE_URL` in production
+- [ ] Set `pg` Pool options in `src/backend/db/index.js`: `max: 10` (safe under Supabase free 60-connection limit with two instances), `idleTimeoutMillis: 30000`, `connectionTimeoutMillis: 5000`
+- [ ] Expose pool stats (`totalCount`, `idleCount`, `waitingCount`) in the `/health` response
+- [ ] Alert (Sentry custom metric) if `waitingCount > 3` for more than 30 s
+
+### 52.8 N+1 query audit
+
+- [ ] Enable query logging in development: log every SQL statement + duration via `pg` `query` event listener (dev only, behind `NODE_ENV === 'development'` guard)
+- [ ] Audit every route that returns a list: `GET /peer`, `GET /groups`, `GET /admin/users`, `GET /therapist/bookings` — confirm each uses JOINs or `IN (...)`, not a loop of individual SELECTs
+- [ ] Add missing indexes identified during audit (document in a new migration `migrations/107_perf_indexes.sql`); each index must have a `_rollback.sql`
+- [ ] Measure query count before/after audit on the three highest-traffic routes
+
+### 52.9 Circuit breakers
+
+- [ ] Install `opossum` in `src/backend`
+- [ ] Wrap Firebase FCM `enqueuePushNotification` in a circuit breaker: `timeout: 5000`, `errorThresholdPercentage: 50`, `resetTimeout: 30000`; on open: log warning, skip push silently (never block the request path)
+- [ ] Wrap email service (`sendVerificationEmail`, `sendPasswordResetEmail`) in a circuit breaker with the same config
+- [ ] Expose circuit state (`CLOSED`/`OPEN`/`HALF_OPEN`) per breaker in `/health` response
+
+### 52.10 Dead letter queues
+
+- [ ] Migration `108_push_dlq.sql` — table `push_dlq (id, fcm_token_hash, payload jsonb, error text, attempt_count int default 0, next_retry_at timestamptz, created_at timestamptz default now())`; `_rollback.sql` alongside
+- [ ] Migration `109_email_dlq.sql` — table `email_dlq (id, recipient_hash text, template text, payload jsonb, error text, attempt_count int, next_retry_at timestamptz, created_at timestamptz default now())`; `_rollback.sql`
+- [ ] When a push or email fails after circuit breaker opens: write to the relevant DLQ table (token stored as SHA-256 hash, never raw)
+- [ ] `jobs/dlqRetryJob.js` — runs every 5 min; selects rows where `next_retry_at < NOW()` and `attempt_count < 3`; retries with exponential backoff (`attempt_count * 2` minutes); on 3rd failure marks row `failed` and logs to Sentry
+- [ ] Wire `dlqRetryJob` into the scheduler in `src/backend/index.js`
+
+### 52.11 Pub/Sub for WebSocket multi-instance
+
+- [ ] Install `ioredis` (already used for push dedup — reuse the client)
+- [ ] Therapy signaling (`ws/signal.js`): when a message arrives for a session the local instance does not hold, publish to Redis channel `therapy:${sessionId}`; all instances subscribe and forward to the correct local socket
+- [ ] Peer request routing (`peer.js`): replace in-process `Map` tracking available peers with Redis Hash `peer:available` so any instance can read/write availability
+- [ ] Test: start two backend instances locally on ports 3001 and 3002 behind a simple round-robin; confirm signaling messages route correctly across instances
+
+### 52.12 API versioning
+
+- [ ] Mount all existing routers under `/v1` prefix in `src/backend/index.js` (e.g. `app.use('/v1/auth', authRouter)`)
+- [ ] Add redirect middleware: `GET /auth/*` → `GET /v1/auth/*` (301) so old clients degrade gracefully for one release cycle
+- [ ] Update all frontend `VITE_API_URL` usage to append `/v1` to every fetch base path
+- [ ] Document versioning policy in `docs/api-versioning.md`: breaking changes require a new version prefix; additive changes are backwards-compatible within the same version
+
+### 52.13 Blue/green deployment
+
+- [ ] Document blue/green runbook in `docs/deploy-runbook.md`: pre-deploy checklist (migrations applied? smoke test passed? rollback SQL ready?), traffic-switch step, rollback procedure
+- [ ] Render health-check path set to `/health`; Render will not route traffic to a new deploy until `/health` returns 200
+- [ ] Database migrations must be backwards-compatible with the previous backend version (additive only — no DROP COLUMN or type changes in the same deploy as the code that depends on them)
+- [ ] Feature flags via PostHog (already integrated): gate new user-visible features behind a flag so they can be toggled off without a redeploy
+
+### 52.14 Disaster recovery, backups & failover
+
+- [ ] Verify Supabase daily automated backups are enabled and retention is ≥ 7 days; screenshot the dashboard setting and save to `docs/backup-verification.md`
+- [ ] Document point-in-time recovery procedure: how to restore to a specific timestamp using Supabase dashboard or CLI
+- [ ] Conduct one restore drill: restore staging DB from yesterday's backup; verify row counts match; document the result and time taken in `docs/backup-verification.md`
+- [ ] Define RTO (Recovery Time Objective) = 4 hours, RPO (Recovery Point Objective) = 24 hours; document in `docs/disaster-recovery.md`
+- [ ] Render auto-restart covers process-level failover; document manual failover steps (promote staging to production) in the DR doc
+
+### 52.15 Cost optimisation
+
+- [ ] Set Render, Vercel, Supabase, and Redis billing alerts at 80 % of monthly budget; document thresholds in `docs/cost.md`
+- [ ] Review Render instance size monthly: right-size to the smallest plan that keeps p99 within targets
+- [ ] Identify the top 3 most-called DB queries by duration (from query logs); add caching with a 60 s Redis TTL where results are safe to cache (e.g. psychoeducation articles list, group catalogue)
+- [ ] Vercel bandwidth: ensure large static assets (audio files, images) are served from a CDN or Supabase Storage, not bundled into the Vite build
+
+### 52.16 Scale-readiness (plan — implement when traffic warrants)
+
+> These items require documented decisions now but no code until throughput demands it. Revisit when DAU exceeds 10 000 or DB write throughput exceeds 500 req/s.
+
+- [ ] **Partitioning** — document partition key for high-volume tables: `notifications` and `credit_transactions` partitioned by `created_at` (monthly ranges); add to `docs/scale-plan.md`
+- [ ] **Read replica** — Supabase supports read replicas on Pro plan; document which queries (analytics, admin dashboard aggregates) should be routed to the replica; add routing wrapper to `db/index.js` (`queryRead` vs `query`)
+- [ ] **Sharding** — document shard key strategy: `user_id` as the natural shard key for a future horizontal split; no implementation until single-node Supabase is the bottleneck
+- [ ] **Service discovery** — document how to decompose the monolith (e.g. separate AI pipeline service, separate push service) when each component needs independent scaling; name the discovery mechanism (Consul or AWS Cloud Map) for future reference
+
+---
+
 ## Phase 1 — Database Setup & Migrations
 
 ### 1.0 Project Infrastructure
