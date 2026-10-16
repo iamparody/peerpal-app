@@ -1,0 +1,27 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    name: Render production deploy
+    runs-on: ubuntu-latest
+    environment: production   # requires manual approval gate in GitHub → Settings → Environments
+    steps:
+      - name: Trigger deploy
+        run: |
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}"
+
+      - name: Wait for Render to spin up
+        run: sleep 120
+
+      - name: Health check production
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.BACKEND_URL }}/health")
+          echo "Production /health returned HTTP $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Production health check failed"
+            exit 1
+          fi

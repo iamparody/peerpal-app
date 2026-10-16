@@ -1,0 +1,26 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Render staging deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy
+        run: |
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}"
+
+      - name: Wait for Render to spin up
+        run: sleep 90
+
+      - name: Health check staging
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.STAGING_BACKEND_URL }}/health")
+          echo "Staging /health returned HTTP $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Staging health check failed — aborting"
+            exit 1
+          fi
