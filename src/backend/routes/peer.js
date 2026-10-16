@@ -283,6 +283,22 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
     }
   }
 
+  // Funnel step hook — advance both participants
+  const funnelSql = `UPDATE users SET
+     last_session_at = NOW(),
+     first_session_completed_at = COALESCE(first_session_completed_at, NOW()),
+     reengagement_step = CASE
+       WHEN first_session_completed_at IS NULL THEN 'step3_incomplete'
+       WHEN reengagement_step = 'step3_incomplete'
+            AND first_session_completed_at >= NOW() - INTERVAL '7 days' THEN 'converted'
+       ELSE reengagement_step
+     END
+   WHERE id = $1`;
+  await query(funnelSql, [requesterId]).catch((e) => console.error('[reengagement-hook/auto-close requester]', e.message));
+  if (responderId) {
+    await query(funnelSql, [responderId]).catch((e) => console.error('[reengagement-hook/auto-close responder]', e.message));
+  }
+
   // Notify both parties: session ended by time limit
   const endPayload = JSON.stringify({ session_id: sessionId, reason: 'time_limit' });
   await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'in_app')`, [requesterId, endPayload]);
@@ -855,23 +871,20 @@ router.patch('/request/:id/close', auth, async (req, res) => {
     }
   }
 
-  // Funnel step hook: first session → step3; second session within 7 days → converted
-  try {
-    await query(
-      `UPDATE users SET
-         last_session_at = NOW(),
-         first_session_completed_at = COALESCE(first_session_completed_at, NOW()),
-         reengagement_step = CASE
-           WHEN first_session_completed_at IS NULL THEN 'step3_incomplete'
-           WHEN reengagement_step = 'step3_incomplete'
-                AND first_session_completed_at >= NOW() - INTERVAL '7 days' THEN 'converted'
-           ELSE reengagement_step
-         END
-       WHERE id = $1`,
-      [req.user.id]
-    );
-  } catch (e) {
-    console.error('[reengagement-hook/peer-close]', e.message);
+  // Funnel step hook — advance both participants (requester + responder)
+  const funnelHookSql = `UPDATE users SET
+     last_session_at = NOW(),
+     first_session_completed_at = COALESCE(first_session_completed_at, NOW()),
+     reengagement_step = CASE
+       WHEN first_session_completed_at IS NULL THEN 'step3_incomplete'
+       WHEN reengagement_step = 'step3_incomplete'
+            AND first_session_completed_at >= NOW() - INTERVAL '7 days' THEN 'converted'
+       ELSE reengagement_step
+     END
+   WHERE id = $1`;
+  await query(funnelHookSql, [requesterId]).catch((e) => console.error('[reengagement-hook/peer-close requester]', e.message));
+  if (responderId) {
+    await query(funnelHookSql, [responderId]).catch((e) => console.error('[reengagement-hook/peer-close responder]', e.message));
   }
 
   return res.status(200).json({ ended_at: sessionRows[0]?.ended_at });

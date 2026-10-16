@@ -431,14 +431,15 @@ async function runReengagementJob() {
     try {
       if (hadRecentPush(user)) continue;
 
-      // Pipeline F: funnel-step nudges (step1/step2/step3/purchase)
-      let fired = await runFunnelNudge(user);
+      // First-call nudge: once only, 24-48h after signup, zero activity — checked first
+      // so new users are directed to /peer, not /onboarding/persona
+      const firstCallRef = await checkFirstCallNudge(user);
+      let fired = firstCallRef
+        ? await sendNudge(user, 'first_call_nudge', 'first_call_nudge', {}, '/peer', `firstcall:${user.id}`)
+        : false;
 
-      // First-call nudge: once only, 24-48h after signup, zero activity
-      if (!fired) {
-        const firstCallRef = await checkFirstCallNudge(user);
-        if (firstCallRef) fired = await sendNudge(user, 'first_call_nudge', 'first_call_nudge', {}, '/peer', `firstcall:${user.id}`);
-      }
+      // Pipeline F: funnel-step nudges (step1/step2/step3/purchase)
+      if (!fired) fired = await runFunnelNudge(user);
 
       // Pipeline A: event-driven, all users
       if (!fired) fired = await runPipelineA(user);
