@@ -1597,6 +1597,13 @@ router.delete('/therapist/documents/:document_type', therapistAuth, async (req, 
 // ─── PATCH /therapy/therapist/onboarding/complete ─────────────────────────────
 // Validates required onboarding fields, sets onboarding_complete = true.
 router.patch('/therapist/onboarding/complete', therapistAuth, async (req, res) => {
+  if (!req.body.agreement_acknowledged) {
+    return res.status(400).json({
+      error: 'You must accept the Therapist Partnership Agreement to complete onboarding',
+      code: 'AGREEMENT_NOT_ACKNOWLEDGED',
+    });
+  }
+
   const { rows } = await query(
     `SELECT display_name, credentials, languages, session_formats,
             years_experience, category_ids, onboarding_complete

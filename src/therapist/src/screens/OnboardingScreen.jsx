@@ -214,8 +214,9 @@ export default function OnboardingScreen() {
   const [s2, setS2] = useState({ plain_language_intro: '', approach_plain: '', cultural_competencies: '' });
 
   // Step 3 state
-  const [uploads, setUploads] = useState({});
-  const [submitting, setSubmitting] = useState(false);
+  const [uploads, setUploads]             = useState({});
+  const [agreementChecked, setAgreement]  = useState(false);
+  const [submitting, setSubmitting]       = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
 
   // Pre-populate from existing admin-entered data on mount
@@ -286,6 +287,7 @@ export default function OnboardingScreen() {
     for (const d of DOC_TYPES.filter((x) => x.required)) {
       if (!uploads[d.key]?.file) return `${d.label} is required.`;
     }
+    if (!agreementChecked) return 'You must read and accept the Therapist Partnership Agreement to continue.';
     return null;
   }
 
@@ -331,8 +333,8 @@ export default function OnboardingScreen() {
         }
       }
 
-      // Step 3: mark onboarding complete
-      await client.patch('/api/therapy/therapist/onboarding/complete');
+      // Step 3: mark onboarding complete (sends agreement_acknowledged so backend can validate)
+      await client.patch('/api/therapy/therapist/onboarding/complete', { agreement_acknowledged: true });
       refreshProfile();
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Submission failed — please try again.');
@@ -380,6 +382,7 @@ export default function OnboardingScreen() {
       {step === 3 && (
         <Step3
           uploads={uploads} setFile={setFile}
+          agreementChecked={agreementChecked} onAgreementChange={setAgreement}
           error={error} submitting={submitting}
           onBack={() => { setError(''); setStep(2); }}
           onSubmit={handleSubmit}
@@ -567,7 +570,7 @@ function Step2({ s, set, error, onBack, onNext }) {
 // ══════════════════════════════════════════════════════════════════════════
 // Step 3 — Documents
 // ══════════════════════════════════════════════════════════════════════════
-function Step3({ uploads, setFile, error, submitting, onBack, onSubmit }) {
+function Step3({ uploads, setFile, agreementChecked, onAgreementChange, error, submitting, onBack, onSubmit }) {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -595,6 +598,41 @@ function Step3({ uploads, setFile, error, submitting, onBack, onSubmit }) {
         <span style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
           Documents are encrypted in storage and accessible only to verified PeerPal admins for the purpose of credential verification.
         </span>
+      </div>
+
+      {/* Partnership agreement */}
+      <div style={{
+        border: `1.5px solid ${agreementChecked ? 'var(--color-accent)' : 'var(--color-card-border)'}`,
+        borderRadius: 10, padding: '14px 16px', marginBottom: 20,
+        background: agreementChecked ? 'rgba(143,175,154,0.06)' : 'var(--color-main-bg)',
+        transition: 'border-color 0.15s, background 0.15s',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+          Therapist Partnership Agreement
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
+          By checking the box below you confirm that you have read and agree to the{' '}
+          <a
+            href="https://github.com/iamparody/peerpal-app/blob/main/docs/therapist-agreement.md"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}
+          >
+            PeerPal Therapist Partnership Agreement
+          </a>
+          , including the independent contractor terms, 20/80 revenue split, off-platform contact prohibition, and KCPA compliance obligations.
+        </div>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={agreementChecked}
+            onChange={(e) => onAgreementChange(e.target.checked)}
+            style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--color-accent)', width: 16, height: 16 }}
+          />
+          <span style={{ fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+            I have read, understood, and agree to the Therapist Partnership Agreement
+          </span>
+        </label>
       </div>
 
       <ErrorBar msg={error} />
