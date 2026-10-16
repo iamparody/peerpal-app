@@ -23,7 +23,11 @@ function getClient() {
   if (!url || !key) {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set for document storage');
   }
-  _client = createClient(url, key, { auth: { persistSession: false } });
+  const WebSocket = require('ws');
+  _client = createClient(url, key, {
+    auth: { persistSession: false },
+    realtime: { transport: WebSocket },
+  });
   return _client;
 }
 
