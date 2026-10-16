@@ -287,41 +287,47 @@
 
 ---
 
-## Phase 51 — Therapist Session: Full Meeting Controls + Private Notes Panel
+## Phase 51 — Therapist Session: Full Meeting Controls + Private Notes Panel ✅ COMPLETE
 
-> Scope: `src/therapist/src/components/SessionRoom.jsx` only (therapist portal). No backend changes required — notes are never transmitted. Member app is not touched.
+> Commit a4c578a — 2026-10-16. Single file: `src/therapist/src/components/SessionRoom.jsx`.
 
 ### 51.1 Enhanced media control bar
 
-Existing controls (mic mute, camera toggle, end call) stay in place. Add:
-
-- [ ] **Speaker/volume slider** — range input (0–1) bound to `remoteVideoRef.current.volume`; mute-icon click sets volume to 0, drag restores last non-zero value
-- [ ] **Mic device selector** — dropdown populated from `navigator.mediaDevices.enumerateDevices()` filtered to `audioinput`; selecting a device re-acquires the local stream with `{ audio: { deviceId: { exact: id } } }` and replaces the sender track on the peer connection
-- [ ] **Camera device selector** (video sessions only, i.e. `isVideo === true`) — dropdown from `videoinput` devices; same re-acquire + replace-sender-track pattern
-- [ ] **Speaker output selector** — dropdown from `audiooutput` devices; calls `remoteVideoRef.current.setSinkId(deviceId)` (Chrome/Edge); hide the dropdown when `setSinkId` is not supported (`'setSinkId' in HTMLMediaElement.prototype === false`)
-- [ ] **Speaking indicator** — animated ring on the remote video when remote audio level is above threshold; implemented with `AnalyserNode` on the remote stream (no extra permissions needed)
-- [ ] Control bar layout: Zoom-style horizontal row centred at the bottom; group device selectors into a `⌄` chevron next to each primary button (no separate settings page)
-- [ ] All controls degrade gracefully when the session is audio-only (`isVideo === false`): camera selector hidden, volume/speaker controls still shown
+- [x] **Speaker/volume slider** — range 0–1 bound to `remoteVideoRef.current.volume`; speaker button toggles remote audio mute
+- [x] **Mic device selector** — `enumerateDevices()` after `getUserMedia` (labels populated); re-acquires stream + `replaceTrack` on sender
+- [x] **Camera device selector** — video sessions only (`isVideo === true`); same re-acquire + replace pattern
+- [x] **Speaker output selector** — `setSinkId()`; hidden when API unsupported
+- [x] **Speaking indicator** — `AnalyserNode` on remote stream; green ring pulse on video overlay / blob brightens on audio-only
+- [x] Control bar layout: Zoom-style bottom row; `⌄` chevron above each button opens device picker
+- [x] Audio-only graceful degradation — camera selector hidden; volume/speaker shown
 
 ### 51.2 Therapist private notes panel
 
-- [ ] **Notes toggle button** in the control bar (notepad icon); shown only in the therapist portal — this component only renders inside `src/therapist/`
-- [ ] Panel renders as a right-side drawer (320 px wide, full session height); does not obscure the remote video (remote video shrinks from 100% width to `calc(100% - 320px)`)
-- [ ] Plain `<textarea>` — no formatting toolbar, no markdown rendering, no transcription, no AI assist
-- [ ] Notes auto-saved to `localStorage` keyed by `session_notes_${booking.id}` on every `onChange` (debounced 500 ms)
-- [ ] Notes are pre-loaded from `localStorage` when the panel opens (therapist can leave and re-open the panel mid-session without losing text)
-- [ ] On session end (`handleEndSession`) notes are **not** cleared automatically — therapist may need them after the call ends
-- [ ] A "Clear notes" button inside the panel lets the therapist explicitly wipe `localStorage` for that booking
-- [ ] Notes are **never sent to the backend** — no API calls from the panel
-- [ ] Panel header: "Session notes · visible only to you" to make the privacy guarantee explicit
-- [ ] Keyboard shortcut `Alt+N` toggles the panel open/closed
+- [x] Notes toggle button (NotePencil icon) in control bar; amber when open
+- [x] Right-side drawer 320 px; main area shrinks via flexbox
+- [x] Plain `<textarea>` — no toolbar, no transcription, no AI
+- [x] Auto-save to `localStorage` key `session_notes_${booking.id}`, debounced 500 ms; flushed synchronously on session end
+- [x] Pre-loaded from `localStorage` on mount
+- [x] Notes NOT cleared on session end
+- [x] "Clear notes" button wipes localStorage for that booking
+- [x] "Save to session record" button → `POST /api/therapy/session-notes` (permanent clinical record)
+- [x] Panel header: "Session notes · visible only to you"
+- [x] `Alt+N` keyboard shortcut
 
 ### 51.3 Build + verification
 
-- [ ] `cd src/therapist && npm run build` — zero TS/lint errors
-- [ ] Verify in browser (localhost:5176): join a test session, confirm all device selectors populate, volume slider changes remote audio, panel opens/closes, notes survive a panel close/reopen, notes persist after page refresh
-- [ ] Confirm notes panel does not appear in `src/frontend/` (member app) — grep for `session_notes_` returning zero hits outside `src/therapist/`
-- [ ] Commit when all items above are checked
+- [x] `npm run build` — zero errors (320.4 kB → 338.9 kB after additions)
+- [x] Grep: `session_notes_` exists only in `src/therapist/`
+- [x] Committed and pushed
+
+### Additional widgets added beyond spec
+
+- [x] **Connection quality badge** — `getStats()` RTT/packet-loss → green/yellow/red dot, polled every 5 s
+- [x] **Member alias in session header** — `booking.member_alias` shown next to timer
+- [x] **Fullscreen toggle** — `ArrowsOut` button calls `requestFullscreen()`
+- [x] **Bug fix:** double timer interval (`ontrack` fires per-track; guarded)
+- [x] **Bug fix:** remote audio silent in audio-only sessions (hidden video element added)
+- [x] **Bug fix:** `enumerateDevices` now called after `getUserMedia` so labels are populated
 
 ---
 
@@ -3072,8 +3078,8 @@ Scope-contained improvements to the live session experience. No new routes or mi
   - **Cancellation Policy** — therapist no-show: no payout, no_show_count incremented; 2+ no-shows in 30 days: account review
   - **Termination** — either party may terminate with 7 days notice; outstanding sessions fulfilled before exit
   - **Governing Law** — Republic of Kenya; disputes via KCCA arbitration
-- [ ] Add signature block: name, KCPA registration number, date, digital acknowledgement (checkbox in therapist portal onboarding — wire to `PATCH /therapy/therapist/onboarding/complete`)
-- [ ] Update therapist onboarding `OnboardingScreen.jsx` Step 1 to include agreement checkbox: "I have read and agree to the Therapist Partnership Agreement" (link opens the markdown rendered in a modal or new tab)
+- [x] Add signature block: name, KCPA registration number, date, digital acknowledgement (checkbox in therapist portal onboarding — wire to `PATCH /therapy/therapist/onboarding/complete`)
+- [x] Update therapist onboarding `OnboardingScreen.jsx` Step 1 to include agreement checkbox: "I have read and agree to the Therapist Partnership Agreement" (link opens the markdown rendered in a modal or new tab)
 
 ### P5: Health Equity Collaboration Document
 

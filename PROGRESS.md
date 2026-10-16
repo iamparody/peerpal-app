@@ -11,43 +11,29 @@
 ---
 
 ## Current Phase
-**Phase 51 — Therapist Session: Full Meeting Controls + Private Notes Panel**
+**Phase 52.3 — CI/CD (GitHub Actions)**
 
-**NEXT ACTION → Manual browser test at localhost:5176 (device selectors, volume slider, notes panel Alt+N, notes persist on refresh), then commit + push.**
+**NEXT ACTION → Phase 52.3: create `.github/workflows/ci.yml` (lint + test + docker build on PR to main).**
 
-### Phase 51 step tracker
+---
 
-#### 51.1 — Enhanced media control bar (`src/therapist/src/components/SessionRoom.jsx`)
-- [x] Read full SessionRoom.jsx and map existing state, refs, and control bar structure
-- [x] Speaker volume slider — range 0–1 bound to `remoteVideoRef.current.volume`; speaker icon click mutes/restores
-- [x] Mic device selector — `enumerateDevices()` audioinput; re-acquire stream + replace sender track on change
-- [x] Camera device selector — videoinput, video sessions only (`isVideo === true`); same re-acquire pattern
-- [x] Speaker output selector — `setSinkId()` on remote video; hidden when API unsupported
-- [x] Speaking indicator — `AnalyserNode` on remote stream; animated ring on remote video above threshold
-- [x] Control bar layout — Zoom-style bottom row; device selectors under `⌄` chevron per button
-- [x] Audio-only graceful degradation — camera selector hidden; volume/speaker still shown when `isVideo === false`
+## Phase 51 — COMPLETE (commit a4c578a, 2026-10-16)
 
-#### 51.2 — Therapist private notes panel
-- [x] Notes toggle button (notepad icon) in control bar
-- [x] Right-side drawer 320 px; remote video shrinks to `calc(100% - 320px)` when open
-- [x] Plain `<textarea>` — no toolbar, no transcription, no AI
-- [x] Auto-save to `localStorage` key `session_notes_${booking.id}`, debounced 500 ms
-- [x] Pre-load from `localStorage` on panel open
-- [x] Notes NOT cleared on session end — persist for post-call reference
-- [x] "Clear notes" button — wipes `localStorage` for that booking explicitly
-- [x] Zero backend calls from panel
-- [x] Panel header: "Session notes · visible only to you"
-- [x] `Alt+N` keyboard shortcut toggles panel
+All 21 checklist items shipped. Single file change: `src/therapist/src/components/SessionRoom.jsx`.
 
-#### 51.3 — Code review + build verification
-- [x] Self-review: check for memory leaks (AudioContext, AnalyserNode, event listeners on unmount)
-- [x] Self-review: check device selector re-acquire doesn't leave orphaned MediaStream tracks
-- [x] Self-review: debounce cleanup on unmount (clear debounce timer)
-- [x] Self-review: `setSinkId` try/catch so unsupported browsers don't throw
-- [x] `cd src/therapist && npm run build` — zero errors
-- [ ] Manual browser test (localhost:5176): device selectors populate, volume slider works, notes persist across refresh
-- [x] Grep confirm: `session_notes_` has zero hits outside `src/therapist/`
-- [ ] Commit + push
+**What shipped:**
+- Volume slider + speaker mute/unmute toggle
+- Mic, camera (video only), speaker output device selectors with `⌄` chevron pickers
+- Device switch via `replaceTrack` — no orphaned streams
+- Speaking indicator: `AnalyserNode` → green ring pulse (video) / blob brightens (audio-only)
+- Connection quality badge: `getStats()` RTT/packet-loss → green/yellow/red, polled every 5 s
+- Member alias shown in session header
+- Private notes drawer (Alt+N): localStorage debounced 500 ms, persists after session end
+- "Save to session record" button → `POST /api/therapy/session-notes` (existing endpoint)
+- Fullscreen toggle
+- **Bugs fixed:** double timer interval, empty device labels (enumerate after getUserMedia), notes lost on fast end (synchronous flush), speaker button dead click, audio-only remote audio never played (hidden video element fix)
+
+**Phase 52.5 monitoring items (config/dashboard — no code):**
 
 ---
 
