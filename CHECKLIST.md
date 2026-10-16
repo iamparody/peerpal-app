@@ -48,7 +48,7 @@
 
 ---
 
-## Phase 45 — Re-engagement Engine (Funnel-Based)
+## Phase 45 — Re-engagement Engine (Funnel-Based) ✅ COMPLETE
 
 > Users have three steps to get value from PeerPal: (1) complete onboarding → (2) complete first session → (3) return within 7 days (converted). This phase tracks which step each user is on and sends targeted, contextual nudges to move them forward. The goal is conversion and purchase, not just return visits.
 >
@@ -56,34 +56,34 @@
 
 ### 45.1 Schema — Migration
 
-- [ ] Migration: add `onboarding_completed_at TIMESTAMPTZ NULL` to `users` — set when persona + first mood are both done
-- [ ] Migration: add `first_session_completed_at TIMESTAMPTZ NULL` to `users` — set on first peer or AI session end
-- [ ] Migration: add `last_session_at TIMESTAMPTZ NULL` to `users` — updated on every session end (peer or AI)
-- [ ] Migration: add `reengagement_step VARCHAR(30) NOT NULL DEFAULT 'step1_incomplete'` to `users` — values: `step1_incomplete` | `step2_incomplete` | `step3_incomplete` | `converted`
-- [ ] Migration: add `last_reengagement_push_at TIMESTAMPTZ NULL` to `users` — prevents more than one re-engagement push per user per 24 hours (separate from `last_reengagement_push_at` already added in Phase 43 — verify column does not already exist before adding)
-- [ ] Migration: add notification type enum values: `reengagement_step1`, `reengagement_step2`, `reengagement_step3`, `reengagement_purchase`
+- [x] Migration: add `onboarding_completed_at TIMESTAMPTZ NULL` to `users` — set when persona + first mood are both done
+- [x] Migration: add `first_session_completed_at TIMESTAMPTZ NULL` to `users` — set on first peer or AI session end
+- [x] Migration: add `last_session_at TIMESTAMPTZ NULL` to `users` — updated on every session end (peer or AI)
+- [x] Migration: add `reengagement_step VARCHAR(30) NOT NULL DEFAULT 'step1_incomplete'` to `users` — values: `step1_incomplete` | `step2_incomplete` | `step3_incomplete` | `converted`
+- [x] Migration: `last_reengagement_push_at` already added in migration 099 — verified, not duplicated
+- [x] Migration: add notification type enum values: `reengagement_step1`, `reengagement_step2`, `reengagement_step3`, `reengagement_purchase`
 
 ### 45.2 Backend — Step transition hooks
 
-- [ ] `POST /onboarding/persona` success path: after INSERT ai_personas, if `users.onboarding_completed_at IS NULL` → `UPDATE users SET onboarding_completed_at = NOW(), reengagement_step = 'step2_incomplete'`
-- [ ] `POST /ai/session/:id/end` success path: if `users.first_session_completed_at IS NULL` → `UPDATE users SET first_session_completed_at = NOW(), reengagement_step = 'step3_incomplete', last_session_at = NOW()`
-- [ ] `PATCH /peer/request/:id/close` success path (session ended, not cancelled): if `users.first_session_completed_at IS NULL` → same as above. If already set → `UPDATE users SET last_session_at = NOW()`
-- [ ] Conversion trigger: on any session end (peer or AI), if `reengagement_step = 'step3_incomplete'` AND `first_session_completed_at < NOW() - INTERVAL '7 days'` is NOT true (i.e., second session within 7 days of first) → `UPDATE users SET reengagement_step = 'converted'`
-- [ ] Conversion trigger on purchase: `POST /credits/mpesa-callback` success → if `reengagement_step != 'converted'` → `UPDATE users SET reengagement_step = 'converted'`
+- [x] `POST /onboarding/persona` success path: after INSERT ai_personas, if `users.onboarding_completed_at IS NULL` → `UPDATE users SET onboarding_completed_at = NOW(), reengagement_step = 'step2_incomplete'`
+- [x] `POST /ai/session/:id/end` success path: if `users.first_session_completed_at IS NULL` → `UPDATE users SET first_session_completed_at = NOW(), reengagement_step = 'step3_incomplete', last_session_at = NOW()`
+- [x] `PATCH /peer/request/:id/close` success path (session ended, not cancelled): if `users.first_session_completed_at IS NULL` → same as above. If already set → `UPDATE users SET last_session_at = NOW()`
+- [x] Conversion trigger: on any session end (peer or AI), if `reengagement_step = 'step3_incomplete'` AND second session within 7 days of first → `UPDATE users SET reengagement_step = 'converted'`
+- [x] Conversion trigger on purchase: `POST /credits/payment-webhook` success → if `reengagement_step != 'converted'` → `UPDATE users SET reengagement_step = 'converted'`
 
 ### 45.3 Backend — reengagementJob.js (cron, every 2 hours)
 
-- [ ] Create `src/backend/jobs/reengagementJob.js`
-- [ ] **Step 1 nudge** — target: `reengagement_step = 'step1_incomplete'` AND `created_at < NOW() - INTERVAL '24 hours'` AND (`last_reengagement_push_at IS NULL` OR `last_reengagement_push_at < NOW() - INTERVAL '24 hours'`). Message: "Your companion is waiting — it only takes 2 minutes to set up." Action route: `/onboarding/persona`. Notification type: `reengagement_step1`
-- [ ] **Step 2 nudge — first session** — target: `reengagement_step = 'step2_incomplete'` AND `onboarding_completed_at < NOW() - INTERVAL '24 hours'`. Message: "Your companion hasn't heard from you yet. How are you doing today?" Action route: `/ai-chat`. Type: `reengagement_step2`
-- [ ] **Step 2 nudge — 7-day lapse** — target: `reengagement_step = 'step3_incomplete'` AND `first_session_completed_at < NOW() - INTERVAL '7 days'`. Message: "It's been a while — we've been thinking about you. How are you?" Action route: `/dashboard`. Type: `reengagement_step3`
-- [ ] **Purchase nudge** — target: `reengagement_step = 'step3_incomplete'` AND `credits.balance = 0` AND `first_session_completed_at IS NOT NULL`. Message: "You've used your free credits. Keep the momentum going — top up from KSh 100." Action route: `/credits`. Type: `reengagement_purchase`
-- [ ] All nudges: send push + in-app, update `last_reengagement_push_at = NOW()` after send, skip users already notified within 24 hours
-- [ ] Wire `reengagementJob.js` into `server.js` — schedule with node-cron, every 2 hours (`0 */2 * * *`)
+- [x] `src/backend/jobs/reengagementJob.js` already existed — extended with Pipeline F (funnel nudges)
+- [x] **Step 1 nudge** — target: `reengagement_step = 'step1_incomplete'` AND account > 24h old
+- [x] **Step 2 nudge — first session** — target: `reengagement_step = 'step2_incomplete'` AND > 24h since onboarding
+- [x] **Step 2 nudge — 7-day lapse** — target: `reengagement_step = 'step3_incomplete'` AND > 7 days since first session
+- [x] **Purchase nudge** — target: `reengagement_step = 'step3_incomplete'` AND credits balance = 0
+- [x] All nudges: send push + in-app via existing `sendNudge`; 24h dedup via `hadRecentPush` + event_ref unique index
+- [x] `server.js` cron updated from `*/30` to `0 */2` (every 2 hours)
 
 ### 45.4 Notification SW rendering
 
-- [ ] Add `reengagement_step1`, `reengagement_step2`, `reengagement_step3`, `reengagement_purchase` to `NOTIF_TYPES` map in `firebase-messaging-sw.js` with appropriate title/body/vibration (gentle, non-intrusive — no `requireInteraction`)
+- [x] Added `reengagement_step1`, `reengagement_step2`, `reengagement_step3`, `reengagement_purchase` to `NOTIF_TYPES` + `TYPE_ROUTES` in `sw-notifications.js` (gentle, non-intrusive — no `requireInteraction`)
 
 ---
 

@@ -11,9 +11,23 @@
 ---
 
 ## Current Phase
-**Phase 52.3 — CI/CD (GitHub Actions)**
+**Phase 45 — Re-engagement Engine (Funnel-Based)**
 
-**NEXT ACTION → Phase 45: re-engagement engine (migration + route hooks + reengagementJob.js cron).**
+**NEXT ACTION → Phase 46 (assigned to Seka). Otherwise: Phase 52.5 (Sentry DSN + monitoring config) or Phase 52.13 (blue/green runbook).**
+
+### Phase 45 — COMPLETE (commit ce8de01, 2026-10-16)
+
+**What shipped:**
+- Migration 107: `onboarding_completed_at`, `first_session_completed_at`, `last_session_at`, `reengagement_step` columns on `users`; 4 new notification_type enum values
+- Step transition hooks in 4 routes: `POST /onboarding/persona`, `POST /ai/session/:id/end`, `PATCH /peer/request/:id/close`, `POST /credits/payment-webhook`
+- Funnel state advances: persona done → step2; first session done → step3; second session within 7 days OR purchase → converted
+- `reengagementJob.js`: new Pipeline F (funnel nudges) runs before Pipeline A; 4 evaluators for step1/step2/step3/purchase; SELECT updated with new columns + credits balance join
+- `reengagementCopy.js`: copy for all 4 funnel nudge types
+- `sw-notifications.js`: NOTIF_TYPES + TYPE_ROUTES for all 4 funnel types
+- `server.js`: cron updated from `*/30` to `0 */2` (every 2 hours, per spec)
+
+**Owner action — run migration before deploy:**
+`psql $DATABASE_URL -f src/backend/migrations/107_reengagement_funnel.sql`
 
 ### Phase 52.7 — COMPLETE (2026-10-16)
 - `max` pool size reduced 20 → 10 (Supabase free tier safe)
