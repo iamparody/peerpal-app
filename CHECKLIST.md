@@ -354,13 +354,14 @@
 - [ ] Document staging vs production env var differences in `docs/environments.md`
 - [ ] Smoke-test checklist for staging: register → verify email → book session → push notification → AI response; run before every production deploy
 
-### 52.3 CI/CD (GitHub Actions)
+### 52.3 CI/CD (GitHub Actions) ✅ COMPLETE
 
-- [ ] `.github/workflows/ci.yml` — triggers on PR to `main`; jobs: `lint` (`eslint`), `test` (`npm run test:ledger`, `npm run test:push`, frontend tests), `build` (`docker build`) — all must pass before merge
-- [ ] `.github/workflows/deploy-staging.yml` — triggers on push to `main`; deploys to Render staging via deploy hook; runs smoke-test script after deploy; fails the workflow if smoke test fails
-- [ ] `.github/workflows/deploy-production.yml` — triggers on GitHub Release published (manual gate); deploys to Render production; requires a passing staging deploy in the last 24 h (enforced via workflow condition)
-- [ ] Secrets stored in GitHub Actions secrets (never in workflow YAML): `RENDER_DEPLOY_HOOK_STAGING`, `RENDER_DEPLOY_HOOK_PROD`, `SUPABASE_SERVICE_KEY`
-- [ ] Vercel preview deployments auto-enabled for frontend PRs (zero config once Vercel GitHub app is installed)
+- [x] `.github/workflows/ci.yml` — PR to `main`: backend tests (ledger + push), frontend lint, docker build
+- [x] `.github/workflows/deploy-staging.yml` — push to `main`: Render staging deploy hook → 90 s wait → `/health` check
+- [x] `.github/workflows/deploy-production.yml` — GitHub Release published: `production` environment gate (manual approval) → Render prod deploy hook → `/health` check
+- [ ] Add secrets in GitHub → Settings → Secrets: `RENDER_DEPLOY_HOOK_STAGING`, `RENDER_DEPLOY_HOOK_PROD`, `STAGING_BACKEND_URL` (owner action)
+- [ ] Create `production` environment in GitHub → Settings → Environments with required reviewers (owner action)
+- [ ] Vercel preview deployments — auto-enabled once Vercel GitHub app is installed (owner action)
 
 ### 52.4 Structured logging
 

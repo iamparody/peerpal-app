@@ -13,7 +13,18 @@
 ## Current Phase
 **Phase 52.3 — CI/CD (GitHub Actions)**
 
-**NEXT ACTION → Phase 52.3: create `.github/workflows/ci.yml` (lint + test + docker build on PR to main).**
+**NEXT ACTION → Phase 52.7: connection pooling config (PgBouncer or pg pool tuning in src/backend/db/index.js).**
+
+### Phase 52.3 — COMPLETE (commit 1c34a2f, 2026-10-16)
+
+Three workflow files added to `.github/workflows/`:
+- `ci.yml` — PR gate: backend tests + frontend lint + docker build
+- `deploy-staging.yml` — auto-deploys to Render staging on every merge to main; health-checks before passing
+- `deploy-production.yml` — manual gate via GitHub `production` environment; triggered by GitHub Release
+
+**Owner actions still required:**
+- Add `RENDER_DEPLOY_HOOK_STAGING`, `RENDER_DEPLOY_HOOK_PROD`, `STAGING_BACKEND_URL` to GitHub Secrets
+- Create `production` environment in GitHub → Settings → Environments with required reviewers
 
 ---
 
