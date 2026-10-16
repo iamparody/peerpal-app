@@ -13,7 +13,52 @@
 ## Current Phase
 **Phase 51 — Therapist Session: Full Meeting Controls + Private Notes Panel**
 
-**NEXT ACTION → Phase 51.1: open `src/therapist/src/components/SessionRoom.jsx` and add the enhanced control bar (speaker volume slider, mic/camera/speaker device selectors, speaking indicator). Then 51.2: add the therapist-only notes drawer. Then 51.3: build + verify in browser at localhost:5176.**
+**NEXT ACTION → Manual browser test at localhost:5176 (device selectors, volume slider, notes panel Alt+N, notes persist on refresh), then commit + push.**
+
+### Phase 51 step tracker
+
+#### 51.1 — Enhanced media control bar (`src/therapist/src/components/SessionRoom.jsx`)
+- [x] Read full SessionRoom.jsx and map existing state, refs, and control bar structure
+- [x] Speaker volume slider — range 0–1 bound to `remoteVideoRef.current.volume`; speaker icon click mutes/restores
+- [x] Mic device selector — `enumerateDevices()` audioinput; re-acquire stream + replace sender track on change
+- [x] Camera device selector — videoinput, video sessions only (`isVideo === true`); same re-acquire pattern
+- [x] Speaker output selector — `setSinkId()` on remote video; hidden when API unsupported
+- [x] Speaking indicator — `AnalyserNode` on remote stream; animated ring on remote video above threshold
+- [x] Control bar layout — Zoom-style bottom row; device selectors under `⌄` chevron per button
+- [x] Audio-only graceful degradation — camera selector hidden; volume/speaker still shown when `isVideo === false`
+
+#### 51.2 — Therapist private notes panel
+- [x] Notes toggle button (notepad icon) in control bar
+- [x] Right-side drawer 320 px; remote video shrinks to `calc(100% - 320px)` when open
+- [x] Plain `<textarea>` — no toolbar, no transcription, no AI
+- [x] Auto-save to `localStorage` key `session_notes_${booking.id}`, debounced 500 ms
+- [x] Pre-load from `localStorage` on panel open
+- [x] Notes NOT cleared on session end — persist for post-call reference
+- [x] "Clear notes" button — wipes `localStorage` for that booking explicitly
+- [x] Zero backend calls from panel
+- [x] Panel header: "Session notes · visible only to you"
+- [x] `Alt+N` keyboard shortcut toggles panel
+
+#### 51.3 — Code review + build verification
+- [x] Self-review: check for memory leaks (AudioContext, AnalyserNode, event listeners on unmount)
+- [x] Self-review: check device selector re-acquire doesn't leave orphaned MediaStream tracks
+- [x] Self-review: debounce cleanup on unmount (clear debounce timer)
+- [x] Self-review: `setSinkId` try/catch so unsupported browsers don't throw
+- [x] `cd src/therapist && npm run build` — zero errors
+- [ ] Manual browser test (localhost:5176): device selectors populate, volume slider works, notes persist across refresh
+- [x] Grep confirm: `session_notes_` has zero hits outside `src/therapist/`
+- [ ] Commit + push
+
+---
+
+### Phase 52.5 — AI & cost monitoring (alongside Phase 51)
+> PostHog already integrated. Sentry SDK already installed. This sub-phase wires them up properly so AI session costs and errors are visible from day one.
+
+- [ ] Sentry: set `SENTRY_DSN` in Render env; verify errors surface in Sentry dashboard
+- [ ] PostHog AI observability: confirm `privacyMode: true` is set (prompts/responses not stored); verify AI session events appear in PostHog
+- [ ] Uptime monitor: add `/health` endpoint check on BetterUptime or UptimeRobot (free tier); alert on 2 consecutive failures
+- [ ] Render billing alert: set spend alert at $50/month threshold in Render dashboard
+- [ ] Supabase billing alert: set alert at 80% of plan limit in Supabase dashboard
 
 Phase 50 device check is still pending (FCM key placeholder). Get the real Firebase service account from the cofounder and complete Phase 50.4 before declaring Phase 50 fully done.
 
