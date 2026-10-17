@@ -96,6 +96,7 @@ function resetTemplate(alias, link) {
 }
 
 // Direct delivery — called by emailWorker and as fallback when queue is unavailable.
+// Wrapped by circuit breaker in utils/breakers.js — do not call directly from high-traffic paths.
 async function deliverEmail(to, subject, html) {
   if (!process.env.RESEND_API_KEY) {
     if (process.env.NODE_ENV === 'development') {
@@ -117,6 +118,12 @@ async function deliverEmail(to, subject, html) {
   });
 }
 
+// Circuit-breaker-guarded delivery for direct (non-queued) sends.
+async function deliverEmailSafe(to, subject, html) {
+  const { getEmailBreaker } = require('../utils/breakers');
+  await getEmailBreaker().fire(to, subject, html);
+}
+
 // Enqueue for async delivery — fire-and-forget. Returns immediately; email sends in background.
 function enqueueEmail(to, subject, html) {
   const { emailQueue } = require('../queues');
@@ -135,7 +142,7 @@ function enqueueEmail(to, subject, html) {
         logger.warn('[email] Queue unavailable, falling back to direct send:', err.message);
       }
     }
-    await deliverEmail(to, subject, html);
+    await deliverEmailSafe(to, subject, html);
   })().catch(err => logger.error('[email] Delivery failed:', err.message));
   // Caller returns immediately — no await needed
 }
@@ -166,4 +173,4 @@ async function sendTherapistPasswordReset(email, displayName, token) {
   await enqueueEmail(email, 'Reset your PeerPal therapist password', inviteTherapistTemplate(displayName, link));
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, sendTherapistPasswordReset, deliverEmail };
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, sendTherapistPasswordReset, deliverEmail, deliverEmailSafe };

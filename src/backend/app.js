@@ -92,9 +92,17 @@ app.use('/api', apiLimiter);
 app.get('/health', async (_req, res) => {
   try {
     const { query, poolMetrics } = require('./db');
+    const { breakerStats } = require('./utils/breakers');
     const t0 = Date.now();
     await query('SELECT 1');
-    res.json({ status: 'ok', db: 'ok', db_latency_ms: Date.now() - t0, pool: poolMetrics() });
+    res.json({
+      status: 'ok',
+      db: 'ok',
+      db_latency_ms: Date.now() - t0,
+      pool: poolMetrics(),
+      breakers: breakerStats(),
+      uptime_seconds: Math.floor(process.uptime()),
+    });
   } catch {
     res.status(503).json({ status: 'degraded', db: 'error' });
   }
