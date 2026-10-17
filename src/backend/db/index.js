@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Pool } = require('pg');
+const logger = require('../utils/logger');
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -15,7 +16,7 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('[pg-pool] Unexpected client error', err.message);
+  logger.error({ err }, '[pg-pool] Unexpected client error');
 });
 
 // Alert Sentry when pool is saturated (waitingCount > 3) for more than 30 s
@@ -27,7 +28,7 @@ setInterval(() => {
       _saturatedSince = Date.now();
     } else if (Date.now() - _saturatedSince >= 30000) {
       try {
-        const { Sentry } = require('./services/sentry');
+        const { Sentry } = require('../services/sentry');
         Sentry.captureMessage(`[pg-pool] saturated: waitingCount=${waiting} for >30s`, 'warning');
       } catch {}
       _saturatedSince = null; // reset so we don't spam — next alert after another 30 s window
@@ -44,9 +45,9 @@ async function query(text, params) {
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
   if (process.env.NODE_ENV === 'development') {
-    console.log('query', { text: text.slice(0, 80), duration, rows: res.rowCount });
+    logger.debug({ sql: text.slice(0, 80), duration_ms: duration, rows: res.rowCount }, 'query');
   } else if (duration > SLOW_QUERY_MS) {
-    console.warn('[slow-query]', { duration, query: text.slice(0, 120) });
+    logger.warn({ duration_ms: duration, sql: text.slice(0, 120) }, 'slow query');
   }
   return res;
 }
