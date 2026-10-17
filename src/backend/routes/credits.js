@@ -5,6 +5,7 @@ const { paymentLimiter } = require('../middleware/rateLimit');
 const { PACKAGES, getPackages } = require('../utils/daraja');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
 const cache = require('../services/cache');
+const { rewardReferrerOnPurchase } = require('../services/referrals');
 const { randomUUID } = require('crypto');
 
 const router = express.Router();
@@ -197,6 +198,10 @@ router.post('/payment-webhook', async (req, res) => {
      WHERE id = $1 AND reengagement_step != 'converted'`,
     [user_id]
   ).catch((e) => console.error('[reengagement-hook/purchase]', e.message));
+
+  // Phase 46: first confirmed purchase pays the referrer. Non-fatal, idempotent.
+  // Only reached when this fire claimed the pending row, so duplicates never get here.
+  await rewardReferrerOnPurchase(user_id);
 });
 
 module.exports = router;

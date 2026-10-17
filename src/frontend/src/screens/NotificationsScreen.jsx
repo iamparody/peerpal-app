@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Trophy, Handshake, CheckCircle, BookOpen, Stethoscope, Clipboard,
   ChatText, Warning, Bell, BellSlash, Info, Flame, Heart, Robot,
-  CurrencyDollar, Shield, ArrowRight,
+  CurrencyDollar, Shield, ArrowRight, Gift,
 } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
@@ -11,7 +11,7 @@ import client from '../api/client';
 const LANES = [
   { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'peer_matching_update', 'session_confirmation', 'journal_prompt', 'streak_reminder', 'streak_broken', 'dormant_nudge', 'bad_mood_followup', 'session_followup_peer', 'session_followup_therapy', 'unmatched_request', 'low_mood_streak'] },
   { key: 'therapy',  label: 'Therapy',   types: ['therapist_update', 'therapist_nudge', 'therapist_upsell', 'therapy_booking_confirmed', 'therapy_session_reminder', 'therapy_dispute_update', 'referral_status', 'admin_message'] },
-  { key: 'payments', label: 'Payments',  types: ['credit_low', 'credit_zero', 'payment_confirmed'] },
+  { key: 'payments', label: 'Payments',  types: ['credit_low', 'credit_zero', 'payment_confirmed', 'referral_reward_credited'] },
   { key: 'system',   label: 'System',    types: ['ai_dormant', 'no_safety_plan', 'account_notice', 'generic'] },
 ];
 
@@ -44,6 +44,7 @@ const TYPE_META = {
   credit_zero:                { Icon: CurrencyDollar, label: 'Out of credits',       route: '/credits' },
   no_safety_plan:             { Icon: Shield,       label: 'Safety plan',            route: '/safety-plan' },
   therapist_upsell:           { Icon: ArrowRight,   label: 'Ready to go deeper?',   route: '/therapy/browse' },
+  referral_reward_credited:   { Icon: Gift,         label: 'You earned 2 credits',   route: '/profile', highlight: true },
   generic:                    { Icon: Bell,         label: 'Notification',           route: null },
 };
 
@@ -75,13 +76,15 @@ function NotifRow({ notif, onRead }) {
       style={{
         display: 'flex', alignItems: 'flex-start', gap: 12,
         padding: '12px 16px',
-        background: unread ? 'rgba(143,175,154,0.08)' : 'transparent',
+        // Referral rewards stand out from the generic row (Phase 46).
+        background: meta.highlight ? 'var(--color-calm-bg)' : unread ? 'rgba(143,175,154,0.08)' : 'transparent',
         borderBottom: '1px solid var(--color-border)',
+        borderLeft: meta.highlight ? '3px solid var(--color-calm)' : undefined,
         cursor: meta.route ? 'pointer' : 'default',
         transition: 'background 150ms ease',
       }}
     >
-      <Icon size={22} weight="duotone" color="var(--color-accent)" style={{ flexShrink: 0, marginTop: 1 }} />
+      <Icon size={22} weight={meta.highlight ? 'fill' : 'duotone'} color={meta.highlight ? 'var(--color-calm)' : 'var(--color-accent)'} style={{ flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span style={{ fontWeight: unread ? 700 : 500, fontSize: '0.88rem', color: 'var(--color-text-primary)' }}>

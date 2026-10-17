@@ -8,9 +8,13 @@ import App from './App.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import { initSentry } from './services/sentry';
 import { initAnalytics, track } from './lib/analytics';
+import { captureReferralFromUrl } from './utils/referral';
 
 initSentry();
 initAnalytics();
+
+// Phase 46: hold a ?ref= code from a shared link until the user registers.
+try { captureReferralFromUrl(window.location.search, window.localStorage); } catch { /* storage blocked */ }
 
 // Relay notification taps from service worker to PostHog
 if ('serviceWorker' in navigator) {

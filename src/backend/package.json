@@ -9,7 +9,8 @@
     "migrate": "node migrations/run.js",
     "test:ai": "node --test src/backend/ai/*.test.js",
     "test:ledger": "node --test tests/creditLedger.test.js tests/trialExpiry.test.js tests/paymentWebhook.test.js",
-    "test:push": "node --test tests/peerRequestPush.test.js"
+    "test:push": "node --test tests/peerRequestPush.test.js",
+    "test:referrals": "node --test tests/referrals.test.js"
   },
   "engines": {
     "node": ">=20.20.0"

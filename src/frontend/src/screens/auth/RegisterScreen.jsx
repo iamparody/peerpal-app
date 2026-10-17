@@ -2,6 +2,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
+import { track } from '../../lib/analytics';
+import { normalizeReferralCode, getPendingReferral, clearPendingReferral } from '../../utils/referral';
+
+function safeStorage() {
+  try { return window.localStorage; } catch { return null; }
+}
 
 export default function RegisterScreen() {
   const { login } = useAuth();
@@ -16,6 +22,9 @@ export default function RegisterScreen() {
   const [alias, setAlias] = useState('');
   const [revealPhase, setRevealPhase] = useState(0);
   const timerIds = useRef([]);
+  // Phase 46: pre-filled and expanded when the user arrived through a referral link.
+  const [referralCode, setReferralCode] = useState(() => getPendingReferral(safeStorage()) || '');
+  const [referralOpen, setReferralOpen] = useState(() => !!getPendingReferral(safeStorage()));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -25,7 +34,10 @@ export default function RegisterScreen() {
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     setLoading(true);
     try {
-      const { data } = await client.post('/api/auth/register', { email, password });
+      const code = normalizeReferralCode(referralCode);
+      const { data } = await client.post('/api/auth/register', code ? { email, password, referral_code: code } : { email, password });
+      clearPendingReferral(safeStorage());
+      if (code) track('referral_code_submitted');
       login(data.token, { id: data.userId, alias: data.alias, role: data.role, email_verified: false });
       setAlias(data.alias);
       setRevealPhase(1);
@@ -177,6 +189,30 @@ export default function RegisterScreen() {
               : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             }
           </button>
+        </div>
+        <div>
+          {referralOpen ? (
+            <>
+              <label className="label" htmlFor="referral">Referral code</label>
+              <input
+                id="referral" type="text" className="input" value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="e.g. KE7MX2" maxLength={8} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+              />
+              <p style={{ fontSize: 'var(--text-caption)', marginTop: 'var(--space-xs)', color: 'var(--color-text-muted)' }}>
+                {referralCode.trim() && !normalizeReferralCode(referralCode)
+                  ? 'Codes are 6 letters or numbers.'
+                  : 'Optional. You get 1 extra credit to start.'}
+              </p>
+            </>
+          ) : (
+            <button
+              type="button" onClick={() => setReferralOpen(true)} aria-expanded={false} aria-controls="referral"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', fontSize: 14, color: 'var(--color-accent)', fontWeight: 600 }}
+            >
+              Have a referral code?
+            </button>
+          )}
         </div>
         {error && <div className="error-msg">{error}</div>}
         <button type="submit" className="btn btn--primary" disabled={loading || !email || !password || !confirm}>
