@@ -72,6 +72,7 @@ function txLabel(tx) {
     if (tx.channel === 'voice') return 'Peer voice call';
     if (tx.channel === 'referral') return 'Therapist referral';
     if (tx.channel === 'ai') return 'AI session';
+    if (tx.channel === 'trial') return 'Trial credits expired';
     return 'Session';
   }
   return tx.type;

@@ -1,5 +1,5 @@
 ﻿const express = require('express');
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const auth = require('../middleware/auth');
 const { paymentLimiter } = require('../middleware/rateLimit');
 const { PACKAGES, getPackages } = require('../utils/daraja');
@@ -134,41 +134,54 @@ router.post('/payment-webhook', async (req, res) => {
     return;
   }
 
-  // Find the pending transaction — idempotency: WHERE status='pending' exits on duplicate fires
-  const { rows: txRows } = await query(
-    `SELECT id, user_id, amount_credits FROM credit_transactions
-     WHERE payment_reference = $1 AND status = 'pending' LIMIT 1`,
-    [invoiceId]
-  ).catch(() => ({ rows: [] }));
+  // Claim, credit and AI allowance in one transaction. The UPDATE ... AND status = 'pending'
+  // is the idempotency guard: a concurrent duplicate fire blocks on the row lock, re-checks
+  // status after the first commits, matches nothing and exits. (Previously a SELECT then a
+  // separate UPDATE let two fires both see 'pending' and both credit the balance.)
+  // If anything fails the row stays 'pending' and the balance untouched, so it can be reconciled.
+  let claimed;
+  try {
+    const packages = await getPackages();
+    claimed = await transaction(async (tx) => {
+      const { rows } = await tx.query(
+        `UPDATE credit_transactions SET status = 'confirmed'
+         WHERE id = (SELECT id FROM credit_transactions
+                     WHERE payment_reference = $1 AND status = 'pending' LIMIT 1)
+           AND status = 'pending'
+         RETURNING id, user_id, amount_credits`,
+        [invoiceId]
+      );
+      if (!rows.length) return null;
+      const { user_id, amount_credits } = rows[0];
 
-  if (!txRows.length) {
+      const { rowCount } = await tx.query(
+        'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
+        [amount_credits, user_id]
+      );
+      if (!rowCount) throw new Error(`credits row missing for user ${user_id}`);
+
+      // Award AI conversation allowance for the purchased bundle
+      const purchasedPkg = Object.values(packages).find((p) => p.credits === amount_credits);
+      if (purchasedPkg?.ai_conversations) {
+        await tx.query(
+          'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
+          [purchasedPkg.ai_conversations, user_id]
+        );
+      }
+      return rows[0];
+    });
+  } catch (err) {
+    console.error('[credits/payment-webhook] RECONCILIATION NEEDED invoice=%s err=%s', invoiceId, err.message);
+    return;
+  }
+
+  if (!claimed) {
     console.warn('[credits/payment-webhook] no pending transaction for invoice', invoiceId);
     return;
   }
 
-  const { id: transactionId, user_id, amount_credits } = txRows[0];
-
-  // Credit the balance
-  await query(
-    'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
-    [amount_credits, user_id]
-  ).catch((e) => console.error('[credits/payment-webhook] credit error:', e.message));
-
-  // Award AI conversation allowance for the purchased bundle
-  const purchasedPkg = Object.values(await getPackages()).find((p) => p.credits === amount_credits);
-  if (purchasedPkg?.ai_conversations) {
-    await query(
-      'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
-      [purchasedPkg.ai_conversations, user_id]
-    ).catch((e) => console.error('[credits/payment-webhook] AI conv award error:', e.message));
-  }
-
+  const { user_id, amount_credits } = claimed;
   await cache.del(`credits:${user_id}`);
-
-  await query(
-    `UPDATE credit_transactions SET status = 'confirmed' WHERE id = $1 AND user_id = $2`,
-    [transactionId, user_id]
-  ).catch((e) => console.error('[credits/payment-webhook] confirm error:', e.message));
 
   const notifPayload = JSON.stringify({ credits_added: amount_credits });
   await query(
