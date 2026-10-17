@@ -10,10 +10,33 @@
 
 ---
 
+## Fix 2026-10-17 (branch fix/trial-expiry-and-webhook-race)
+- Trial expiry (`jobs/trialDripJob.js`): spending was summed from `amount_credits < 0`, but debits are stored positive (live ledger: 31 debits, min 1), so spent was always 0 and expiry removed min(all trial credits, balance), taking purchased/promo/referral credits. Now debits − refunds since claim, per docs/phase47-spec.md. The removal is written as a `debit`/`trial` ledger row (was unrecorded), which also makes the overlapping 25h window idempotent; notification deduped by event_ref; per-user transaction with row lock; balance cache cleared. No user affected yet (0 trials expired as of 2026-10-17).
+- Payment webhook (`routes/credits.js`): SELECT-then-credit let two concurrent fires both credit a purchase. Now one transaction: atomic `UPDATE ... AND status = 'pending' RETURNING` claim + balance + AI allowance. On failure the row stays pending and logs `RECONCILIATION NEEDED`.
+- CreditsScreen labels the expiry row "Trial credits expired".
+- Tests: `npm run test:ledger` now 23 (7 trial expiry, 6 webhook). The webhook tests fail on the old handler (3/6). Both fixes checked against real Postgres in a rolled-back transaction.
+- No migration. Deploy backend + frontend.
+
+---
+
+## Phase 46 — Referral System (2026-10-17, branch feature/phase46-referrals)
+- Migration 108: `users.referral_code`, `users.referred_by`, `referral_rewards`, enum values `referral_reward` / `referral_reward_credited`.
+- `utils/referralCode.js`, `services/referrals.js`, `GET /api/referrals/my-stats` (replaces the dead Phase 19 therapist-referral route).
+- Register: own code for every account; optional `referral_code` gives +1 credit and a pending reward; bad codes ignored; savepoint so a referral failure never blocks signup.
+- Payment webhook: first confirmed purchase pays the referrer 2 credits, idempotent across duplicate fires, non-fatal.
+- Frontend: Refer a Friend card (Profile), referral expander (Register, pre-filled from `?ref=`), gift-highlighted notification row, SW copy for `referral_reward_credited` → /profile.
+- Decision (Seka): the reward notification never shows the friend's alias (anonymity).
+- Outcome report: `node scripts/referral_report.js [days]`. Design doc: docs/referral-system.md.
+- Tests: backend `npm run test:referrals` (29), frontend `npm test` (33 incl. 7 new).
+- Migrations 107 + 108 applied to live Supabase 2026-10-17 (rehearsed in a rolled-back transaction first; referral SQL verified against real Postgres afterwards).
+- Branch is rebased on fix/trial-expiry-and-webhook-race (shared webhook code): merge the fix branch first.
+
+---
+
 ## Current Phase
 **Phase 45 — Re-engagement Engine (Funnel-Based)**
 
-**NEXT ACTION → Phase 46 (assigned to Seka). Otherwise: Phase 52.5 (Sentry DSN + monitoring config) or Phase 52.13 (blue/green runbook).**
+**NEXT ACTION → Phase 46: browser-verify, then merge fix/trial-expiry-and-webhook-race, then feature/phase46-referrals. Then Phase 52.5 (Sentry DSN + monitoring config) or Phase 52.13 (blue/green runbook).**
 
 ### Phase 45 — COMPLETE (commit ce8de01, 2026-10-16)
 

@@ -229,6 +229,16 @@
       actions: [{ action: 'topup', title: 'Top up' }],
     },
 
+    // Phase 46. Never names the referred friend (aliases are anonymous).
+    referral_reward_credited: {
+      title: (d) => `You earned ${d.credits_awarded || 2} credits`,
+      body: () => 'A friend you invited made their first top-up.',
+      vibrate: [100, 50, 100],
+      requireInteraction: false,
+      renotify: false,
+      actions: [],
+    },
+
     reengagement_step1: {
       title: () => 'Your companion is waiting',
       body: () => 'It only takes 2 minutes to set up. Come say hello.',
@@ -304,6 +314,7 @@
     reengagement_step2:      '/ai-chat',
     reengagement_step3:      '/dashboard',
     reengagement_purchase:   '/credits',
+    referral_reward_credited: '/profile',
   };
 
   const ACTION_ROUTES = {

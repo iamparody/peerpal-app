@@ -89,13 +89,15 @@
 
 ## Phase 46 — Referral System
 
+> Built 2026-10-17 on branch feature/phase46-referrals. Design + deviations: docs/referral-system.md (hook is payment-webhook, not mpesa-callback; notification never names the friend).
+
 > If a user refers someone and that person makes their first credit purchase, the referrer earns 2 credits. The referred user gets +1 bonus credit at signup (3 total instead of 2). No referral link, no money — credits only. Simple, auditable, zero marginal cost.
 
 ### 46.1 Schema — Migration
 
-- [ ] Migration: add `referral_code VARCHAR(10) UNIQUE NULL` to `users` — generated at signup, 6-char uppercase alphanumeric (e.g. `BRIGHT`, `KE7MX2`)
-- [ ] Migration: add `referred_by UUID NULL REFERENCES users(id)` to `users` — set at registration if a valid referral code is provided
-- [ ] Migration: create `referral_rewards` table:
+- [x] Migration: add `referral_code VARCHAR(10) UNIQUE NULL` to `users` — generated at signup, 6-char uppercase alphanumeric (e.g. `BRIGHT`, `KE7MX2`)
+- [x] Migration: add `referred_by UUID NULL REFERENCES users(id)` to `users` — set at registration if a valid referral code is provided
+- [x] Migration: create `referral_rewards` table:
   - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
   - `referrer_user_id UUID NOT NULL REFERENCES users(id)`
   - `referred_user_id UUID NOT NULL REFERENCES users(id)`
@@ -105,31 +107,31 @@
   - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
   - `credited_at TIMESTAMPTZ NULL`
   - `UNIQUE(referrer_user_id, referred_user_id)` — one reward per pair
-- [ ] Migration: add `'referral_reward'` to `credit_tx_type` enum and `'referral'` to `credit_tx_channel` enum (verify not already present from Phase 26)
-- [ ] Migration: add notification type `referral_reward_credited` to `notification_type` enum
+- [x] Migration: add `'referral_reward'` to `credit_tx_type` enum and `'referral'` to `credit_tx_channel` enum (verify not already present from Phase 26)
+- [x] Migration: add notification type `referral_reward_credited` to `notification_type` enum
 
 ### 46.2 Backend — Registration
 
-- [ ] `src/backend/utils/referralCode.js` — `generateReferralCode()`: generates 6-char uppercase base36 string, checks `users.referral_code` for collision, retries up to 5 times
-- [ ] `POST /auth/register`: generate and store `referral_code` for every new user
-- [ ] `POST /auth/register`: accept optional `referral_code` field in body. If provided: look up owner (`SELECT id FROM users WHERE referral_code = $1 AND is_active = true`). If found: set `referred_by = owner.id`, award +1 bonus credit to the new user (total signup bonus becomes 3), INSERT `referral_rewards` record with `status = 'pending'`
-- [ ] Invalid or unknown referral code at registration: silently ignore (do not return error — do not block signup)
+- [x] `src/backend/utils/referralCode.js` — `generateReferralCode()`: generates 6-char uppercase base36 string, checks `users.referral_code` for collision, retries up to 5 times
+- [x] `POST /auth/register`: generate and store `referral_code` for every new user
+- [x] `POST /auth/register`: accept optional `referral_code` field in body. If provided: look up owner (`SELECT id FROM users WHERE referral_code = $1 AND is_active = true`). If found: set `referred_by = owner.id`, award +1 bonus credit to the new user (total signup bonus becomes 3), INSERT `referral_rewards` record with `status = 'pending'`
+- [x] Invalid or unknown referral code at registration: silently ignore (do not return error — do not block signup)
 
 ### 46.3 Backend — Reward trigger
 
-- [ ] `POST /credits/mpesa-callback` success handler: after crediting the user's balance, check if this is their first confirmed purchase (`SELECT COUNT(*) FROM credit_transactions WHERE user_id = $1 AND type = 'purchase' AND status = 'confirmed'` = 1). If yes and `referred_by IS NOT NULL`: find pending `referral_rewards` record for this user → award 2 credits to referrer via `deductCredit` inverse (direct balance UPDATE + credit_transaction INSERT type=`referral_reward`, channel=`referral`) → UPDATE `referral_rewards SET status = 'credited', credited_at = NOW()` → INSERT `referral_reward_credited` notification to referrer: "[Referred user alias] joined using your link — you've earned 2 credits."
-- [ ] Entire reward block wrapped in a DB transaction; failure is non-fatal (purchase still succeeds, reward logged as error)
+- [x] `POST /credits/mpesa-callback` success handler: after crediting the user's balance, check if this is their first confirmed purchase (`SELECT COUNT(*) FROM credit_transactions WHERE user_id = $1 AND type = 'purchase' AND status = 'confirmed'` = 1). If yes and `referred_by IS NOT NULL`: find pending `referral_rewards` record for this user → award 2 credits to referrer via `deductCredit` inverse (direct balance UPDATE + credit_transaction INSERT type=`referral_reward`, channel=`referral`) → UPDATE `referral_rewards SET status = 'credited', credited_at = NOW()` → INSERT `referral_reward_credited` notification to referrer: "[Referred user alias] joined using your link — you've earned 2 credits."
+- [x] Entire reward block wrapped in a DB transaction; failure is non-fatal (purchase still succeeds, reward logged as error)
 
 ### 46.4 Backend — Stats endpoint
 
-- [ ] `GET /referrals/my-stats` (auth required): returns `{ referral_code, total_referred, total_credits_earned, pending_count }`. `total_credited` from SUM of `credits_awarded` WHERE `status = 'credited'`. `pending_count` from COUNT WHERE `status = 'pending'`
+- [x] `GET /referrals/my-stats` (auth required): returns `{ referral_code, total_referred, total_credits_earned, pending_count }`. `total_credited` from SUM of `credits_awarded` WHERE `status = 'credited'`. `pending_count` from COUNT WHERE `status = 'pending'`
 
 ### 46.5 Frontend
 
-- [ ] `ProfileScreen`: add "Refer a Friend" card below the Credits card. Shows referral link (`[APP_URL]/?ref=[code]`), tap-to-copy button, stats row ("N friends referred · N credits earned"). Copy: "Share your link — earn 2 credits when a friend makes their first top-up."
-- [ ] `RegisterScreen`: add optional "Have a referral code?" expander below the main form. Collapsed by default. Expands to a single text input. Passes `referral_code` in the register POST body if filled.
-- [ ] `NotificationsScreen`: `referral_reward_credited` notifications render with a gift icon and distinct highlight — not the generic notification row style
-- [ ] `firebase-messaging-sw.js`: add `referral_reward_credited` to NOTIF_TYPES — title: "You earned 2 credits", body uses `d.referred_alias` if present, route: `/profile`
+- [x] `ProfileScreen`: add "Refer a Friend" card below the Credits card. Shows referral link (`[APP_URL]/?ref=[code]`), tap-to-copy button, stats row ("N friends referred · N credits earned"). Copy: "Share your link — earn 2 credits when a friend makes their first top-up."
+- [x] `RegisterScreen`: add optional "Have a referral code?" expander below the main form. Collapsed by default. Expands to a single text input. Passes `referral_code` in the register POST body if filled.
+- [x] `NotificationsScreen`: `referral_reward_credited` notifications render with a gift icon and distinct highlight — not the generic notification row style
+- [x] `firebase-messaging-sw.js`: add `referral_reward_credited` to NOTIF_TYPES — title: "You earned 2 credits", body uses `d.referred_alias` if present, route: `/profile`
 
 ---
 

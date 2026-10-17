@@ -1,9 +1,11 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Coin, SignOut, Fire, GraduationCap } from '@phosphor-icons/react';
+import { Coin, SignOut, Fire, GraduationCap, Gift, Copy, Check } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
+import { buildReferralLink } from '../utils/referral';
+import { track } from '../lib/analytics';
 
 
 function ProfileSkeleton() {
@@ -48,6 +50,35 @@ export default function ProfileScreen() {
     queryKey: ['peer', 'stats'],
     queryFn: () => client.get('/api/peer/stats').then(r => r.data),
   });
+  const { data: referralStats } = useQuery({
+    queryKey: ['referrals', 'my-stats'],
+    queryFn: () => client.get('/api/referrals/my-stats').then(r => r.data),
+  });
+  const [linkCopied, setLinkCopied] = useState(false);
+  const referralLink = referralStats?.referral_code
+    ? buildReferralLink(referralStats.referral_code, import.meta.env.VITE_APP_URL || window.location.origin)
+    : null;
+
+  async function handleCopyReferral() {
+    if (!referralLink) return;
+    try {
+      await navigator.clipboard.writeText(referralLink);
+    } catch {
+      // Older WebViews: fall back to a temporary textarea.
+      const ta = document.createElement('textarea');
+      ta.value = referralLink;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch { /* nothing else to try */ }
+      document.body.removeChild(ta);
+    }
+    setLinkCopied(true);
+    track('referral_link_copied');
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
   const { data: trainingData } = useQuery({
     queryKey: ['training', 'my-skills'],
     queryFn: () => client.get('/api/training/my-skills').then(r => r.data),
@@ -232,6 +263,40 @@ export default function ProfileScreen() {
             <p style={{ fontSize: 12, color: 'var(--color-danger)', marginTop: 6 }}>Running low — tap "Top up now" to continue using sessions.</p>
           )}
         </div>
+
+        {/* Refer a Friend — Phase 46 */}
+        {referralLink && (
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+              <Gift size={22} weight="duotone" color="var(--color-accent)" aria-hidden="true" />
+              <h3>Refer a Friend</h3>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 'var(--space-sm)' }}>
+              Share your link — earn 2 credits when a friend makes their first top-up.
+            </p>
+            <button
+              type="button"
+              onClick={handleCopyReferral}
+              aria-label={linkCopied ? 'Referral link copied' : 'Copy referral link'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', width: '100%',
+                padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)', textAlign: 'left',
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {referralLink}
+              </span>
+              {linkCopied
+                ? <><Check size={18} weight="bold" color="var(--color-calm)" aria-hidden="true" /><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-calm)' }}>Copied</span></>
+                : <><Copy size={18} color="var(--color-accent)" aria-hidden="true" /><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)' }}>Copy</span></>}
+            </button>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 'var(--space-sm)' }}>
+              {referralStats.total_referred} {referralStats.total_referred === 1 ? 'friend' : 'friends'} referred · {referralStats.total_credits_earned} credits earned
+            </p>
+          </div>
+        )}
 
         {/* Peer Impact — only shown if user has completed any peer sessions */}
         {((peerStats?.sessions_completed ?? 0) > 0 || (peerStats?.pending_credits ?? 0) > 0) && (() => {
