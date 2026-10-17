@@ -102,14 +102,12 @@ async function deliverEmail(to, subject, html) {
   if (!process.env.RESEND_API_KEY) {
     if (process.env.NODE_ENV === 'development') {
       logger.info(`[DEV] Would send email to ${to.slice(0, 3)}***: ${subject}`);
-    } else {
-      logger.error('[email] RESEND_API_KEY not set — email dropped:', subject);
+      return;
     }
-    return;
+    throw new Error('RESEND_API_KEY not configured — email cannot be delivered');
   }
   if (!process.env.EMAIL_FROM) {
-    logger.error('[email] EMAIL_FROM not set — email dropped:', subject);
-    return;
+    throw new Error('EMAIL_FROM not configured — email cannot be delivered');
   }
   await getResend().emails.send({
     from: process.env.EMAIL_FROM,

@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 
 const { createQueueClient } = require('../config/redis');
 const { deliverEmail } = require('../services/emailService');
-const { enqueueDlq } = require('../jobs/dlqRetryJob');
+const { enqueueDlq, isFinalAttempt } = require('../jobs/dlqRetryJob');
 
 function startEmailWorker() {
   const connection = createQueueClient();
@@ -26,7 +26,7 @@ function startEmailWorker() {
   worker.on('failed', (job, err) => {
     logger.error({ jobId: job?.id, attempt: job?.attemptsMade, err }, '[emailWorker] job failed');
     // Write to DLQ only after final BullMQ attempt
-    if (job && job.attemptsMade >= (job.opts?.attempts ?? 1)) {
+    if (isFinalAttempt(job)) {
       enqueueDlq('email', job.data, err.message);
     }
   });

@@ -51,7 +51,7 @@ router.get('/categories', auth, async (req, res) => {
     );
     return res.status(200).json({ categories: rows });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load categories', code: 'QUERY_ERROR' });
   }
 });
@@ -67,7 +67,7 @@ router.delete('/slot-lock/:id', auth, async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: 'Lock not found or not yours', code: 'NOT_FOUND' });
     return res.status(200).json({ released: true });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to release lock', code: 'QUERY_ERROR' });
   }
 });
@@ -109,7 +109,7 @@ router.get('/therapists', auth, async (req, res) => {
     );
     return res.status(200).json({ therapists: rows });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load therapists', code: 'QUERY_ERROR' });
   }
 });
@@ -131,7 +131,7 @@ router.get('/therapists/:id', auth, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
     return res.status(200).json({ therapist: rows[0] });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load therapist', code: 'QUERY_ERROR' });
   }
 });
@@ -202,7 +202,7 @@ router.get('/therapists/:id/availability', auth, async (req, res) => {
 
     return res.status(200).json({ slots });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load availability', code: 'QUERY_ERROR' });
   }
 });
@@ -227,7 +227,7 @@ router.post('/slot-lock', auth, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'This slot is already taken', code: 'SLOT_TAKEN' });
     }
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to acquire slot lock', code: 'QUERY_ERROR' });
   }
 });
@@ -251,7 +251,7 @@ router.post('/consent', auth, async (req, res) => {
     );
     return res.status(200).json({ consented_at: rows[0].therapy_consented_at });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to record consent', code: 'QUERY_ERROR' });
   }
 });
@@ -344,7 +344,7 @@ router.post('/bookings', auth, paymentLimiter, async (req, res) => {
       ...(checkoutUrl ? { checkout_url: checkoutUrl } : {}),
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     if (err.message.includes('IntaSend') || err.message.includes('Paystack')) {
       return res.status(502).json({ error: 'Payment initiation failed. Please try again.', code: 'PAYMENT_ERROR' });
     }
@@ -366,7 +366,7 @@ router.post('/payment-webhook', async (req, res) => {
     if (!rawBody) throw new Error('rawBody not available — check express.json verify callback');
     event = verifyWebhook(rawBody, req.headers);
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return;
   }
 
@@ -481,7 +481,7 @@ router.post('/bookings/:id/retry-payment', auth, paymentLimiter, async (req, res
       ...(checkoutUrl ? { checkout_url: checkoutUrl } : {}),
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     if (err.message.includes('IntaSend') || err.message.includes('Paystack')) {
       return res.status(502).json({ error: 'Payment initiation failed. Please try again.', code: 'PAYMENT_ERROR' });
     }
@@ -508,7 +508,7 @@ router.get('/bookings/drafts', auth, async (req, res) => {
     );
     return res.status(200).json({ drafts: rows });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to fetch drafts', code: 'QUERY_ERROR' });
   }
 });
@@ -523,7 +523,7 @@ router.post('/b2c-callback', async (req, res) => {
   try {
     parsed = parseB2CCallback(req.body);
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return;
   }
 
@@ -565,7 +565,7 @@ router.patch('/bookings/:id/confirm', therapistAuth, async (req, res) => {
     });
     return res.status(200).json({ confirmed_at: new Date().toISOString() });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to confirm booking', code: 'QUERY_ERROR' });
   }
 });
@@ -603,7 +603,7 @@ router.patch('/bookings/:id/decline', therapistAuth, async (req, res) => {
 
     return res.status(200).json({ declined: true });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to decline booking', code: 'QUERY_ERROR' });
   }
 });
@@ -678,7 +678,7 @@ router.patch('/bookings/:id/cancel', auth, async (req, res) => {
           : 'Refund not issued — you have had 2 or more cancellations in the last 30 days.',
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to cancel booking', code: 'QUERY_ERROR' });
   }
 });
@@ -712,7 +712,7 @@ router.get('/bookings', auth, async (req, res) => {
     );
     return res.status(200).json({ bookings: rows });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load bookings', code: 'QUERY_ERROR' });
   }
 });
@@ -743,7 +743,7 @@ router.get('/bookings/stats', auth, async (req, res) => {
       last_session_at:     r.last_session_at,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load stats', code: 'QUERY_ERROR' });
   }
 });
@@ -769,7 +769,7 @@ router.get('/bookings/:id', auth, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Booking not found', code: 'NOT_FOUND' });
     return res.status(200).json({ booking: rows[0] });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load booking', code: 'QUERY_ERROR' });
   }
 });
@@ -849,7 +849,7 @@ router.post('/sessions/start', therapistAuth, async (req, res) => {
       turn_credentials:        turnCredentials,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to start session', code: 'QUERY_ERROR' });
   }
 });
@@ -880,7 +880,7 @@ router.get('/sessions/:booking_id/join', auth, async (req, res) => {
       turn_credentials: turnCredentials,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to join session', code: 'QUERY_ERROR' });
   }
 });
@@ -983,7 +983,7 @@ router.post('/sessions/:id/end', therapistAuth, async (req, res) => {
       full_session: isFullSession,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to end session', code: 'QUERY_ERROR' });
   }
 });
@@ -1063,7 +1063,7 @@ router.post('/ratings', auth, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'You have already rated this session', code: 'ALREADY_RATED' });
     }
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to submit rating', code: 'QUERY_ERROR' });
   }
 });
@@ -1090,7 +1090,7 @@ router.post('/session-notes', therapistAuth, async (req, res) => {
     );
     return res.status(200).json({ saved: true });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to save notes', code: 'QUERY_ERROR' });
   }
 });
@@ -1151,7 +1151,7 @@ router.post('/disputes', auth, async (req, res) => {
 
     return res.status(201).json({ dispute_id: disputeId });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to raise dispute', code: 'QUERY_ERROR' });
   }
 });
@@ -1219,7 +1219,7 @@ router.get('/therapist/dashboard', therapistAuth, async (req, res) => {
       total_ratings_count: profileRes.rows[0]?.total_ratings_count ?? 0,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load dashboard', code: 'QUERY_ERROR' });
   }
 });
@@ -1269,7 +1269,7 @@ router.get('/therapist/bookings', therapistAuth, async (req, res) => {
       total_pages: Math.ceil(parseInt(countRows[0].total) / parseInt(limit)),
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load bookings', code: 'QUERY_ERROR' });
   }
 });
@@ -1301,7 +1301,7 @@ router.get('/therapist/availability', therapistAuth, async (req, res) => {
       bookings: bookingsRes.rows,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load availability', code: 'QUERY_ERROR' });
   }
 });
@@ -1350,7 +1350,7 @@ router.patch('/therapist/availability', therapistAuth, async (req, res) => {
 
     return res.json({ updated: slots.length });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to update availability', code: 'QUERY_ERROR' });
   }
 });
@@ -1406,7 +1406,7 @@ router.get('/therapist/payments', therapistAuth, async (req, res) => {
       page: parseInt(page),
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load payments', code: 'QUERY_ERROR' });
   }
 });
@@ -1451,7 +1451,7 @@ router.get('/therapist/ratings', therapistAuth, async (req, res) => {
       total_ratings_count: profileRows[0]?.total_ratings_count ?? 0,
     });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load ratings', code: 'QUERY_ERROR' });
   }
 });
@@ -1475,7 +1475,7 @@ router.get('/therapist/profile', therapistAuth, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Profile not found', code: 'NOT_FOUND' });
     return res.json({ profile: rows[0] });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to load profile', code: 'QUERY_ERROR' });
   }
 });
@@ -1509,7 +1509,7 @@ router.patch('/therapist/profile', therapistAuth, async (req, res) => {
     );
     return res.json({ updated: true });
   } catch (err) {
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to update profile', code: 'QUERY_ERROR' });
   }
 });
@@ -1569,7 +1569,7 @@ router.post('/therapist/documents/upload', therapistAuth, _upload.single('file')
     return res.status(200).json({ file_path: path });
   } catch (err) {
     const status = err.status || 500;
-    logger.error(err.message);
+    logger.error({ err }, err.message);
     return res.status(status).json({ error: err.message, code: 'UPLOAD_ERROR' });
   }
 });
