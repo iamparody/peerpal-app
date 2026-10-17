@@ -1,5 +1,7 @@
 ﻿const express = require('express');
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const auth = require('../middleware/auth');
 const { paymentLimiter } = require('../middleware/rateLimit');
 const { PACKAGES, getPackages } = require('../utils/daraja');
@@ -88,7 +90,7 @@ router.post('/purchase', auth, paymentLimiter, async (req, res) => {
     paymentRef = result.reference;
     checkoutUrl = result.checkoutUrl;
   } catch (err) {
-    console.error('Credits STK Push failed:', err.message);
+    logger.error('Credits STK Push failed:', err.message);
     return res.status(502).json({ error: 'Could not send M-Pesa prompt. Please try again.', code: 'PAYMENT_ERROR' });
   }
 
@@ -120,7 +122,7 @@ router.post('/payment-webhook', async (req, res) => {
   try {
     event = verifyWebhook(req.rawBody, req.headers);
   } catch (err) {
-    console.error('[credits/payment-webhook] verification failed:', err.message);
+    logger.error('[credits/payment-webhook] verification failed:', err.message);
     return;
   }
 
@@ -130,7 +132,7 @@ router.post('/payment-webhook', async (req, res) => {
     await query(
       `UPDATE credit_transactions SET status = 'failed' WHERE payment_reference = $1 AND status = 'pending'`,
       [invoiceId]
-    ).catch((e) => console.error('[credits/payment-webhook] fail-update error:', e.message));
+    ).catch((e) => logger.error('[credits/payment-webhook] fail-update error:', e.message));
     return;
   }
 
@@ -142,7 +144,7 @@ router.post('/payment-webhook', async (req, res) => {
   ).catch(() => ({ rows: [] }));
 
   if (!txRows.length) {
-    console.warn('[credits/payment-webhook] no pending transaction for invoice', invoiceId);
+    logger.warn('[credits/payment-webhook] no pending transaction for invoice', invoiceId);
     return;
   }
 
@@ -152,7 +154,7 @@ router.post('/payment-webhook', async (req, res) => {
   await query(
     'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
     [amount_credits, user_id]
-  ).catch((e) => console.error('[credits/payment-webhook] credit error:', e.message));
+  ).catch((e) => logger.error('[credits/payment-webhook] credit error:', e.message));
 
   // Award AI conversation allowance for the purchased bundle
   const purchasedPkg = Object.values(await getPackages()).find((p) => p.credits === amount_credits);
@@ -160,7 +162,7 @@ router.post('/payment-webhook', async (req, res) => {
     await query(
       'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
       [purchasedPkg.ai_conversations, user_id]
-    ).catch((e) => console.error('[credits/payment-webhook] AI conv award error:', e.message));
+    ).catch((e) => logger.error('[credits/payment-webhook] AI conv award error:', e.message));
   }
 
   await cache.del(`credits:${user_id}`);
@@ -168,7 +170,7 @@ router.post('/payment-webhook', async (req, res) => {
   await query(
     `UPDATE credit_transactions SET status = 'confirmed' WHERE id = $1 AND user_id = $2`,
     [transactionId, user_id]
-  ).catch((e) => console.error('[credits/payment-webhook] confirm error:', e.message));
+  ).catch((e) => logger.error('[credits/payment-webhook] confirm error:', e.message));
 
   const notifPayload = JSON.stringify({ credits_added: amount_credits });
   await query(
@@ -176,14 +178,14 @@ router.post('/payment-webhook', async (req, res) => {
      VALUES ($1, 'credit_purchase_confirmed', $2, 'push'),
             ($1, 'credit_purchase_confirmed', $2, 'in_app')`,
     [user_id, notifPayload]
-  ).catch((e) => console.error('[credits/payment-webhook] notify error:', e.message));
+  ).catch((e) => logger.error('[credits/payment-webhook] notify error:', e.message));
 
   // Funnel step hook: purchase → converted
   await query(
     `UPDATE users SET reengagement_step = 'converted'
      WHERE id = $1 AND reengagement_step != 'converted'`,
     [user_id]
-  ).catch((e) => console.error('[reengagement-hook/purchase]', e.message));
+  ).catch((e) => logger.error(e.message));
 });
 
 module.exports = router;

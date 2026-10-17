@@ -12,6 +12,8 @@
  */
 
 const router = require('express').Router();
+const logger = require('../utils/logger');
+
 const { query } = require('../db');
 const auth = require('../middleware/auth');
 const { checkPrerequisites, syncPermissions } = require('../services/policyEngine');
@@ -71,7 +73,7 @@ router.get('/skills', async (req, res) => {
 
     res.json({ skills: result });
   } catch (err) {
-    console.error('GET /training/skills', err);
+    logger.error('GET /training/skills', err);
     res.status(500).json({ error: 'Failed to load skills' });
   }
 });
@@ -137,7 +139,7 @@ router.get('/skills/:slug', async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('GET /training/skills/:slug', err);
+    logger.error('GET /training/skills/:slug', err);
     res.status(500).json({ error: 'Failed to load skill' });
   }
 });
@@ -201,7 +203,7 @@ router.post('/skills/:slug/start', async (req, res) => {
       node: stripNodeForClient(startNode),
     });
   } catch (err) {
-    console.error('POST /training/skills/:slug/start', err);
+    logger.error('POST /training/skills/:slug/start', err);
     res.status(500).json({ error: 'Failed to start scenario' });
   }
 });
@@ -307,7 +309,7 @@ router.post('/scenarios/:attemptId/respond', async (req, res) => {
       node: stripNodeForClient(nextNode),
     });
   } catch (err) {
-    console.error('POST /training/scenarios/:attemptId/respond', err);
+    logger.error('POST /training/scenarios/:attemptId/respond', err);
     res.status(500).json({ error: 'Failed to process response' });
   }
 });
@@ -331,7 +333,7 @@ router.post('/scenarios/:attemptId/complete', async (req, res) => {
 
     res.json({ abandoned: true, attempt_id: req.params.attemptId });
   } catch (err) {
-    console.error('POST /training/scenarios/:attemptId/complete', err);
+    logger.error('POST /training/scenarios/:attemptId/complete', err);
     res.status(500).json({ error: 'Failed to complete attempt' });
   }
 });
@@ -360,7 +362,7 @@ router.get('/my-skills', async (req, res) => {
 
     res.json({ skills: rows });
   } catch (err) {
-    console.error('GET /training/my-skills', err);
+    logger.error('GET /training/my-skills', err);
     res.status(500).json({ error: 'Failed to load earned skills' });
   }
 });
@@ -381,7 +383,7 @@ router.get('/my-permissions', async (req, res) => {
 
     res.json({ permissions: rows });
   } catch (err) {
-    console.error('GET /training/my-permissions', err);
+    logger.error('GET /training/my-permissions', err);
     res.status(500).json({ error: 'Failed to load permissions' });
   }
 });
@@ -412,7 +414,7 @@ router.get('/scenarios/:attemptId', async (req, res) => {
       node: stripNodeForClient(currentNode),
     });
   } catch (err) {
-    console.error('GET /training/scenarios/:attemptId', err);
+    logger.error('GET /training/scenarios/:attemptId', err);
     res.status(500).json({ error: 'Failed to resume scenario' });
   }
 });

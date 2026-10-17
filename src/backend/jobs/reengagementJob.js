@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { enqueuePushNotification } = require('../utils/fcm');
 const { getReengagementCopy } = require('../config/reengagementCopy');
 
@@ -59,7 +61,7 @@ async function sendNudge(user, type, notifType, vars = {}, route = '/mood', even
     );
   } catch (err) {
     if (err.code === '23505') {
-      console.log(`[reengagement] duplicate suppressed user=${user.id} type=${notifType} ref=${eventRef}`);
+      logger.info(`[reengagement] duplicate suppressed user=${user.id} type=${notifType} ref=${eventRef}`);
       return false;
     }
     throw err;
@@ -405,7 +407,7 @@ async function runPipelineB(user) {
 
 async function runReengagementJob() {
   if (isQuietHours()) {
-    console.log('[reengagement] quiet hours — skipping run');
+    logger.info('[reengagement] quiet hours — skipping run');
     return;
   }
 
@@ -451,11 +453,11 @@ async function runReengagementJob() {
 
       if (fired) sent++;
     } catch (err) {
-      console.error(`[reengagement] Error processing user ${user.id}:`, err.message);
+      logger.error(`[reengagement] Error processing user ${user.id}:`, err.message);
     }
   }
 
-  console.log(`[reengagement] Sent ${sent} nudges to ${users.length} eligible users`);
+  logger.info(`[reengagement] Sent ${sent} nudges to ${users.length} eligible users`);
 }
 
 module.exports = { runReengagementJob };

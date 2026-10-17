@@ -1,11 +1,13 @@
 const { Worker } = require('bullmq');
+const logger = require('../utils/logger');
+
 const { createQueueClient } = require('../config/redis');
 const { sendPushNotification } = require('../utils/fcm');
 
 function startNotificationWorker() {
   const connection = createQueueClient();
   if (!connection) {
-    console.warn('[notificationWorker] Redis unavailable — worker not started');
+    logger.warn('[notificationWorker] Redis unavailable — worker not started');
     return null;
   }
 
@@ -15,7 +17,7 @@ function startNotificationWorker() {
   }, { connection });
 
   worker.on('failed', (job, err) => {
-    console.error(`[notificationWorker] Job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message);
+    logger.error(`[notificationWorker] Job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message);
   });
 
   return worker;

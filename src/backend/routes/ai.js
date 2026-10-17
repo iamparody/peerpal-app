@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const Groq = require('groq-sdk');
 const { OpenAI } = require('@posthog/ai/openai');
 const { PostHog } = require('posthog-node');
@@ -384,7 +386,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
         [JSON.stringify({ source: 'ai_critical', session_id: req.params.id, risk_signal: detected.risk_signal.value })]
       ),
       persistPipelineRecords(req.params.id, userId, observed, detected, decided, crisisGenerated, sources).catch(
-        (err) => console.error('[pipeline:persist] crisis:', err.message)
+        (err) => logger.error('[pipeline:persist] crisis:', err.message)
       ),
     ]);
 
@@ -409,7 +411,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
   // Delivery guard — FAILED generated output is never returned to the user
   if (!canDeliver(generated)) {
     persistPipelineRecords(req.params.id, userId, observed, detected, decided, generated, sources).catch(
-      (err) => console.error('[pipeline:persist] failed-generation:', err.message)
+      (err) => logger.error('[pipeline:persist] failed-generation:', err.message)
     );
     logPipelineEvents(userId, req.params.id, detected, decided, sources, decidedRaw.effectiveUrgency);
     return res.status(200).json({
@@ -466,7 +468,7 @@ router.post('/session/:id/message', auth, async (req, res) => {
 
   // Persist pipeline records to audit tables — non-fatal on failure
   persistPipelineRecords(req.params.id, userId, observed, detected, decided, generated, sources).catch(
-    (err) => console.error('[pipeline:persist]', err.message)
+    (err) => logger.error(err.message)
   );
 
   // Fire-and-forget observability events
@@ -555,7 +557,7 @@ router.post('/session/:id/end', auth, async (req, res) => {
       [req.user.id]
     );
   } catch (e) {
-    console.error('[reengagement-hook/ai-end]', e.message);
+    logger.error(e.message);
   }
 
   const sessionData = sessionCache.get(req.params.id);
@@ -599,7 +601,7 @@ router.post('/session/:id/end', auth, async (req, res) => {
           );
         }
       } catch (err) {
-        console.error('Session summarisation failed:', err.message);
+        logger.error('Session summarisation failed:', err.message);
       }
     })();
   }

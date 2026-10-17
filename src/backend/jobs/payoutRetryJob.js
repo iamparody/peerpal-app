@@ -1,6 +1,8 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { retryFailedPayout } = require('../utils/therapistPayout');
 
 async function runPayoutRetryJob() {
@@ -14,9 +16,9 @@ async function runPayoutRetryJob() {
   for (const payout of rows) {
     try {
       await retryFailedPayout(payout.id);
-      console.log(`[payoutRetry] Retried payout: ${payout.id}`);
+      logger.info(`[payoutRetry] Retried payout: ${payout.id}`);
     } catch (err) {
-      console.error('[payoutRetry] Error:', payout.id, err.message);
+      logger.error('[payoutRetry] Error:', payout.id, err.message);
     }
   }
 }

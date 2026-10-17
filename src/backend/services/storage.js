@@ -1,6 +1,8 @@
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../utils/logger');
+
 
 const BUCKET = 'therapists-docs';
 
@@ -72,7 +74,7 @@ async function getSignedUrl(path) {
 async function deleteDocument(path) {
   const supabase = getClient();
   const { error } = await supabase.storage.from(BUCKET).remove([path]);
-  if (error) console.warn('[storage] delete failed:', error.message);
+  if (error) logger.warn('[storage] delete failed:', error.message);
 }
 
 module.exports = { uploadDocument, getSignedUrl, deleteDocument, ALLOWED_DOCUMENT_TYPES, BUCKET };

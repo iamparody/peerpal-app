@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const { query } = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const cache = require('../services/cache');
@@ -18,7 +20,7 @@ async function auditLog(adminId, action, targetType, targetId, targetAlias, befo
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [adminId, action, targetType || null, targetId != null ? String(targetId) : null,
      targetAlias || null, beforeValue || null, afterValue || null]
-  ).catch((e) => console.error('[audit]', e.message));
+  ).catch((e) => logger.error(e.message));
 }
 
 // ─── GET /admin/reports ───────────────────────────────────────────────────────
@@ -421,7 +423,7 @@ router.get('/stats/growth', async (req, res) => {
       ai_cost_per_mau_ksh: aiCostPerMau,
     });
   } catch (err) {
-    console.error('stats/growth error:', err.message);
+    logger.error('stats/growth error:', err.message);
     return res.status(500).json({ error: 'Failed to fetch growth stats', code: 'QUERY_ERROR' });
   }
 });
@@ -455,7 +457,7 @@ router.get('/stats/daily', async (req, res) => {
     );
     return res.status(200).json({ days, series: rows });
   } catch (err) {
-    console.error('stats/daily error:', err.message);
+    logger.error('stats/daily error:', err.message);
     return res.status(500).json({ error: 'Failed to fetch daily stats', code: 'QUERY_ERROR' });
   }
 });
@@ -480,7 +482,7 @@ router.get('/users/patterns', async (req, res) => {
     );
     return res.status(200).json({ patterns: rows });
   } catch (err) {
-    console.error('users/patterns error:', err.message);
+    logger.error('users/patterns error:', err.message);
     return res.status(500).json({ error: 'Failed to fetch patterns', code: 'QUERY_ERROR' });
   }
 });
@@ -638,7 +640,7 @@ router.post('/therapists', async (req, res) => {
   try {
     await sendTherapistInvite(email.toLowerCase().trim(), display_name.trim(), inviteToken);
   } catch (err) {
-    console.error('[therapist.invite] Email failed:', err.message);
+    logger.error('[therapist.invite] Email failed:', err.message);
   }
   await auditLog(req.user.id, 'therapist.create', 'therapist', userId, alias, null, email.toLowerCase().trim());
   return res.status(201).json({ therapist_id: profileRows[0].id, alias });
@@ -694,7 +696,7 @@ router.patch('/therapists/:id', async (req, res) => {
     await auditLog(req.user.id, 'therapist.edit', 'therapist', req.params.id, null, null, null);
     return res.status(200).json({ updated: true });
   } catch (err) {
-    console.error('[therapist.edit]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to update therapist', code: 'QUERY_ERROR' });
   }
 });
@@ -776,7 +778,7 @@ router.patch('/therapists/:id/verify', async (req, res) => {
     await auditLog(req.user.id, 'therapist.verify', 'therapist', req.params.id, null, null, allVerified ? 'verified' : 'partial');
     return res.status(200).json({ updated: true, is_verified: Boolean(allVerified) });
   } catch (err) {
-    console.error('[therapist.verify]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: err.message, code: 'QUERY_ERROR' });
   }
 });
@@ -819,7 +821,7 @@ router.patch('/therapists/:id/suspend', async (req, res) => {
       if (!b.member_user_id) return;
       if (b.credit_charged > 0) {
         await refundCredit(b.member_user_id, b.credit_charged, `booking_cancelled:${b.id}`).catch(
-          (e) => console.error('[suspend.refund]', b.id, e.message)
+          (e) => logger.error(b.id, e.message)
         );
       }
       await query(
@@ -832,7 +834,7 @@ router.patch('/therapists/:id/suspend', async (req, res) => {
     await auditLog(req.user.id, 'therapist.suspend', 'therapist', req.params.id, null, null, reason.trim());
     return res.status(200).json({ suspended: true, bookings_cancelled: bookings.length });
   } catch (err) {
-    console.error('[therapist.suspend]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to suspend therapist', code: 'QUERY_ERROR' });
   }
 });
@@ -850,7 +852,7 @@ router.patch('/therapists/:id/unsuspend', async (req, res) => {
     await auditLog(req.user.id, 'therapist.unsuspend', 'therapist', req.params.id, null, null, null);
     return res.status(200).json({ unsuspended: true });
   } catch (err) {
-    console.error('[therapist.unsuspend]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to unsuspend therapist', code: 'QUERY_ERROR' });
   }
 });
@@ -882,7 +884,7 @@ router.get('/therapists/:id/documents', async (req, res) => {
 
     return res.json({ documents: withUrls });
   } catch (err) {
-    console.error('[admin.therapist.documents]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to load documents', code: 'QUERY_ERROR' });
   }
 });
@@ -901,7 +903,7 @@ router.delete('/therapists/:id', async (req, res) => {
     await auditLog(req.user.id, 'therapist.delete', 'therapist', req.params.id, null, null, null);
     return res.status(200).json({ deleted: true });
   } catch (err) {
-    console.error('[therapist.delete]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to delete therapist', code: 'QUERY_ERROR' });
   }
 });
@@ -924,7 +926,7 @@ router.post('/therapists/:id/reset-password', async (req, res) => {
     await auditLog(req.user.id, 'therapist.reset_password', 'therapist', req.params.id, null, null, null);
     return res.status(200).json({ reset_token: token, email: rows[0].email });
   } catch (err) {
-    console.error('[therapist.reset-password]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to generate reset link', code: 'QUERY_ERROR' });
   }
 });
@@ -1521,7 +1523,7 @@ router.get('/config', async (req, res) => {
     );
     return res.json({ config: rows });
   } catch (err) {
-    console.error('admin/config GET error:', err.message);
+    logger.error('admin/config GET error:', err.message);
     return res.status(500).json({ error: 'Failed to fetch config', code: 'QUERY_ERROR' });
   }
 });
@@ -1546,7 +1548,7 @@ router.patch('/config/:key', async (req, res) => {
     await auditLog(req.user.id, `config.update`, 'config', key, key, null, JSON.stringify(value));
     return res.json({ config: rows[0] });
   } catch (err) {
-    console.error('admin/config PATCH error:', err.message);
+    logger.error('admin/config PATCH error:', err.message);
     return res.status(500).json({ error: 'Failed to update config', code: 'QUERY_ERROR' });
   }
 });
@@ -1571,7 +1573,7 @@ router.get('/therapy/disputes', async (req, res) => {
     );
     return res.json({ disputes: rows, count: rows.length });
   } catch (err) {
-    console.error('[admin.therapy.disputes.list]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to load disputes', code: 'QUERY_ERROR' });
   }
 });
@@ -1622,7 +1624,7 @@ router.patch('/therapy/disputes/:id/resolve', async (req, res) => {
       const { refundCredit } = require('../utils/creditDeductor');
       const refundAmt = outcome === 'full_refund' ? disp.credit_charged : Math.ceil(disp.credit_charged / 2);
       await refundCredit(disp.member_user_id, refundAmt, null, 'therapy_dispute_refund',
-        `Dispute resolved: ${outcome}`).catch((e) => console.error('[admin.dispute.refund]', e.message));
+        `Dispute resolved: ${outcome}`).catch((e) => logger.error(e.message));
     }
 
     await auditLog(req.user.id, 'therapy.dispute.resolve', 'dispute', disp.id, null, null,
@@ -1630,7 +1632,7 @@ router.patch('/therapy/disputes/:id/resolve', async (req, res) => {
 
     return res.json({ resolved: true, outcome, dispute_id: disp.id });
   } catch (err) {
-    console.error('[admin.therapy.disputes.resolve]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to resolve dispute', code: 'QUERY_ERROR' });
   }
 });
@@ -1655,7 +1657,7 @@ router.get('/referrals', async (req, res) => {
     );
     return res.json({ referrals: rows });
   } catch (err) {
-    console.error('[admin.referrals.list]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to fetch referrals', code: 'QUERY_ERROR' });
   }
 });
@@ -1687,7 +1689,7 @@ router.patch('/referrals/:id', async (req, res) => {
 
     return res.json({ updated: true, referral: rows[0] });
   } catch (err) {
-    console.error('[admin.referrals.update]', err.message);
+    logger.error(err.message);
     return res.status(500).json({ error: 'Failed to update referral', code: 'QUERY_ERROR' });
   }
 });

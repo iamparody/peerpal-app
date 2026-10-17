@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { query } = require('../db');
@@ -77,7 +79,7 @@ router.post('/', waitlistLimiter, async (req, res) => {
     if (!alreadyJoined && process.env.RESEND_API_KEY && process.env.EMAIL_FROM) {
       // Best-effort confirmation to the new signup — never blocks or fails the signup.
       deliverEmail(email, "You're on the PeerPal waitlist", confirmationHtml())
-        .catch((e) => console.warn('[waitlist] confirmation email failed:', e.message));
+        .catch((e) => logger.warn('[waitlist] confirmation email failed:', e.message));
 
       // Best-effort instant notification to the team.
       deliverEmail(
@@ -86,12 +88,12 @@ router.post('/', waitlistLimiter, async (req, res) => {
         `<p style="font-family:Inter,Arial,sans-serif;font-size:15px;color:#2f2622">
            New waitlist signup: <strong>${escapeHtml(email)}</strong> (source: ${escapeHtml(source)}).
          </p>`
-      ).catch((e) => console.warn('[waitlist] notify email failed:', e.message));
+      ).catch((e) => logger.warn('[waitlist] notify email failed:', e.message));
     }
 
     return res.status(alreadyJoined ? 200 : 201).json({ status: 'ok', already: alreadyJoined });
   } catch (err) {
-    console.error('[waitlist] insert failed:', err.message);
+    logger.error('[waitlist] insert failed:', err.message);
     return res.status(500).json({ error: 'Something went wrong. Please try again.', code: 'SERVER_ERROR' });
   }
 });

@@ -1,13 +1,15 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 async function notifyUser(user_id, type, payload) {
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, $2, $3, 'in_app')`,
     [user_id, type, JSON.stringify(payload)]
-  ).catch((e) => console.error('[memberNoShow:notify]', e.message));
+  ).catch((e) => logger.error('[memberNoShow:notify]', e.message));
 }
 
 async function runMemberNoShowJob() {
@@ -43,9 +45,9 @@ async function runMemberNoShowJob() {
         booking_id: row.id,
       });
 
-      console.log(`[memberNoShow] Processed member no-show: booking ${row.id}`);
+      logger.info(`[memberNoShow] Processed member no-show: booking ${row.id}`);
     } catch (err) {
-      console.error('[memberNoShow] Error:', row.id, err.message);
+      logger.error('[memberNoShow] Error:', row.id, err.message);
     }
   }
 }

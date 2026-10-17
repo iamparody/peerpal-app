@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const { query } = require('../db');
 const auth = require('../middleware/auth');
 
@@ -101,7 +103,7 @@ router.post('/persona', auth, async (req, res) => {
       [req.user.id]
     );
   } catch (e) {
-    console.error('[reengagement-hook/persona]', e.message);
+    logger.error('[reengagement-hook/persona]', e.message);
   }
 
   return res.status(201).json({ persona_id: personaRows[0].id });

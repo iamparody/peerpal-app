@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 // Runs daily at 17:00 UTC (8pm Nairobi EAT = UTC+3).
 // Sends push reminder to active users who haven't checked in today and have reminders enabled.

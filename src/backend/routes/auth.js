@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { query } = require('../db');
@@ -68,7 +70,7 @@ router.post('/register', authLimiter, async (req, res) => {
 
     return res.status(201).json({ token, alias: user.alias, userId: user.id, email_verified: false });
   } catch (err) {
-    console.error('Registration error:', err);
+    logger.error('Registration error:', err);
     if (process.env.NODE_ENV === 'development') {
       return res.status(500).json({ error: err.message, stack: err.stack });
     }
@@ -153,7 +155,7 @@ router.post('/resend-verification', auth, async (req, res) => {
   try {
     await sendVerificationEmail(user.email, user.alias, verifyToken);
   } catch (err) {
-    console.error('Resend verification email failed:', err.message);
+    logger.error('Resend verification email failed:', err.message);
   }
 
   return res.status(200).json({ message: 'Verification email sent' });
@@ -196,14 +198,14 @@ router.post('/login', loginCooldownMiddleware, async (req, res) => {
   }
 
   if (dbMs > 200 || bcryptMs > 600 || (Date.now() - t0) > 1000) {
-    console.warn('[login-perf]', { db_ms: dbMs, bcrypt_ms: bcryptMs, total_ms: Date.now() - t0 });
+    logger.warn({ db_ms: dbMs, bcrypt_ms: bcryptMs, total_ms: Date.now() - t0 });
   }
 
   clearLoginRecord(req.ip);
 
   if (typeof req.body.fcm_token === 'string' && req.body.fcm_token) {
     await assignFcmToken(query, user.id, req.body.fcm_token).catch(
-      (e) => console.warn('[login] fcm token claim failed:', e.message)
+      (e) => logger.warn('[login] fcm token claim failed:', e.message)
     );
   }
 
@@ -241,7 +243,7 @@ router.post('/logout', auth, async (req, res) => {
   );
   // Stop pushes to this device; the next account to log in on it re-registers the token.
   await assignFcmToken(query, req.user.id, null).catch(
-    (e) => console.warn('[logout] fcm token release failed:', e.message)
+    (e) => logger.warn('[logout] fcm token release failed:', e.message)
   );
   return res.status(200).json({ message: 'Logged out successfully' });
 });
@@ -276,7 +278,7 @@ router.post('/recover', authLimiter, async (req, res) => {
         await sendPasswordResetEmail(email.toLowerCase().trim(), alias, resetToken);
       }
     } catch (err) {
-      console.error('Password reset email failed:', err.message);
+      logger.error('Password reset email failed:', err.message);
     }
   }
 

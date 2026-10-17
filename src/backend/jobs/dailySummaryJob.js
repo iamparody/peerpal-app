@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 // Runs daily at 18:00 UTC (9pm Nairobi EAT).
 // Sends a gentle journal prompt to users who had 2+ mood entries today,

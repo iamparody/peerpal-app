@@ -8,6 +8,8 @@
  */
 
 const router = require('express').Router();
+const logger = require('../utils/logger');
+
 const auth = require('../middleware/auth');
 const { getPermissionStatus } = require('../services/policyEngine');
 
@@ -19,7 +21,7 @@ router.get('/permission-status/:permissionSlug', async (req, res) => {
     const result = await getPermissionStatus(req.user.id, req.params.permissionSlug);
     res.json(result);
   } catch (err) {
-    console.error('GET /policy/permission-status', err);
+    logger.error('GET /policy/permission-status', err);
     res.status(500).json({ error: 'Failed to retrieve permission status' });
   }
 });

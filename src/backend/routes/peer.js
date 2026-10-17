@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const { query, getClient } = require('../db');
 const auth = require('../middleware/auth');
 const { ICE_SERVERS } = require('../ws/signaling');
@@ -45,7 +47,7 @@ async function broadcastToUsers(userIds, requestId, channelPreference, topicSlug
   await broadcastPeerRequestPush({
     userIds, requestId, channelPreference, topicLabel, escalateAt,
     query, enqueue: enqueuePushNotification, redis: getRestClient(), pushEnabled: isPushEnabled(),
-  }).catch((err) => console.warn('[broadcast] push error:', err.message));
+  }).catch((err) => logger.warn('[broadcast] push error:', err.message));
 }
 
 // Returns IDs of peers eligible for the specialist tier.
@@ -193,7 +195,7 @@ async function noMorePeers(requestId, requesterId) {
       "Your calm space is ready",
       "We couldn't find a peer right now — tap to find support another way.",
       { type: 'peer_matching_update', cta: 'calm_space' }
-    ).catch(err => console.warn('[noMorePeers] FCM enqueue error:', err.message));
+    ).catch(err => logger.warn('[noMorePeers] FCM enqueue error:', err.message));
   }
 
   // Step 8 — admin escalation notification
@@ -277,7 +279,7 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
       await dbClient.query('COMMIT');
     } catch (err) {
       await dbClient.query('ROLLBACK');
-      console.error('Peer earning error (auto-close):', err.message);
+      logger.error('Peer earning error (auto-close):', err.message);
     } finally {
       dbClient.release();
     }
@@ -294,9 +296,9 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
        ELSE reengagement_step
      END
    WHERE id = $1`;
-  await query(funnelSql, [requesterId]).catch((e) => console.error('[reengagement-hook/auto-close requester]', e.message));
+  await query(funnelSql, [requesterId]).catch((e) => logger.error('[reengagement-hook/auto-close requester]', e.message));
   if (responderId) {
-    await query(funnelSql, [responderId]).catch((e) => console.error('[reengagement-hook/auto-close responder]', e.message));
+    await query(funnelSql, [responderId]).catch((e) => logger.error('[reengagement-hook/auto-close responder]', e.message));
   }
 
   // Notify both parties: session ended by time limit
@@ -412,13 +414,13 @@ router.post('/request', auth, async (req, res) => {
   // The routingJob cron provides a persistent fallback if the server restarts first.
   const broadenTimer = setTimeout(async () => {
     try { await broadenToGeneralTier(requestId, userId); }
-    catch (e) { console.error('Broaden tier error:', e); }
+    catch (e) { logger.error('Broaden tier error:', e); }
   }, 60 * 1000);
 
   const noPeerTimer = setTimeout(async () => {
     routingTimers.delete(requestId);
     try { await noMorePeers(requestId, userId); }
-    catch (e) { console.error('No-peer error:', e); }
+    catch (e) { logger.error('No-peer error:', e); }
   }, 130 * 1000);
 
   routingTimers.set(requestId, { broadenTimer, noPeerTimer });
@@ -583,7 +585,7 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
   } catch (err) {
     // Roll back the lock so another peer can accept
     await query(`UPDATE peer_requests SET status = 'open', accepted_by = NULL, updated_at = NOW() WHERE id = $1`, [requestId]);
-    console.error('Session insert failed, request unlocked:', err.message);
+    logger.error('Session insert failed, request unlocked:', err.message);
     return res.status(500).json({ error: 'Could not create session. Please try again.', code: 'SESSION_CREATE_FAILED' });
   }
 
@@ -625,7 +627,7 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
         `Your peer is ready — ${label} starting`,
         'Tap to join your peer support session.',
         { type: 'session_confirmation', session_id: sessionId, channel: channel_preference, route: `/peer/session/${sessionId}/bridge` }
-      ).catch(err => console.warn('[accept] requester FCM error:', err.message));
+      ).catch(err => logger.warn('[accept] requester FCM error:', err.message));
     }
   }
 
@@ -636,13 +638,13 @@ router.patch('/request/:id/accept', auth, async (req, res) => {
       const warnPayload = JSON.stringify({ session_id: sessionId, minutes_remaining: 5, extendable: true });
       await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'push')`, [requesterId, warnPayload]);
       await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'push')`, [responderId, JSON.stringify({ session_id: sessionId, minutes_remaining: 5 })]);
-    } catch (e) { console.error('Session warning error:', e); }
+    } catch (e) { logger.error('Session warning error:', e); }
   }, SESSION_WARNING_MS);
 
   const autoCloseTimer = setTimeout(async () => {
     sessionTimers.delete(sessionId);
     try { await autoCloseSession(requestId, sessionId, requesterId, responderId, channel_preference); }
-    catch (e) { console.error('Auto-close error:', e); }
+    catch (e) { logger.error('Auto-close error:', e); }
   }, SESSION_DURATION_MS);
 
   sessionTimers.set(sessionId, { warning: warnTimer, close: autoCloseTimer });
@@ -865,7 +867,7 @@ router.patch('/request/:id/close', auth, async (req, res) => {
       await dbClient.query('COMMIT');
     } catch (err) {
       await dbClient.query('ROLLBACK');
-      console.error('Peer earning error:', err.message);
+      logger.error('Peer earning error:', err.message);
     } finally {
       dbClient.release();
     }
@@ -882,9 +884,9 @@ router.patch('/request/:id/close', auth, async (req, res) => {
        ELSE reengagement_step
      END
    WHERE id = $1`;
-  await query(funnelHookSql, [requesterId]).catch((e) => console.error('[reengagement-hook/peer-close requester]', e.message));
+  await query(funnelHookSql, [requesterId]).catch((e) => logger.error('[reengagement-hook/peer-close requester]', e.message));
   if (responderId) {
-    await query(funnelHookSql, [responderId]).catch((e) => console.error('[reengagement-hook/peer-close responder]', e.message));
+    await query(funnelHookSql, [responderId]).catch((e) => logger.error('[reengagement-hook/peer-close responder]', e.message));
   }
 
   return res.status(200).json({ ended_at: sessionRows[0]?.ended_at });
@@ -1022,13 +1024,13 @@ router.post('/request/:id/extend', auth, async (req, res) => {
     try {
       const warnPayload = JSON.stringify({ session_id, minutes_remaining: 5, extendable: true });
       await query(`INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'account_notice', $2, 'push')`, [requesterId, warnPayload]);
-    } catch (e) { console.error('Session warning error:', e); }
+    } catch (e) { logger.error('Session warning error:', e); }
   }, SESSION_WARNING_MS);
 
   const autoCloseTimer = setTimeout(async () => {
     sessionTimers.delete(session_id);
     try { await autoCloseSession(req.params.id, session_id, requesterId, responderId, channel_preference); }
-    catch (e) { console.error('Auto-close error:', e); }
+    catch (e) { logger.error('Auto-close error:', e); }
   }, SESSION_DURATION_MS);
 
   sessionTimers.set(session_id, { warning: warnTimer, close: autoCloseTimer });
@@ -1223,7 +1225,7 @@ router.post('/report', auth, async (req, res) => {
      SELECT id, 'emergency_alert', $1, 'in_app'
      FROM users WHERE role = 'admin' AND is_active = true`,
     [JSON.stringify({ source: 'peer_report', report_id: rows[0].id, channel: channel || null })]
-  ).catch((e) => console.error('Peer report admin notify error:', e.message));
+  ).catch((e) => logger.error('Peer report admin notify error:', e.message));
 
   return res.status(201).json({ report_id: rows[0].id });
 });

@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const rateLimit = require('express-rate-limit');
 const { query, transaction } = require('../db');
 const auth = require('../middleware/auth');
@@ -23,7 +25,7 @@ router.post('/claim', claimLimiter, auth, async (req, res) => {
   try {
     result = await transaction((tx) => claimTrial(tx, req.user.id));
   } catch (err) {
-    console.error('[trial/claim] error:', err.message);
+    logger.error('[trial/claim] error:', err.message);
     return res.status(500).json({ code: 'TRIAL_CLAIM_FAILED', message: 'Could not start your trial. Please try again.' });
   }
   if (!result.claimed) {

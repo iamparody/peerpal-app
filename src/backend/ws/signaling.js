@@ -1,4 +1,6 @@
 const { WebSocketServer, WebSocket } = require('ws');
+const logger = require('../utils/logger');
+
 const { query } = require('../db');
 
 // In-process room map: session_id → WebSocket[]
@@ -27,7 +29,7 @@ function detectContactInfo(text) {
 
 function createSignalingServer(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws/signal' });
-  console.log('[signal] server ready — ICE servers:', JSON.stringify(ICE_SERVERS.map(s => s.urls)));
+  logger.info('[signal] server ready — ICE servers:', JSON.stringify(ICE_SERVERS.map(s => s.urls)));
 
   // ─── Therapy room handler ─────────────────────────────────────────────────
   async function handleTherapyJoin(ws, booking_id, participant_role) {
@@ -73,10 +75,10 @@ function createSignalingServer(httpServer) {
     // Record when member first connects via WebRTC (source of billing truth)
     if (participant_role === 'member') {
       query('UPDATE therapy_sessions SET member_joined_at = COALESCE(member_joined_at, NOW()) WHERE booking_id = $1', [booking_id])
-        .catch(err => console.error('[therapy] member_joined_at update failed:', err.message));
+        .catch(err => logger.error('[therapy] member_joined_at update failed:', err.message));
     }
     const other_role = participant_role === 'member' ? 'therapist' : 'member';
-    console.log(`[therapy] room=${short} ${participant_role} joined`);
+    logger.info(`[therapy] room=${short} ${participant_role} joined`);
 
     // Notify other participant if connected
     if (room[other_role]?.readyState === WebSocket.OPEN) {
@@ -91,7 +93,7 @@ function createSignalingServer(httpServer) {
 
       // Therapist sends 'end' to close the room immediately
       if (msg.type === 'end' && participant_role === 'therapist') {
-        console.log(`[therapy] room=${short} ended by therapist`);
+        logger.info(`[therapy] room=${short} ended by therapist`);
         // Notify member
         if (room.member?.readyState === WebSocket.OPEN) {
           room.member.send(JSON.stringify({ type: 'session_ended' }));
@@ -101,7 +103,7 @@ function createSignalingServer(httpServer) {
         query(
           'UPDATE therapy_sessions SET ended_at = NOW() WHERE booking_id = $1 AND ended_at IS NULL',
           [booking_id]
-        ).catch((err) => console.error('[therapy] ended_at update failed:', err.message));
+        ).catch((err) => logger.error('[therapy] ended_at update failed:', err.message));
         ws.close();
         therapyRooms.delete(booking_id);
         return;
@@ -119,27 +121,27 @@ function createSignalingServer(httpServer) {
       if (!current) return;
       if (current[participant_role] === ws) {
         current[participant_role] = null;
-        console.log(`[therapy] room=${short} ${participant_role} disconnected`);
+        logger.info(`[therapy] room=${short} ${participant_role} disconnected`);
         if (current[other_role]?.readyState === WebSocket.OPEN) {
           current[other_role].send(JSON.stringify({ type: 'peer_left', role: participant_role }));
         }
         // Clean up empty rooms
         if (!current.member && !current.therapist) {
           therapyRooms.delete(booking_id);
-          console.log(`[therapy] room=${short} empty — deleted`);
+          logger.info(`[therapy] room=${short} empty — deleted`);
         }
       }
     });
 
     ws.on('error', (err) => {
-      console.log(`[therapy] ws error room=${short}:`, err.message);
+      logger.info(`[therapy] ws error room=${short}:`, err.message);
     });
   }
 
   // ─── Peer + therapy connection handler ────────────────────────────────────
   wss.on('connection', (ws, req) => {
     let sessionId = null;
-    console.log('[signal] new connection from', req.socket.remoteAddress);
+    logger.info('[signal] new connection from', req.socket.remoteAddress);
 
     ws.on('message', (data) => {
       let msg;
@@ -155,7 +157,7 @@ function createSignalingServer(httpServer) {
           const booking_id = sessionId.slice('therapy:'.length);
           const participant_role = msg.role; // 'member' or 'therapist'
           handleTherapyJoin(ws, booking_id, participant_role).catch((err) => {
-            console.error('[therapy] join error:', err.message);
+            logger.error('[therapy] join error:', err.message);
             ws.close();
           });
           return; // therapy handler owns this connection from here on
@@ -166,12 +168,12 @@ function createSignalingServer(httpServer) {
         const peers = rooms.get(sessionId);
 
         if (peers.length >= 2) {
-          console.log(`[signal] room=${short} FULL — rejecting 3rd peer`);
+          logger.info(`[signal] room=${short} FULL — rejecting 3rd peer`);
           ws.close();
           return;
         }
         peers.push(ws);
-        console.log(`[signal] room=${short} peer joined — count=${peers.length}`);
+        logger.info(`[signal] room=${short} peer joined — count=${peers.length}`);
 
         // Tell already-connected peers a new participant arrived.
         // The voice screen uses this to know it should create the WebRTC offer.
@@ -186,7 +188,7 @@ function createSignalingServer(httpServer) {
           }
           // Also notify the new joiner so text/voice screens unlock immediately.
           if (ws.readyState === WebSocket.OPEN) { ws.send(calleeMsg); sent++; }
-          console.log(`[signal] room=${short} peer_joined sent to ${sent} peer(s)`);
+          logger.info(`[signal] room=${short} peer_joined sent to ${sent} peer(s)`);
         }
 
         ws.on('close', (code) => {
@@ -195,10 +197,10 @@ function createSignalingServer(httpServer) {
           const remaining = current.filter((c) => c !== ws);
           if (remaining.length === 0) {
             rooms.delete(sessionId);
-            console.log(`[signal] room=${short} empty — deleted (close code=${code})`);
+            logger.info(`[signal] room=${short} empty — deleted (close code=${code})`);
           } else {
             rooms.set(sessionId, remaining);
-            console.log(`[signal] room=${short} peer left — remaining=${remaining.length}`);
+            logger.info(`[signal] room=${short} peer left — remaining=${remaining.length}`);
             const leaveMsg = JSON.stringify({ type: 'peer_left' });
             for (const peer of remaining) {
               if (peer.readyState === WebSocket.OPEN) peer.send(leaveMsg);
@@ -228,7 +230,7 @@ function createSignalingServer(httpServer) {
       if (msg.type === 'ping') return;
 
       if (['offer', 'answer', 'ice'].includes(msg.type)) {
-        console.log(`[signal] room=${short} relay ${msg.type}`);
+        logger.info(`[signal] room=${short} relay ${msg.type}`);
       }
 
       // Relay offer / answer / ICE candidates / chat to the other peer — no identity forwarded.
@@ -240,7 +242,7 @@ function createSignalingServer(httpServer) {
     });
 
     ws.on('error', (err) => {
-      console.log(`[signal] ws error room=${sessionId?.slice(0, 8) ?? 'unknown'}:`, err.message);
+      logger.info(`[signal] ws error room=${sessionId?.slice(0, 8) ?? 'unknown'}:`, err.message);
     });
   });
 

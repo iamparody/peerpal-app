@@ -1,4 +1,6 @@
 const { query, transaction } = require('../db');
+const logger = require('../utils/logger');
+
 const { enqueuePushNotification } = require('../utils/fcm');
 
 // ── Trial drip job ────────────────────────────────────────────────────────────
@@ -39,10 +41,10 @@ async function runTrialDrip() {
         );
       });
     } catch (err) {
-      console.error(`[trialDrip] user ${user.id}:`, err.message);
+      logger.error(`[trialDrip] user ${user.id}:`, err.message);
     }
   }
-  console.log(`[trialDrip] dripped 2 credits to ${users.length} users`);
+  logger.info(`[trialDrip] dripped 2 credits to ${users.length} users`);
 }
 
 // ── Day 6 reminder job ────────────────────────────────────────────────────────
@@ -72,10 +74,10 @@ async function runTrialReminder() {
         await enqueuePushNotification(tokenRows[0].fcm_token, title, body, { type: 'trial_reminder', route: '/credits' });
       }
     } catch (err) {
-      console.error(`[trialReminder] user ${user.id}:`, err.message);
+      logger.error(`[trialReminder] user ${user.id}:`, err.message);
     }
   }
-  if (users.length) console.log(`[trialReminder] sent to ${users.length} users`);
+  if (users.length) logger.info(`[trialReminder] sent to ${users.length} users`);
 }
 
 // ── Trial expiry job ──────────────────────────────────────────────────────────
@@ -131,10 +133,10 @@ async function runTrialExpiry() {
         [user.id, JSON.stringify({ message: 'Everything you experienced is still here. Top up to keep going.', route: '/credits' })]
       );
     } catch (err) {
-      console.error(`[trialExpiry] user ${user.id}:`, err.message);
+      logger.error(`[trialExpiry] user ${user.id}:`, err.message);
     }
   }
-  if (users.length) console.log(`[trialExpiry] processed ${users.length} expired trials`);
+  if (users.length) logger.info(`[trialExpiry] processed ${users.length} expired trials`);
 }
 
 module.exports = { runTrialDrip, runTrialReminder, runTrialExpiry };

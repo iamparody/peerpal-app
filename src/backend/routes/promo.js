@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const rateLimit = require('express-rate-limit');
 const { query, getClient } = require('../db');
 const auth = require('../middleware/auth');
@@ -106,7 +108,7 @@ router.post('/redeem', redeemLimiter, auth, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'You have already used this code' });
     }
-    console.error('[promo/redeem]', err);
+    logger.error('[promo/redeem]', err);
     return res.status(500).json({ error: 'Something went wrong' });
   } finally {
     client.release();
