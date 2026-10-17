@@ -12,6 +12,14 @@ export function normalizeReferralCode(input) {
   return CODE_RE.test(code) ? code : null;
 }
 
+// Where "/" sends a visitor. A logged-out visitor opening a referral link is a new user,
+// so they go to /register. Otherwise /welcome (which sends logged-out users to /login).
+// Uses the URL being opened, not the stored code, so a returning user is never redirected.
+export function rootRedirectPath(search, hasToken) {
+  const code = normalizeReferralCode(new URLSearchParams(search || '').get('ref') || '');
+  return code && !hasToken ? '/register' : '/welcome';
+}
+
 export function buildReferralLink(code, origin) {
   return `${String(origin).replace(/\/+$/, '')}/?ref=${encodeURIComponent(code)}`;
 }

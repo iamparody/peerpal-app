@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Heart } from '@phosphor-icons/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { rootRedirectPath } from './utils/referral';
 import { trackPageview } from './lib/analytics';
 import ProtectedRoute from './components/ProtectedRoute';
 import BottomNav from './components/BottomNav';
@@ -253,6 +254,16 @@ function PeerRequestBanner() {
   );
 }
 
+// Phase 46: a referral link (/?ref=CODE) opened while logged out goes to sign up.
+function RootRedirect() {
+  const { search } = useLocation();
+  const { token, loading } = useAuth();
+  // token is restored from storage in an effect; deciding before that would send a
+  // logged-in user to /register.
+  if (loading) return null;
+  return <Navigate to={rootRedirectPath(search, !!token)} replace />;
+}
+
 function Layout() {
   const { pathname } = useLocation();
   const { token } = useAuth();
@@ -337,7 +348,7 @@ function Layout() {
         {/* Admin */}
 
         {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/welcome" replace />} />
+        <Route path="/" element={<RootRedirect />} />
         <Route path="*" element={<Navigate to="/welcome" replace />} />
       </Routes>
 

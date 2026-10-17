@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import {
-  normalizeReferralCode, buildReferralLink, captureReferralFromUrl, getPendingReferral, clearPendingReferral,
+  normalizeReferralCode, buildReferralLink, rootRedirectPath, captureReferralFromUrl, getPendingReferral, clearPendingReferral,
 } from '../src/utils/referral.js';
 
 function memoryStorage() {
@@ -48,6 +48,21 @@ describe('referral link', () => {
     assert.equal(getPendingReferral(throwingStorage), null);
     assert.doesNotThrow(() => clearPendingReferral(throwingStorage));
     assert.equal(getPendingReferral(null), null);
+  });
+});
+
+describe('root redirect', () => {
+  test('logged-out visitor with a referral link goes to sign up', () => {
+    assert.equal(rootRedirectPath('?ref=KE7MX2', false), '/register');
+    assert.equal(rootRedirectPath('?ref=ke7-mx2', false), '/register');
+  });
+  test('logged-in user with a referral link goes to the app', () => {
+    assert.equal(rootRedirectPath('?ref=KE7MX2', true), '/welcome');
+  });
+  test('no or invalid ref keeps the old behaviour', () => {
+    assert.equal(rootRedirectPath('', false), '/welcome');
+    assert.equal(rootRedirectPath('?ref=bad', false), '/welcome');
+    assert.equal(rootRedirectPath('?other=1', true), '/welcome');
   });
 });
 
