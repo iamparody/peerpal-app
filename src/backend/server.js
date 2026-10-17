@@ -29,6 +29,7 @@ const { runWaitlistDigestJob }         = require('./jobs/waitlistDigestJob');
 const { runReengagementJob }           = require('./jobs/reengagementJob');
 const { updateEngagementSegments }     = require('./ai/engagementScore');
 const { runTrialDrip, runTrialReminder, runTrialExpiry } = require('./jobs/trialDripJob');
+const { runDlqRetryJob } = require('./jobs/dlqRetryJob');
 const { startEmailWorker } = require('./workers/emailWorker');
 const { startNotificationWorker } = require('./workers/notificationWorker');
 
@@ -119,6 +120,9 @@ cron.schedule('0 3 * * *', () => runTrialDrip().catch((err) => logger.error({ er
 // Trial Day-6 reminder + expiry — 06:05 EAT (03:05 UTC)
 cron.schedule('5 3 * * *', () => runTrialReminder().catch((err) => logger.error({ err }, 'trialReminderJob failed')));
 cron.schedule('5 3 * * *', () => runTrialExpiry().catch((err) => logger.error({ err }, 'trialExpiryJob failed')));
+
+// DLQ retry — every 15 minutes; retries push/email jobs that exhausted BullMQ attempts
+cron.schedule('*/15 * * * *', () => runDlqRetryJob().catch((err) => logger.error({ err }, 'dlqRetryJob failed')));
 
 server.listen(PORT, () => {
   logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'PeerPal backend started');

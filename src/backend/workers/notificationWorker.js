@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 
 const { createQueueClient } = require('../config/redis');
 const { sendPushNotification } = require('../utils/fcm');
+const { enqueueDlq } = require('../jobs/dlqRetryJob');
 
 function startNotificationWorker() {
   const connection = createQueueClient();
@@ -17,7 +18,10 @@ function startNotificationWorker() {
   }, { connection });
 
   worker.on('failed', (job, err) => {
-    logger.error(`[notificationWorker] Job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message);
+    logger.error({ jobId: job?.id, attempt: job?.attemptsMade, err }, '[notificationWorker] job failed');
+    if (job && job.attemptsMade >= (job.opts?.attempts ?? 1)) {
+      enqueueDlq('push', job.data, err.message);
+    }
   });
 
   return worker;
