@@ -124,13 +124,11 @@ function exec(s, sql, p = [], hooks = {}) {
     return { rows: [], rowCount: 1 };
   }
   // Payment webhook
-  if (/^SELECT id, user_id, amount_credits FROM credit_transactions WHERE payment_reference = \$1 AND status = 'pending' LIMIT 1$/.test(q)) {
-    return { rows: s.pending.filter(t => t.ref === p[0] && t.status === 'pending').map(t => ({ id: t.id, user_id: t.user_id, amount_credits: t.amount })) };
-  }
-  if (/^UPDATE credit_transactions SET status = 'confirmed' WHERE id = \$1 AND user_id = \$2$/.test(q)) {
-    const t = s.pending.find(x => x.id === p[0] && x.user_id === p[1]);
-    if (t) t.status = 'confirmed';
-    return { rows: [], rowCount: t ? 1 : 0 };
+  if (/^UPDATE credit_transactions SET status = 'confirmed' WHERE id = \(SELECT id FROM credit_transactions WHERE payment_reference = \$1 AND status = 'pending' LIMIT 1\) AND status = 'pending' RETURNING id, user_id, amount_credits$/.test(q)) {
+    const t = s.pending.find(x => x.ref === p[0] && x.status === 'pending');
+    if (!t) return { rows: [], rowCount: 0 };
+    t.status = 'confirmed';
+    return { rows: [{ id: t.id, user_id: t.user_id, amount_credits: t.amount }], rowCount: 1 };
   }
   if (/^UPDATE credit_transactions SET status = 'failed'/.test(q)) return { rows: [], rowCount: 0 };
   if (/^UPDATE credits SET ai_conversations_cap/.test(q)) return { rows: [], rowCount: 1 };
