@@ -10,6 +10,15 @@
 
 ---
 
+## Fix 2026-10-17 (branch fix/trial-expiry-and-webhook-race)
+- Trial expiry (`jobs/trialDripJob.js`): spending was summed from `amount_credits < 0`, but debits are stored positive (live ledger: 31 debits, min 1), so spent was always 0 and expiry removed min(all trial credits, balance), taking purchased/promo/referral credits. Now debits − refunds since claim, per docs/phase47-spec.md. The removal is written as a `debit`/`trial` ledger row (was unrecorded), which also makes the overlapping 25h window idempotent; notification deduped by event_ref; per-user transaction with row lock; balance cache cleared. No user affected yet (0 trials expired as of 2026-10-17).
+- Payment webhook (`routes/credits.js`): SELECT-then-credit let two concurrent fires both credit a purchase. Now one transaction: atomic `UPDATE ... AND status = 'pending' RETURNING` claim + balance + AI allowance. On failure the row stays pending and logs `RECONCILIATION NEEDED`.
+- CreditsScreen labels the expiry row "Trial credits expired".
+- Tests: `npm run test:ledger` now 23 (7 trial expiry, 6 webhook). The webhook tests fail on the old handler (3/6). Both fixes checked against real Postgres in a rolled-back transaction.
+- No migration. Deploy backend + frontend.
+
+---
+
 ## Current Phase
 **Phase 45 — Re-engagement Engine (Funnel-Based)**
 
