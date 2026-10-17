@@ -1623,7 +1623,7 @@ router.patch('/therapist/onboarding/complete', therapistAuth, async (req, res) =
   if (!p.languages?.length)               missing.push('languages');
   if (!p.session_formats?.length)         missing.push('session_formats');
   if (!p.years_experience && p.years_experience !== 0) missing.push('years_experience');
-  if (!p.category_ids?.length)            missing.push('categories');
+  // category_ids is assigned by admin — not a therapist-side onboarding gate
 
   if (missing.length) {
     return res.status(400).json({
