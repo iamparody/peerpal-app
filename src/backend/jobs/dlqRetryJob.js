@@ -1,4 +1,4 @@
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const logger = require('../utils/logger');
 
 // Exponential backoff: attempt 1 = 5 min, 2 = 30 min, 3 = 2 hr
@@ -6,15 +6,33 @@ const BACKOFF_MINUTES = [5, 30, 120];
 const BATCH_SIZE = 20;
 
 async function runDlqRetryJob() {
-  const { rows } = await query(
-    `SELECT id, job_type, payload, attempts, max_attempts
-     FROM dlq_jobs
-     WHERE status = 'pending' AND next_retry_at <= NOW()
-     ORDER BY next_retry_at ASC
-     LIMIT $1
-     FOR UPDATE SKIP LOCKED`,
-    [BATCH_SIZE]
-  );
+  // Claim a batch atomically: SELECT FOR UPDATE SKIP LOCKED + mark processing
+  // inside a short transaction so concurrent cron ticks can't double-process.
+  let rows;
+  try {
+    rows = await transaction(async (client) => {
+      const { rows: selected } = await client.query(
+        `SELECT id, job_type, payload, attempts, max_attempts
+         FROM dlq_jobs
+         WHERE status = 'pending' AND next_retry_at <= NOW()
+         ORDER BY next_retry_at ASC
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED`,
+        [BATCH_SIZE]
+      );
+      if (!selected.length) return [];
+      const ids = selected.map(r => r.id);
+      await client.query(
+        `UPDATE dlq_jobs SET status = 'processing', updated_at = NOW()
+         WHERE id = ANY($1::bigint[])`,
+        [ids]
+      );
+      return selected;
+    });
+  } catch (err) {
+    logger.error({ err }, 'dlqRetryJob: failed to claim batch');
+    return;
+  }
 
   if (!rows.length) return;
 
@@ -25,11 +43,11 @@ async function runDlqRetryJob() {
 
     try {
       if (job_type === 'push') {
-        const { sendPushNotification } = require('../utils/fcm');
-        await sendPushNotification(payload.fcm_token, payload.title, payload.body, payload.data || {});
+        const { getFcmBreaker } = require('../utils/breakers');
+        await getFcmBreaker().fire(payload.fcm_token, payload.title, payload.body, payload.data || {});
       } else if (job_type === 'email') {
-        const { deliverEmail } = require('../services/emailService');
-        await deliverEmail(payload.to, payload.subject, payload.html);
+        const { getEmailBreaker } = require('../utils/breakers');
+        await getEmailBreaker().fire(payload.to, payload.subject, payload.html);
       } else {
         throw new Error(`Unknown job_type: ${job_type}`);
       }
@@ -43,18 +61,18 @@ async function runDlqRetryJob() {
     } catch (err) {
       const newAttempts = attempts + 1;
       const isDead = newAttempts >= max_attempts;
-      const backoffMs = (BACKOFF_MINUTES[newAttempts - 1] || 120) * 60 * 1000;
+      const backoffSecs = (BACKOFF_MINUTES[newAttempts - 1] || 120) * 60;
 
       await query(
         `UPDATE dlq_jobs
          SET status = $1,
              attempts = $2,
              last_attempted_at = NOW(),
-             next_retry_at = NOW() + ($3 || ' milliseconds')::interval,
+             next_retry_at = NOW() + ($3 * interval '1 second'),
              error_message = $4,
              updated_at = NOW()
          WHERE id = $5`,
-        [isDead ? 'dead' : 'pending', newAttempts, backoffMs, err.message, id]
+        [isDead ? 'dead' : 'pending', newAttempts, backoffSecs, err.message, id]
       );
 
       logger.warn({ dlq_id: id, job_type, attempt: newAttempts, dead: isDead, err }, 'dlqRetryJob: job failed');

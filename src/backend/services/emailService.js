@@ -1,4 +1,5 @@
 ﻿const { Resend } = require('resend');
+const logger = require('../utils/logger');
 
 let _resend = null;
 function getResend() {

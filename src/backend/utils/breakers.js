@@ -16,6 +16,7 @@ function makeBreaker(name, fn) {
   breaker.on('close',    () => logger.info({ breaker: name }, 'circuit breaker closed — service recovered'));
   breaker.fallback(() => {
     logger.warn({ breaker: name }, 'circuit breaker fallback — call skipped');
+    throw new Error(`circuit breaker open: ${name} delivery skipped`);
   });
 
   return breaker;
