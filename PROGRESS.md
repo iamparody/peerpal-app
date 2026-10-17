@@ -13,7 +13,13 @@
 ## Current Phase
 **Infrastructure hardening block — Phases 52.4, 52.8, 52.9, 52.10, 52.1 all COMPLETE**
 
-**NEXT ACTION → Phase 42: therapist onboarding signature block (~1 hr, unblocked). Phase 52.2/52.3 owner actions still pending (see below). Phase 46 assigned to Seka — do not touch.**
+**NEXT ACTION → Phase 51 admin panel updates (if any remain) or Phase 52.2/52.3 owner actions. Phase 42 COMPLETE. Phase 46 assigned to Seka — do not touch.**
+
+### Phase 42 — COMPLETE (commit 3b8133a, 2026-10-17)
+- Agreement checkbox + validation already present in OnboardingScreen Step 3
+- Backend validates `agreement_acknowledged` at `/therapist/onboarding/complete`
+- Bug fix: removed `category_ids` from completion gate (admin field, not therapist-settable)
+- `docs/therapist-agreement.md` already present with full content
 
 ### Phase 52.1 — COMPLETE (commit adfb77a, 2026-10-17)
 - `src/backend/Dockerfile`: multi-stage node:20-alpine, non-root peerpal user, HEALTHCHECK via /health
