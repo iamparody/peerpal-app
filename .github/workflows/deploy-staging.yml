@@ -10,13 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger deploy
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING != '' }}
         run: |
           curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}"
 
       - name: Wait for Render to spin up
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING != '' }}
         run: sleep 90
 
       - name: Health check staging
+        if: ${{ secrets.STAGING_BACKEND_URL != '' }}
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.STAGING_BACKEND_URL }}/health")
           echo "Staging /health returned HTTP $STATUS"
