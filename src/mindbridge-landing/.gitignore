@@ -6,8 +6,7 @@ dist/
 
 # Local env
 .env
-.env.local
-.env.*.local
+.env.*
 
 # Vercel local project link
 .vercel/

@@ -1,6 +1,8 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { issueFullRefund } = require('../utils/therapyRefund');
 const { refundCredit } = require('../utils/creditDeductor');
 
@@ -9,7 +11,7 @@ async function notifyUser(user_id, type, payload) {
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, $2, $3, 'in_app')`,
     [user_id, type, JSON.stringify(payload)]
-  ).catch((e) => console.error('[preSessionCheckin:notify]', e.message));
+  ).catch((e) => logger.error(e.message));
 }
 
 async function runPreSessionCheckinJob() {
@@ -45,9 +47,9 @@ async function runPreSessionCheckinJob() {
         [JSON.stringify({ sent_at: new Date().toISOString(), responses: null }), row.id]
       );
 
-      console.log(`[preSessionCheckin] Checkin sent for booking ${row.id}`);
+      logger.info(`[preSessionCheckin] Checkin sent for booking ${row.id}`);
     } catch (err) {
-      console.error('[preSessionCheckin] Error:', row.id, err.message);
+      logger.error('[preSessionCheckin] Error:', row.id, err.message);
     }
   }
 }
@@ -73,12 +75,12 @@ async function processCheckinResponse(booking_id, responses) {
 
     if (b.credit_charged > 0) {
       await refundCredit(b.member_user_id, b.credit_charged, booking_id, 'crisis_detected').catch(
-        (e) => console.error('[preSessionCheckin.crisis] refund credit:', e.message)
+        (e) => logger.error('[preSessionCheckin.crisis] refund credit:', e.message)
       );
     }
 
     await issueFullRefund(booking_id).catch(
-      (e) => console.error('[preSessionCheckin.crisis] refund mpesa:', e.message)
+      (e) => logger.error('[preSessionCheckin.crisis] refund mpesa:', e.message)
     );
 
     await notifyUser(b.member_user_id, 'emergency', {
@@ -86,7 +88,7 @@ async function processCheckinResponse(booking_id, responses) {
       befrienders: '0800 723 253',
     });
 
-    console.warn('[preSessionCheckin] Crisis detected — booking cancelled:', booking_id);
+    logger.warn('[preSessionCheckin] Crisis detected — booking cancelled:', booking_id);
   } else {
     await query(
       `UPDATE therapist_bookings

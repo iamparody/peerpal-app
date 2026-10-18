@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 // Imported lazily to avoid circular-require at module load time.
 function getPeerRouting() {
@@ -23,7 +25,7 @@ async function runRoutingJob() {
 
   for (const { id, user_id } of toBroaden) {
     try { await broadenToGeneralTier(id, user_id); }
-    catch (e) { console.error(`[routingJob] broaden ${id}:`, e.message); }
+    catch (e) { logger.error(`[routingJob] broaden ${id}:`, e.message); }
   }
 
   // ── No-peer escalation: open requests past escalate_at ────────────────────
@@ -37,11 +39,11 @@ async function runRoutingJob() {
 
   for (const { id, user_id } of toEscalate) {
     try { await noMorePeers(id, user_id); }
-    catch (e) { console.error(`[routingJob] escalate ${id}:`, e.message); }
+    catch (e) { logger.error(`[routingJob] escalate ${id}:`, e.message); }
   }
 
   if (toBroaden.length || toEscalate.length) {
-    console.log(`[routingJob] broadened=${toBroaden.length} escalated=${toEscalate.length}`);
+    logger.info(`[routingJob] broadened=${toBroaden.length} escalated=${toEscalate.length}`);
   }
 }
 

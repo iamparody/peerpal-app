@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const pinoHttp = require('pino-http');
+const logger = require('./utils/logger');
 const { apiLimiter } = require('./middleware/rateLimit');
 const { Sentry } = require('./services/sentry');
 
@@ -9,6 +11,25 @@ const app = express();
 
 // Trust Render/Vercel reverse proxy so rate limiter can read real client IP
 app.set('trust proxy', 1);
+
+// ─── HTTP request logging ─────────────────────────────────────────────────────
+app.use(pinoHttp({
+  logger,
+  // Use existing requestId from middleware below (assigned before pinoHttp runs if order matters,
+  // but pinoHttp assigns req.id first — we copy to req.requestId after)
+  genReqId: (req) => req.headers['x-request-id'] || require('crypto').randomUUID(),
+  // Skip health-check noise in logs
+  autoLogging: {
+    ignore: (req) => req.url === '/health' || req.url === '/health/db',
+  },
+  customLogLevel: (_req, res) => {
+    if (res.statusCode >= 500) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  customSuccessMessage: (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+  customErrorMessage: (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+}));
 
 // ─── Security & parsing ───────────────────────────────────────────────────────
 app.use(helmet({
@@ -57,11 +78,10 @@ app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; },
 }));
 
-// ─── Request ID — propagated in response for tracing across log lines ────────
+// ─── Request ID — copy pino-http's req.id → req.requestId for route code ────
 app.use((req, res, next) => {
-  const id = req.headers['x-request-id'] || require('crypto').randomUUID();
-  req.requestId = id;
-  res.setHeader('X-Request-Id', id);
+  req.requestId = req.id;
+  res.setHeader('X-Request-Id', req.id);
   next();
 });
 
@@ -72,9 +92,17 @@ app.use('/api', apiLimiter);
 app.get('/health', async (_req, res) => {
   try {
     const { query, poolMetrics } = require('./db');
+    const { breakerStats } = require('./utils/breakers');
     const t0 = Date.now();
     await query('SELECT 1');
-    res.json({ status: 'ok', db: 'ok', db_latency_ms: Date.now() - t0, pool: poolMetrics() });
+    res.json({
+      status: 'ok',
+      db: 'ok',
+      db_latency_ms: Date.now() - t0,
+      pool: poolMetrics(),
+      breakers: breakerStats(),
+      uptime_seconds: Math.floor(process.uptime()),
+    });
   } catch {
     res.status(503).json({ status: 'degraded', db: 'error' });
   }
@@ -133,8 +161,8 @@ if (process.env.SENTRY_DSN) {
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
-app.use((err, _req, res, _next) => {
-  console.error('Unhandled error:', err);
+app.use((err, req, res, _next) => {
+  (req.log || logger).error({ err, requestId: req.requestId }, 'Unhandled error');
   res.status(500).json({ error: 'Internal server error', code: 'SERVER_ERROR' });
 });
 

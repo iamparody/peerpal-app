@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const { query } = require('../db');
 const auth = require('../middleware/auth');
 const cache = require('../services/cache');
@@ -114,7 +116,7 @@ router.post('/', auth, async (req, res) => {
         }
       }
     } catch (nudgeErr) {
-      console.error('[moods] nudge error:', nudgeErr.message);
+      logger.error('[moods] nudge error:', nudgeErr.message);
     }
   }
 

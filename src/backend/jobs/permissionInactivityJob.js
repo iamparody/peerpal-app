@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 // Runs nightly at 01:00 UTC (4am Nairobi EAT).
 // Expires peer_permissions that have been inactive beyond the per-row threshold.
@@ -31,7 +33,7 @@ async function runPermissionInactivityJob() {
 
   if (!expired.length) return;
 
-  console.log(`[permissionInactivityJob] Lapsed ${expired.length} permission(s)`);
+  logger.info(`[permissionInactivityJob] Lapsed ${expired.length} permission(s)`);
 
   for (const row of expired) {
     await query(

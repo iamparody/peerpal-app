@@ -1,6 +1,8 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { initiatePayout } = require('../utils/therapistPayout');
 const { v4: uuidv4 } = require('uuid');
 
@@ -9,7 +11,7 @@ async function notifyUser(user_id, type, payload) {
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, $2, $3, 'in_app')`,
     [user_id, type, JSON.stringify(payload)]
-  ).catch((e) => console.error('[escrowRelease:notify]', e.message));
+  ).catch((e) => logger.error(e.message));
 }
 
 async function runEscrowReleaseJob() {
@@ -45,16 +47,16 @@ async function runEscrowReleaseJob() {
       );
 
       await initiatePayout(payoutId).catch((e) =>
-        console.error('[escrowRelease] initiatePayout failed:', payoutId, e.message)
+        logger.error('[escrowRelease] initiatePayout failed:', payoutId, e.message)
       );
 
       await notifyUser(row.therapist_user_id, 'therapist_update', {
         message: `Payout of KES ${row.therapist_payout_kes} has been initiated to your M-Pesa.`,
       });
 
-      console.log(`[escrowRelease] Released: booking ${row.id}, payout ${payoutId}`);
+      logger.info(`[escrowRelease] Released: booking ${row.id}, payout ${payoutId}`);
     } catch (err) {
-      console.error('[escrowRelease] Error:', row.id, err.message);
+      logger.error('[escrowRelease] Error:', row.id, err.message);
     }
   }
 }

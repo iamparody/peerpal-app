@@ -1,4 +1,5 @@
 ﻿const { Resend } = require('resend');
+const logger = require('../utils/logger');
 
 let _resend = null;
 function getResend() {
@@ -96,18 +97,17 @@ function resetTemplate(alias, link) {
 }
 
 // Direct delivery — called by emailWorker and as fallback when queue is unavailable.
+// Wrapped by circuit breaker in utils/breakers.js — do not call directly from high-traffic paths.
 async function deliverEmail(to, subject, html) {
   if (!process.env.RESEND_API_KEY) {
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[DEV] Would send email to ${to.slice(0, 3)}***: ${subject}`);
-    } else {
-      console.error('[email] RESEND_API_KEY not set — email dropped:', subject);
+      logger.info(`[DEV] Would send email to ${to.slice(0, 3)}***: ${subject}`);
+      return;
     }
-    return;
+    throw new Error('RESEND_API_KEY not configured — email cannot be delivered');
   }
   if (!process.env.EMAIL_FROM) {
-    console.error('[email] EMAIL_FROM not set — email dropped:', subject);
-    return;
+    throw new Error('EMAIL_FROM not configured — email cannot be delivered');
   }
   await getResend().emails.send({
     from: process.env.EMAIL_FROM,
@@ -115,6 +115,12 @@ async function deliverEmail(to, subject, html) {
     subject,
     html,
   });
+}
+
+// Circuit-breaker-guarded delivery for direct (non-queued) sends.
+async function deliverEmailSafe(to, subject, html) {
+  const { getEmailBreaker } = require('../utils/breakers');
+  await getEmailBreaker().fire(to, subject, html);
 }
 
 // Enqueue for async delivery — fire-and-forget. Returns immediately; email sends in background.
@@ -132,11 +138,11 @@ function enqueueEmail(to, subject, html) {
         ]);
         return;
       } catch (err) {
-        console.warn('[email] Queue unavailable, falling back to direct send:', err.message);
+        logger.warn('[email] Queue unavailable, falling back to direct send:', err.message);
       }
     }
-    await deliverEmail(to, subject, html);
-  })().catch(err => console.error('[email] Delivery failed:', err.message));
+    await deliverEmailSafe(to, subject, html);
+  })().catch(err => logger.error('[email] Delivery failed:', err.message));
   // Caller returns immediately — no await needed
 }
 
@@ -166,4 +172,4 @@ async function sendTherapistPasswordReset(email, displayName, token) {
   await enqueueEmail(email, 'Reset your PeerPal therapist password', inviteTherapistTemplate(displayName, link));
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, sendTherapistPasswordReset, deliverEmail };
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, sendTherapistPasswordReset, deliverEmail, deliverEmailSafe };

@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 // Runs hourly. Lifts group bans whose expires_at has passed.
 // Restores membership to 'active' and notifies the user.
@@ -27,7 +29,7 @@ async function runBanExpiryJob() {
   }
 
   if (rows.length) {
-    console.log(`[banExpiryJob] Lifted ${rows.length} expired ban(s).`);
+    logger.info(`[banExpiryJob] Lifted ${rows.length} expired ban(s).`);
   }
 }
 

@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const logger = require('./logger');
 
 let initialized = false;
 
@@ -12,22 +13,22 @@ function initFCM() {
       if (serviceAccount.private_key) {
         serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
       }
-    } catch (err) { console.error('[FCM] Invalid FCM_SERVICE_ACCOUNT_JSON:', err.message); }
+    } catch (err) { logger.error({ err }, 'FCM: invalid FCM_SERVICE_ACCOUNT_JSON'); }
   } else if (process.env.FCM_SERVICE_ACCOUNT_PATH) {
     try {
       const fs = require('fs');
       serviceAccount = JSON.parse(fs.readFileSync(process.env.FCM_SERVICE_ACCOUNT_PATH, 'utf8'));
-    } catch (err) { console.error('[FCM] Cannot read FCM_SERVICE_ACCOUNT_PATH:', err.message); }
+    } catch (err) { logger.error({ err }, 'FCM: cannot read FCM_SERVICE_ACCOUNT_PATH'); }
   } else {
-    console.warn('[FCM] No FCM credentials configured — push notifications disabled. Set FCM_SERVICE_ACCOUNT_JSON in env.');
+    logger.warn('FCM: no credentials configured — push notifications disabled');
     return;
   }
   if (!serviceAccount) return;
   try {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
     initialized = true;
-    console.log('[FCM] Firebase Admin SDK initialized — push notifications enabled.');
-  } catch (err) { console.error('[FCM] Init failed:', err.message); }
+    logger.info('FCM: Firebase Admin SDK initialized — push notifications enabled');
+  } catch (err) { logger.error({ err }, 'FCM: init failed'); }
 }
 
 // Builds the FCM message. Data-only on purpose: all our tokens are web (PWA) tokens, and a
@@ -55,6 +56,7 @@ function buildFcmMessage(fcm_token, title, body, data = {}) {
 }
 
 // Direct delivery — used by notificationWorker and as fallback.
+// Wrapped by circuit breaker in utils/breakers.js — do not call directly from routes.
 async function sendPushNotification(fcm_token, title, body, data = {}) {
   initFCM();
   if (!initialized || !fcm_token) return;
@@ -68,11 +70,12 @@ async function sendPushNotification(fcm_token, title, body, data = {}) {
       await query('UPDATE users SET fcm_token = NULL WHERE fcm_token = $1', [fcm_token])
         .catch(() => {});
     }
-    console.warn('[FCM] Send failed:', err.code || err.message);
+    logger.warn({ code: err.code, msg: err.message }, 'FCM: send failed');
+    throw err; // re-throw so the circuit breaker can track the failure
   }
 }
 
-// Enqueue for async delivery — falls back to direct send if queue is down.
+// Enqueue for async delivery — falls back to direct send (via circuit breaker) if queue is down.
 async function enqueuePushNotification(fcm_token, title, body, data = {}) {
   if (!fcm_token) return;
   const { notificationQueue } = require('../queues');
@@ -81,10 +84,13 @@ async function enqueuePushNotification(fcm_token, title, body, data = {}) {
       await notificationQueue.add('push', { fcm_token, title, body, data });
       return;
     } catch (err) {
-      console.warn('[fcm] Queue unavailable, falling back to direct send:', err.message);
+      logger.warn({ err }, 'FCM: queue unavailable, falling back to direct send');
     }
   }
-  await sendPushNotification(fcm_token, title, body, data);
+  // Use circuit breaker for direct sends — prevents a dead FCM service from
+  // blocking every request path that calls enqueuePushNotification.
+  const { getFcmBreaker } = require('./breakers');
+  await getFcmBreaker().fire(fcm_token, title, body, data);
 }
 
 // A device token belongs to exactly one account. FCM tokens are per browser, so on a shared

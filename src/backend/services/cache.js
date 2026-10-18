@@ -1,4 +1,6 @@
 const { getRestClient } = require('../config/redis');
+const logger = require('../utils/logger');
+
 
 function client() {
   return getRestClient();
@@ -11,7 +13,7 @@ async function get(key) {
     const val = await r.get(key);
     return val !== null ? JSON.parse(val) : null;
   } catch (err) {
-    console.warn('[cache] get error:', err.message);
+    logger.warn('[cache] get error:', err.message);
     return null;
   }
 }
@@ -22,7 +24,7 @@ async function set(key, value, ttlSeconds) {
     if (!r) return;
     await r.set(key, JSON.stringify(value), { ex: ttlSeconds });
   } catch (err) {
-    console.warn('[cache] set error:', err.message);
+    logger.warn('[cache] set error:', err.message);
   }
 }
 
@@ -33,7 +35,7 @@ async function del(...keys) {
     if (!r || !keys.length) return;
     await r.del(...keys);
   } catch (err) {
-    console.warn('[cache] del error:', err.message);
+    logger.warn('[cache] del error:', err.message);
   }
 }
 
@@ -49,7 +51,7 @@ async function delPattern(prefix) {
       if (keys.length) await r.del(...keys);
     } while (cursor !== 0);
   } catch (err) {
-    console.warn('[cache] delPattern error:', err.message);
+    logger.warn('[cache] delPattern error:', err.message);
   }
 }
 
@@ -65,7 +67,7 @@ async function incrby(key, amount, expireAtTimestamp) {
     const results = await pipeline.exec();
     return results[0];
   } catch (err) {
-    console.warn('[cache] incrby error:', err.message);
+    logger.warn('[cache] incrby error:', err.message);
     return null;
   }
 }

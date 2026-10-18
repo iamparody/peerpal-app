@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 // Blueprint section 9.5 — composite risk scoring.
 // Runs at midnight UTC via node-cron in server.js.
