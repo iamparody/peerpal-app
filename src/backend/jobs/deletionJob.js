@@ -51,6 +51,7 @@ async function runDeletionJob() {
     await query('DELETE FROM credit_transactions WHERE user_id = $1', [id]);
     await query('DELETE FROM credits             WHERE user_id = $1', [id]);
     await query('DELETE FROM ai_personas         WHERE user_id = $1', [id]);
+    // referral_rewards → ON DELETE CASCADE; users.referred_by → ON DELETE SET NULL (migration 108)
 
     // Step 9: Notify admins before deleting the user record
     await query(

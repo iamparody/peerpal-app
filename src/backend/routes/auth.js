@@ -3,10 +3,12 @@ const logger = require('../utils/logger');
 
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const { generateAccessToken } = require('../utils/jwt');
 const { generateAlias } = require('../utils/aliasGenerator');
 const { assignFcmToken } = require('../utils/fcm');
+const { generateReferralCode } = require('../utils/referralCode');
+const { applyReferralAtSignup } = require('../services/referrals');
 const auth = require('../middleware/auth');
 const {
   authLimiter,
@@ -28,7 +30,7 @@ function hashToken(token) {
 // ─── POST /auth/register ──────────────────────────────────────────────────────
 router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, referral_code } = req.body;
 
     if (!email || !EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Valid email is required', code: 'INVALID_EMAIL' });
@@ -53,15 +55,33 @@ router.post('/register', authLimiter, async (req, res) => {
     const verifyToken = crypto.randomBytes(32).toString('hex');
     const verifyHash = hashToken(verifyToken);
 
-    const { rows } = await query(
-      `INSERT INTO users (alias, email, password_hash, role, email_verify_token_hash, email_verify_expires)
-       VALUES ($1, $2, $3, 'member', $4, NOW() + INTERVAL '24 hours')
-       RETURNING id, alias, role`,
-      [alias, emailLower, password_hash, verifyHash]
-    );
-    const user = rows[0];
+    const user = await transaction(async (tx) => {
+      const ownCode = await generateReferralCode(tx);
+      const { rows } = await tx.query(
+        `INSERT INTO users (alias, email, password_hash, role, email_verify_token_hash, email_verify_expires, referral_code)
+         VALUES ($1, $2, $3, 'member', $4, NOW() + INTERVAL '24 hours', $5)
+         RETURNING id, alias, role`,
+        [alias, emailLower, password_hash, verifyHash, ownCode]
+      );
+      const created = rows[0];
 
-    await query('INSERT INTO credits (user_id, balance) VALUES ($1, 0)', [user.id]);
+      await tx.query('INSERT INTO credits (user_id, balance) VALUES ($1, 0)', [created.id]);
+
+      // Phase 46: a bad or failing referral code never blocks signup. The savepoint
+      // undoes a half-applied referral without aborting the account creation.
+      if (referral_code) {
+        await tx.query('SAVEPOINT referral');
+        try {
+          const result = await applyReferralAtSignup(tx, created.id, referral_code);
+          await tx.query('RELEASE SAVEPOINT referral');
+          console.log('[referral] signup', { user: created.id, applied: result.applied, reason: result.reason });
+        } catch (err) {
+          await tx.query('ROLLBACK TO SAVEPOINT referral');
+          console.error('[referral] signup apply failed (signup unaffected)', err.message);
+        }
+      }
+      return created;
+    });
 
     // Fire-and-forget — enqueueEmail returns immediately; email delivers in background
     sendVerificationEmail(emailLower, alias, verifyToken);

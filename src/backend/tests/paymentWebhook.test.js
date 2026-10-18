@@ -80,9 +80,7 @@ function loadRouter(state) {
     '../utils/daraja': { PACKAGES: {}, getPackages: async () => ({ starter: { credits: 10, price_ksh: 100, ai_conversations: 3 } }) },
   };
   for (const [rel, exports] of Object.entries(stubs)) {
-    const p = rel === '../utils/logger'
-      ? require('path').resolve(__dirname, '../utils/logger.js')
-      : require.resolve(rel);
+    const p = require.resolve(rel);
     require.cache[p] = { id: p, filename: p, loaded: true, exports };
   }
   delete require.cache[require.resolve('../routes/credits')];

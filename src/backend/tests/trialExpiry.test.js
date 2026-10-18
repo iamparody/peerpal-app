@@ -53,7 +53,6 @@ function load() {
   for (const [rel, exports] of [
     ['../db', { query: async () => ({ rows: [] }), transaction: async (fn) => fn({}) }],
     ['../utils/fcm', { enqueuePushNotification: async () => {} }],
-    ['../utils/logger', { info: () => {}, warn: () => {}, error: () => {} }],
   ]) {
     const p = require.resolve(rel);
     require.cache[p] = { id: p, filename: p, loaded: true, exports };

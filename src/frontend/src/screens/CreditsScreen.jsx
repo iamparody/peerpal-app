@@ -58,7 +58,9 @@ const PACKAGES = [
 
 function txLabel(tx) {
   if (tx.type === 'purchase') return 'Top up';
+  if (tx.type === 'bonus' && tx.channel === 'referral') return 'Referral bonus';
   if (tx.type === 'bonus') return tx.session_id ? 'Session reward' : 'Welcome bonus';
+  if (tx.type === 'referral_reward') return 'Friend referral reward';
   if (tx.type === 'refund') {
     if (tx.channel === 'text' || tx.channel === 'voice') return 'Refund — no peer available';
     if (tx.channel === 'referral') return 'Refund — referral not arranged';

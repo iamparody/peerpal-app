@@ -152,6 +152,7 @@ app.use('/api/policy',        require('./routes/policy'));
 app.use('/api/waitlist',      require('./routes/waitlist'));
 app.use('/api/trial',         require('./routes/trial'));
 app.use('/api/promo',         require('./routes/promo'));
+app.use('/api/referrals',     require('./routes/referrals'));
 
 // ─── Sentry error handler (must be before custom error handler) ───────────────
 if (process.env.SENTRY_DSN) {
