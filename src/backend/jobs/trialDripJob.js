@@ -40,10 +40,10 @@ async function runTrialDrip() {
         );
       });
     } catch (err) {
-      console.error(`[trialDrip] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialDrip] user drip failed');
     }
   }
-  console.log(`[trialDrip] dripped 2 credits to ${users.length} users`);
+  logger.info({ count: users.length }, '[trialDrip] dripped 2 credits');
 }
 
 // ── Day 6 reminder job ────────────────────────────────────────────────────────
@@ -73,10 +73,10 @@ async function runTrialReminder() {
         await enqueuePushNotification(tokenRows[0].fcm_token, title, body, { type: 'trial_reminder', route: '/credits' });
       }
     } catch (err) {
-      console.error(`[trialReminder] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialReminder] user reminder failed');
     }
   }
-  if (users.length) console.log(`[trialReminder] sent to ${users.length} users`);
+  if (users.length) logger.info({ count: users.length }, '[trialReminder] sent');
 }
 
 // ── Trial expiry job ──────────────────────────────────────────────────────────

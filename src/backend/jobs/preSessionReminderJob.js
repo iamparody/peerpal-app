@@ -1,13 +1,15 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 async function notifyUser(user_id, type, payload) {
   await query(
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, $2, $3, 'in_app')`,
     [user_id, type, JSON.stringify(payload)]
-  ).catch((e) => console.error('[preSessionReminder:notify]', e.message));
+  ).catch((e) => logger.error('[preSessionReminder:notify]', e.message));
 }
 
 async function runPreSessionReminderJob() {
@@ -35,9 +37,9 @@ async function runPreSessionReminderJob() {
         booking_id: row.id,
       });
 
-      console.log(`[preSessionReminder] Reminders sent for booking ${row.id}`);
+      logger.info(`[preSessionReminder] Reminders sent for booking ${row.id}`);
     } catch (err) {
-      console.error('[preSessionReminder] Error:', row.id, err.message);
+      logger.error('[preSessionReminder] Error:', row.id, err.message);
     }
   }
 }

@@ -1,6 +1,8 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 
 /**
  * Runs every 2 minutes.
@@ -37,7 +39,7 @@ async function runDraftBookingExpiryJob() {
     );
   }
 
-  console.log(`[draftBookingExpiryJob] Expired ${ids.length} draft booking(s)`);
+  logger.info(`[draftBookingExpiryJob] Expired ${ids.length} draft booking(s)`);
 }
 
 module.exports = { runDraftBookingExpiryJob };

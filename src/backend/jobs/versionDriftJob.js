@@ -1,4 +1,6 @@
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { GRACE_PERIOD_DAYS } = require('../services/policyEngine');
 
 // Runs nightly at 02:00 UTC (5am Nairobi EAT).
@@ -67,7 +69,7 @@ async function runVersionDriftJob() {
 
   if (!toExpire.length) return;
 
-  console.log(`[versionDriftJob] Expiring ${toExpire.length} permission(s) due to version drift`);
+  logger.info(`[versionDriftJob] Expiring ${toExpire.length} permission(s) due to version drift`);
 
   for (const row of toExpire) {
     await query(`

@@ -5,6 +5,8 @@
 // (tests/peerRequestPush.test.js) without a DB, Redis or Firebase.
 
 const crypto = require('crypto');
+const logger = require('../utils/logger');
+
 
 // Nairobi quiet hours (EAT = UTC+3, no DST): 22:00–07:00.
 const QUIET_START_HOUR_EAT = 22;
@@ -59,7 +61,7 @@ async function claimPushSlot(fcmToken, requestId, { redis, nowMs = Date.now() } 
       const res = await redis.set(key, '1', { nx: true, ex: DEDUP_TTL_SECONDS });
       return res === 'OK';
     } catch (err) {
-      console.warn('[peer-push] redis dedup unavailable, using local fallback:', err.message);
+      logger.warn('[peer-push] redis dedup unavailable, using local fallback:', err.message);
     }
   }
   return claimLocally(key, nowMs);
@@ -135,7 +137,7 @@ async function broadcastPeerRequestPush({
       summary.sent += 1;
       summary.sentUserIds.push(id);
     } catch (err) {
-      console.warn('[peer-push] enqueue error:', err.message);
+      logger.warn('[peer-push] enqueue error:', err.message);
     }
   }
 

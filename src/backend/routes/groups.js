@@ -544,12 +544,12 @@ router.post('/:id/polls', auth, async (req, res) => {
   );
   const pollId = rows[0].id;
 
-  for (let i = 0; i < cleanOptions.length; i++) {
-    await query(
-      'INSERT INTO group_poll_options (poll_id, label, position) VALUES ($1, $2, $3)',
-      [pollId, cleanOptions[i], i + 1]
-    );
-  }
+  await query(
+    `INSERT INTO group_poll_options (poll_id, label, position)
+     SELECT $1, label, position
+     FROM unnest($2::text[], $3::int[]) AS t(label, position)`,
+    [pollId, cleanOptions, cleanOptions.map((_, i) => i + 1)]
+  );
 
   return res.status(201).json({ poll_id: pollId });
 });

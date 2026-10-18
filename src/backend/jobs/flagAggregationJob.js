@@ -9,6 +9,8 @@
 // crossed a threshold, then in a separate DB call fetch permissions and insert flags.
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { SUPERVISION_THRESHOLDS } = require('../config/screening');
 
 async function getActivePermissionIds(userId) {
@@ -39,7 +41,7 @@ async function flagAllActivePermissions(userId, signalType, signalData) {
 }
 
 async function runFlagAggregationJob() {
-  console.log('[flagAggregation] Starting...');
+  logger.info('[flagAggregation] Starting...');
   const t = SUPERVISION_THRESHOLDS;
   let processed = 0;
 
@@ -155,7 +157,7 @@ async function runFlagAggregationJob() {
     }
   }
 
-  console.log(`[flagAggregation] Done. Users processed for flagging: ${processed}`);
+  logger.info(`[flagAggregation] Done. Users processed for flagging: ${processed}`);
 }
 
 module.exports = { runFlagAggregationJob };

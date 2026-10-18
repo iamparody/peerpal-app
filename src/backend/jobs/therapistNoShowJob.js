@@ -1,6 +1,8 @@
 'use strict';
 
 const { query } = require('../db');
+const logger = require('../utils/logger');
+
 const { issueFullRefund } = require('../utils/therapyRefund');
 
 async function notifyUser(user_id, type, payload) {
@@ -8,7 +10,7 @@ async function notifyUser(user_id, type, payload) {
     `INSERT INTO notifications (user_id, type, payload, channel)
      VALUES ($1, $2, $3, 'in_app')`,
     [user_id, type, JSON.stringify(payload)]
-  ).catch((e) => console.error('[therapistNoShow:notify]', e.message));
+  ).catch((e) => logger.error(e.message));
 }
 
 async function runTherapistNoShowJob() {
@@ -32,7 +34,7 @@ async function runTherapistNoShowJob() {
       );
 
       await issueFullRefund(row.id).catch((e) =>
-        console.error('[therapistNoShow] refund failed:', row.id, e.message)
+        logger.error('[therapistNoShow] refund failed:', row.id, e.message)
       );
 
       await notifyUser(row.member_user_id, 'therapist_update', {
@@ -51,15 +53,15 @@ async function runTherapistNoShowJob() {
           `UPDATE therapist_profiles SET suspended = true, is_active = false, updated_at = NOW() WHERE id = $1`,
           [row.therapist_id]
         );
-        console.warn('[therapistNoShow] Auto-suspended therapist (3+ no-shows):', row.therapist_id);
+        logger.warn('[therapistNoShow] Auto-suspended therapist (3+ no-shows):', row.therapist_id);
         await notifyUser(row.therapist_user_id, 'therapist_update', {
           message: 'Your account has been suspended due to repeated no-shows. Contact support to appeal.',
         });
       }
 
-      console.log(`[therapistNoShow] Processed no-show: booking ${row.id}`);
+      logger.info(`[therapistNoShow] Processed no-show: booking ${row.id}`);
     } catch (err) {
-      console.error('[therapistNoShow] Error processing booking:', row.id, err.message);
+      logger.error('[therapistNoShow] Error processing booking:', row.id, err.message);
     }
   }
 }

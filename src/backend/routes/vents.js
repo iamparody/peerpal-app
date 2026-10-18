@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../utils/logger');
+
 const multer = require('multer');
 const { Readable } = require('stream');
 const Groq = require('groq-sdk');
@@ -111,7 +113,7 @@ router.post('/transcribe', auth, upload.single('audio'), async (req, res) => {
 
     return res.status(200).json({ text });
   } catch (err) {
-    console.error('[vents/transcribe] Groq error:', err.message);
+    logger.error('[vents/transcribe] Groq error:', err.message);
     return res.status(502).json({ error: 'Transcription failed', code: 'TRANSCRIBE_ERROR' });
   }
 });

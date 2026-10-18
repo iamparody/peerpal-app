@@ -20,9 +20,42 @@
 ---
 
 ## Current Phase
-**Phase 45 — Re-engagement Engine (Funnel-Based)**
+**Infrastructure hardening block — Phases 52.4, 52.8, 52.9, 52.10, 52.1 all COMPLETE**
 
-**NEXT ACTION → Phase 46 (assigned to Seka). Otherwise: Phase 52.5 (Sentry DSN + monitoring config) or Phase 52.13 (blue/green runbook).**
+**NEXT ACTION → Phase 51 admin panel updates (if any remain) or Phase 52.2/52.3 owner actions. Phase 42 COMPLETE. Phase 46 assigned to Seka — do not touch.**
+
+### Phase 42 — COMPLETE (commit 3b8133a, 2026-10-17)
+- Agreement checkbox + validation already present in OnboardingScreen Step 3
+- Backend validates `agreement_acknowledged` at `/therapist/onboarding/complete`
+- Bug fix: removed `category_ids` from completion gate (admin field, not therapist-settable)
+- `docs/therapist-agreement.md` already present with full content
+
+### Phase 52.1 — COMPLETE (commit adfb77a, 2026-10-17)
+- `src/backend/Dockerfile`: multi-stage node:20-alpine, non-root peerpal user, HEALTHCHECK via /health
+- `src/backend/.dockerignore`: excludes node_modules, .env, tests, scripts
+- `docker-compose.yml`: backend + redis:7-alpine, health-gated depends_on
+
+### Phase 52.8 — COMPLETE (commit e69bab6, 2026-10-17)
+- `db/index.js`: migrated console.log/warn to logger.debug/warn; fixed require paths (./utils → ../utils for both logger and Sentry)
+- `groups.js`: replaced per-row poll option INSERTs (N+1 loop) with single unnest bulk INSERT
+- `migrations/108_perf_indexes.sql` + rollback: `idx_peer_requests_accepted_by` (stats/leaderboard), `idx_notifications_type` (broadcast dedup)
+- **Owner action:** `psql $DATABASE_URL -f src/backend/migrations/108_perf_indexes.sql`
+
+### Phase 52.9 — COMPLETE (commit f57e6ef, 2026-10-17)
+- `utils/breakers.js`: opossum circuit breakers for FCM + email (lazy singletons)
+- `/health` returns breaker states
+- FCM + emailService wrapped with circuit breaker
+
+### Phase 52.10 — COMPLETE (commit 32bacf4, 2026-10-17)
+- `migrations/109_dlq.sql` + rollback: `dlq_jobs` table with SKIP LOCKED index
+- `jobs/dlqRetryJob.js`: exponential backoff (5m/30m/2hr), promotes to 'dead' after max_attempts
+- emailWorker + notificationWorker: write to DLQ on final BullMQ failure
+- server.js: DLQ cron every 15 minutes
+- **Owner action:** `psql $DATABASE_URL -f src/backend/migrations/109_dlq.sql`
+
+### Phase 52.4 — COMPLETE (commit 8645d22, 2026-10-17)
+- pino + pino-http structured logging; 253 console calls replaced across 41 files
+- Redact paths for auth headers, cookies, passwords, tokens, emails
 
 ### Phase 45 — COMPLETE (commit ce8de01, 2026-10-16)
 
