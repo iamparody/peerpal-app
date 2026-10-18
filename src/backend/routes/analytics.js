@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db');
 const { verifyToken } = require('../utils/jwt');
+const { publicFormLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ const VALID_EVENTS = new Set([
 ]);
 
 // POST /analytics/event — no auth required; user_id extracted from token if present
-router.post('/event', async (req, res) => {
+router.post('/event', publicFormLimiter, async (req, res) => {
   const { event_name, properties } = req.body;
 
   if (!event_name || !VALID_EVENTS.has(event_name)) {

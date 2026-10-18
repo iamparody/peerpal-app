@@ -83,6 +83,59 @@ const paymentLimiter = rateLimit({
   message: { error: 'Too many payment requests — please wait a minute', code: 'RATE_LIMITED' },
 });
 
+// ── AI message / session — per user, not per IP ──────────────────────────────
+// 30 messages/min per user is already generous for a chat UI; defends against
+// scripted LLM pumping that would drain Groq quota and rack up inference cost.
+const aiMessageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Slow down — you\'re sending messages too fast', code: 'RATE_LIMITED' },
+});
+
+// 10 session starts/min per user — each start allocates DB rows and AI context.
+const aiSessionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many session requests', code: 'RATE_LIMITED' },
+});
+
+// ── Transcription — tightest limit: Whisper call + 25 MB upload per request ──
+// 5/min per user is still 300 transcriptions/hour — nobody legitimate needs more.
+const transcribeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many transcription requests — please wait a moment', code: 'RATE_LIMITED' },
+});
+
+// ── Peer request — each fire broadcasts FCM to all online peers (O(n) pushes) ─
+const peerRequestLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many peer requests', code: 'RATE_LIMITED' },
+});
+
+// ── Public unauthenticated forms (analytics event, feedback) ─────────────────
+// IP-based; 30/min is generous for legitimate use, stops simple floods.
+const publicFormLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', code: 'RATE_LIMITED' },
+});
+
 // ── Resend-verification rate limit: 3 per hour per user ───────────────────────
 const resendStore = new Map();
 const RESEND_MAX = 3;
@@ -100,4 +153,4 @@ function checkResendLimit(userId) {
   return true;
 }
 
-module.exports = { authLimiter, apiLimiter, paymentLimiter, loginCooldownMiddleware, recordFailedLogin, clearLoginRecord, checkResendLimit };
+module.exports = { authLimiter, apiLimiter, paymentLimiter, aiMessageLimiter, aiSessionLimiter, transcribeLimiter, peerRequestLimiter, publicFormLimiter, loginCooldownMiddleware, recordFailedLogin, clearLoginRecord, checkResendLimit };

@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 
 const { query, getClient } = require('../db');
 const auth = require('../middleware/auth');
+const { peerRequestLimiter } = require('../middleware/rateLimit');
 const { ICE_SERVERS } = require('../ws/signaling');
 const cache = require('../services/cache');
 const { deductCredit, refundCredit, getCreditCosts } = require('../utils/creditDeductor');
@@ -323,7 +324,7 @@ async function autoCloseSession(requestId, sessionId, requesterId, responderId, 
 }
 
 // ─── POST /peer/request ───────────────────────────────────────────────────────
-router.post('/request', auth, async (req, res) => {
+router.post('/request', auth, peerRequestLimiter, async (req, res) => {
   const { channel_preference, topic_slug, secondary_topic_slug } = req.body;
 
   if (!VALID_CHANNELS.includes(channel_preference)) {
@@ -995,7 +996,7 @@ router.get('/stats', auth, async (req, res) => {
 });
 
 // ─── POST /peer/request/:id/extend ───────────────────────────────────────────
-router.post('/request/:id/extend', auth, async (req, res) => {
+router.post('/request/:id/extend', auth, peerRequestLimiter, async (req, res) => {
   const { rows } = await query(
     `SELECT pr.session_id, pr.user_id, pr.accepted_by, pr.channel_preference
      FROM peer_requests pr WHERE pr.id = $1 AND pr.status = 'active'`,

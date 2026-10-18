@@ -7,6 +7,7 @@ const { PostHog } = require('posthog-node');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
+const { aiMessageLimiter, aiSessionLimiter } = require('../middleware/rateLimit');
 const { stripHtml } = require('../utils/sanitizer');
 const cache = require('../services/cache');
 const pipeline     = require('../ai/pipeline');
@@ -139,7 +140,7 @@ ${persona.uses_alias ? `You may occasionally use the user's alias "${userAlias}"
 }
 
 // ─── POST /ai/session/start ───────────────────────────────────────────────────
-router.post('/session/start', auth, async (req, res) => {
+router.post('/session/start', auth, aiSessionLimiter, async (req, res) => {
   // Optional peer-bridge context — passed when user arrives from a failed peer request.
   // Only 'peer_unavailable' is acted on; any other value is silently ignored.
   const { context, topic_label } = req.body || {};
@@ -265,7 +266,7 @@ router.post('/session/start', auth, async (req, res) => {
 });
 
 // ─── POST /ai/session/:id/message ─────────────────────────────────────────────
-router.post('/session/:id/message', auth, async (req, res) => {
+router.post('/session/:id/message', auth, aiMessageLimiter, async (req, res) => {
   const { input_text } = req.body;
   if (!input_text || typeof input_text !== 'string' || input_text.trim().length === 0) {
     return res.status(400).json({ error: 'input_text is required', code: 'MISSING_INPUT' });

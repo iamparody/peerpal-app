@@ -6,6 +6,7 @@ const { Readable } = require('stream');
 const Groq = require('groq-sdk');
 const { query } = require('../db');
 const auth = require('../middleware/auth');
+const { transcribeLimiter } = require('../middleware/rateLimit');
 const { classify } = require('../utils/riskClassifier');
 const { stripHtml } = require('../utils/sanitizer');
 
@@ -82,7 +83,7 @@ router.post('/:id/promote', auth, async (req, res) => {
 
 // ─── POST /vents/transcribe ───────────────────────────────────────────────────
 // Accepts audio blob, returns transcript text. Audio is never persisted.
-router.post('/transcribe', auth, upload.single('audio'), async (req, res) => {
+router.post('/transcribe', auth, transcribeLimiter, upload.single('audio'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'audio file required', code: 'MISSING_AUDIO' });
 
   const ext = (req.file.originalname?.split('.').pop() || 'webm').toLowerCase();

@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../db');
+const { publicFormLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
@@ -7,7 +8,7 @@ const VALID_TYPES = ['peer_session', 'ai_chat', 'bug', 'general'];
 
 // ─── POST /feedback ───────────────────────────────────────────────────────────
 // No auth — fully anonymous by design (blueprint section 7.15)
-router.post('/', async (req, res) => {
+router.post('/', publicFormLimiter, async (req, res) => {
   const { type, rating, comment, session_id } = req.body;
 
   if (!VALID_TYPES.includes(type)) {
