@@ -6,6 +6,7 @@ const { PACKAGES, getPackages } = require('../utils/daraja');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
 const cache = require('../services/cache');
 const { randomUUID } = require('crypto');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -120,7 +121,7 @@ router.post('/payment-webhook', async (req, res) => {
   try {
     event = verifyWebhook(req.rawBody, req.headers);
   } catch (err) {
-    console.error('[credits/payment-webhook] verification failed:', err.message);
+    logger.error({ err }, '[credits/payment-webhook] verification failed');
     return;
   }
 
@@ -130,7 +131,7 @@ router.post('/payment-webhook', async (req, res) => {
     await query(
       `UPDATE credit_transactions SET status = 'failed' WHERE payment_reference = $1 AND status = 'pending'`,
       [invoiceId]
-    ).catch((e) => console.error('[credits/payment-webhook] fail-update error:', e.message));
+    ).catch((e) => logger.error({ err: e }, '[credits/payment-webhook] fail-update error'));
     return;
   }
 
@@ -141,7 +142,6 @@ router.post('/payment-webhook', async (req, res) => {
   // If anything fails the row stays 'pending' and the balance untouched, so it can be reconciled.
   let claimed;
   try {
-    const packages = await getPackages();
     claimed = await transaction(async (tx) => {
       const { rows } = await tx.query(
         `UPDATE credit_transactions SET status = 'confirmed'
@@ -161,6 +161,7 @@ router.post('/payment-webhook', async (req, res) => {
       if (!rowCount) throw new Error(`credits row missing for user ${user_id}`);
 
       // Award AI conversation allowance for the purchased bundle
+      const packages = await getPackages();
       const purchasedPkg = Object.values(packages).find((p) => p.credits === amount_credits);
       if (purchasedPkg?.ai_conversations) {
         await tx.query(
@@ -171,12 +172,12 @@ router.post('/payment-webhook', async (req, res) => {
       return rows[0];
     });
   } catch (err) {
-    console.error('[credits/payment-webhook] RECONCILIATION NEEDED invoice=%s err=%s', invoiceId, err.message);
+    logger.error({ err, invoiceId }, '[credits/payment-webhook] RECONCILIATION NEEDED');
     return;
   }
 
   if (!claimed) {
-    console.warn('[credits/payment-webhook] no pending transaction for invoice', invoiceId);
+    logger.warn({ invoiceId }, '[credits/payment-webhook] no pending transaction for invoice');
     return;
   }
 
@@ -189,14 +190,14 @@ router.post('/payment-webhook', async (req, res) => {
      VALUES ($1, 'credit_purchase_confirmed', $2, 'push'),
             ($1, 'credit_purchase_confirmed', $2, 'in_app')`,
     [user_id, notifPayload]
-  ).catch((e) => console.error('[credits/payment-webhook] notify error:', e.message));
+  ).catch((e) => logger.error({ err: e }, '[credits/payment-webhook] notify error'));
 
   // Funnel step hook: purchase → converted
   await query(
     `UPDATE users SET reengagement_step = 'converted'
      WHERE id = $1 AND reengagement_step != 'converted'`,
     [user_id]
-  ).catch((e) => console.error('[reengagement-hook/purchase]', e.message));
+  ).catch((e) => logger.error({ err: e }, '[reengagement-hook/purchase]'));
 });
 
 module.exports = router;

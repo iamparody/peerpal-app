@@ -141,9 +141,11 @@ function loadTrialDripWith(state, { failLedger = false } = {}) {
     },
   };
 
+  const loggerPath = require.resolve('../utils/logger');
   delete require.cache[jobPath];
   require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: fakeDb };
   require.cache[fcmPath] = { id: fcmPath, filename: fcmPath, loaded: true, exports: { enqueuePushNotification: async () => {} } };
+  require.cache[loggerPath] = { id: loggerPath, filename: loggerPath, loaded: true, exports: { info: () => {}, warn: () => {}, error: () => {} } };
   const job = require('../jobs/trialDripJob');
   return job;
 }
