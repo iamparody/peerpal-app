@@ -1,5 +1,6 @@
 const { query, transaction } = require('../db');
 const { enqueuePushNotification } = require('../utils/fcm');
+const logger = require('../utils/logger');
 
 // ── Trial drip job ────────────────────────────────────────────────────────────
 // Runs daily at 06:00 EAT (03:00 UTC).
@@ -39,10 +40,10 @@ async function runTrialDrip() {
         );
       });
     } catch (err) {
-      console.error(`[trialDrip] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialDrip] user drip failed');
     }
   }
-  console.log(`[trialDrip] dripped 2 credits to ${users.length} users`);
+  logger.info({ count: users.length }, '[trialDrip] dripped 2 credits');
 }
 
 // ── Day 6 reminder job ────────────────────────────────────────────────────────
@@ -72,10 +73,10 @@ async function runTrialReminder() {
         await enqueuePushNotification(tokenRows[0].fcm_token, title, body, { type: 'trial_reminder', route: '/credits' });
       }
     } catch (err) {
-      console.error(`[trialReminder] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialReminder] user reminder failed');
     }
   }
-  if (users.length) console.log(`[trialReminder] sent to ${users.length} users`);
+  if (users.length) logger.info({ count: users.length }, '[trialReminder] sent');
 }
 
 // ── Trial expiry job ──────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ async function expireTrialCredits(tx, userId, trialClaimedAt) {
   );
   const { rows: sums } = await tx.query(
     `SELECT
-       COALESCE(SUM(amount_credits) FILTER (WHERE type = 'trial_drip'), 0)::int AS issued,
+       COALESCE(SUM(amount_credits) FILTER (WHERE type = 'trial_drip' AND created_at >= $2), 0)::int AS issued,
        COALESCE(SUM(amount_credits) FILTER (WHERE type = 'debit'  AND created_at >= $2), 0)::int AS debited,
        COALESCE(SUM(amount_credits) FILTER (WHERE type = 'refund' AND created_at >= $2), 0)::int AS refunded
      FROM credit_transactions
@@ -148,10 +149,10 @@ async function runTrialExpiry() {
       removedTotal += r.removed;
       if (r.removed) await require('../services/cache').del(`credits:${user.id}`).catch(() => {});
     } catch (err) {
-      console.error(`[trialExpiry] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialExpiry] user expiry failed');
     }
   }
-  if (users.length) console.log(`[trialExpiry] processed ${users.length} expired trials, removed ${removedTotal} credits`);
+  if (users.length) logger.info({ count: users.length, removedTotal }, '[trialExpiry] processed expired trials');
 }
 
 module.exports = { runTrialDrip, runTrialReminder, runTrialExpiry, expireTrialCredits };

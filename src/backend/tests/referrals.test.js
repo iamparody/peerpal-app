@@ -510,7 +510,7 @@ describe('referral_report summarize', () => {
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
-describe('migration 108', () => {
+describe('migration 110', () => {
   const dir = path.join(ROOT, 'migrations');
   const forward = fs.readdirSync(dir).filter(n => n.endsWith('.sql') && !n.includes('_rollback'));
   function enumLabels(type) {
@@ -533,11 +533,11 @@ describe('migration 108', () => {
   });
 
   test('has a rollback file', () => {
-    assert.ok(fs.existsSync(path.join(dir, '108_referral_system_rollback.sql')));
+    assert.ok(fs.existsSync(path.join(dir, '110_referral_system_rollback.sql')));
   });
 
   test('user deletion cannot be blocked by referral FKs', () => {
-    const sql = fs.readFileSync(path.join(dir, '108_referral_system.sql'), 'utf8');
+    const sql = fs.readFileSync(path.join(dir, '110_referral_system.sql'), 'utf8');
     assert.match(sql, /referred_by UUID NULL REFERENCES users\(id\) ON DELETE SET NULL/);
     assert.equal((sql.match(/REFERENCES users\(id\) ON DELETE CASCADE/g) || []).length, 2);
   });

@@ -1,8 +1,8 @@
--- Migration 108: Phase 46 referral system (CHECKLIST.md Phase 46).
+-- Migration 110: Phase 46 referral system (CHECKLIST.md Phase 46).
 -- A referred user gets +1 bonus credit at signup; the referrer earns 2 credits when
 -- the referred user's first credit purchase is confirmed.
 
--- users: own code (generated at signup, lazily for pre-108 accounts) and who referred them.
+-- users: own code (generated at signup, lazily for pre-110 accounts) and who referred them.
 -- referred_by is SET NULL on delete: deletionJob hard-deletes users.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code VARCHAR(10) UNIQUE NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by UUID NULL REFERENCES users(id) ON DELETE SET NULL;
