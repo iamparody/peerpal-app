@@ -11,9 +11,15 @@ jobs:
     steps:
       - name: Ping health endpoint
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.BACKEND_URL }}/health)
+          if [ -z "$BACKEND_URL" ]; then
+            echo "BACKEND_URL not configured — skipping keep-alive ping"
+            exit 0
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health")
           echo "Health check returned HTTP $STATUS"
           if [ "$STATUS" != "200" ]; then
             echo "Health check failed"
             exit 1
           fi
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
