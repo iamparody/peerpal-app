@@ -1,7 +1,6 @@
 const { query, transaction } = require('../db');
-const logger = require('../utils/logger');
-
 const { enqueuePushNotification } = require('../utils/fcm');
+const logger = require('../utils/logger');
 
 // ── Trial drip job ────────────────────────────────────────────────────────────
 // Runs daily at 06:00 EAT (03:00 UTC).
@@ -41,10 +40,10 @@ async function runTrialDrip() {
         );
       });
     } catch (err) {
-      logger.error(`[trialDrip] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialDrip] user drip failed');
     }
   }
-  logger.info(`[trialDrip] dripped 2 credits to ${users.length} users`);
+  logger.info({ count: users.length }, '[trialDrip] dripped 2 credits');
 }
 
 // ── Day 6 reminder job ────────────────────────────────────────────────────────
@@ -74,15 +73,68 @@ async function runTrialReminder() {
         await enqueuePushNotification(tokenRows[0].fcm_token, title, body, { type: 'trial_reminder', route: '/credits' });
       }
     } catch (err) {
-      logger.error(`[trialReminder] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialReminder] user reminder failed');
     }
   }
-  if (users.length) logger.info(`[trialReminder] sent to ${users.length} users`);
+  if (users.length) logger.info({ count: users.length }, '[trialReminder] sent');
 }
 
 // ── Trial expiry job ──────────────────────────────────────────────────────────
 // Runs daily at 06:05 EAT (03:05 UTC), just after reminder.
 // Removes unspent trial_drip credits and sends in-app notification.
+//
+// docs/phase47-spec.md: unspent = trial_drip issued − debits since trial_claimed_at, remove the
+// lesser of that or the balance, never touch purchase/referral/promo credits.
+// Debits are stored as positive 'debit' rows (utils/creditDeductor.js), refunds as positive
+// 'refund' rows. Credits are fungible, so spending is counted against trial credits first:
+// that removes the least and is the only reading that cannot take a purchased credit.
+//
+// The removal is itself written as a 'debit' (channel 'trial'), so it counts as spent on any
+// re-run: the 25h window overlaps the 24h cron by an hour, and a second pass must remove 0.
+async function expireTrialCredits(tx, userId, trialClaimedAt) {
+  const { rows: bal } = await tx.query(
+    'SELECT balance FROM credits WHERE user_id = $1 FOR UPDATE',
+    [userId]
+  );
+  const { rows: sums } = await tx.query(
+    `SELECT
+       COALESCE(SUM(amount_credits) FILTER (WHERE type = 'trial_drip' AND created_at >= $2), 0)::int AS issued,
+       COALESCE(SUM(amount_credits) FILTER (WHERE type = 'debit'  AND created_at >= $2), 0)::int AS debited,
+       COALESCE(SUM(amount_credits) FILTER (WHERE type = 'refund' AND created_at >= $2), 0)::int AS refunded
+     FROM credit_transactions
+     WHERE user_id = $1 AND status = 'confirmed'`,
+    [userId, trialClaimedAt]
+  );
+
+  const { issued, debited, refunded } = sums[0];
+  const spent    = Math.max(0, debited - refunded);
+  const unspent  = Math.max(0, issued - spent);
+  const balance  = bal[0]?.balance ?? 0;
+  const toRemove = Math.min(unspent, balance);
+
+  if (toRemove > 0) {
+    await tx.query(
+      'UPDATE credits SET balance = balance - $1, updated_at = NOW() WHERE user_id = $2',
+      [toRemove, userId]
+    );
+    await tx.query(
+      `INSERT INTO credit_transactions (user_id, type, amount_credits, payment_method, channel, status)
+       VALUES ($1, 'debit', $2, 'platform', 'trial', 'confirmed')`,
+      [userId, toRemove]
+    );
+  }
+
+  // In-app only, no push. One per user ever (one trial per account).
+  await tx.query(
+    `INSERT INTO notifications (user_id, type, payload, channel, event_ref)
+     VALUES ($1, 'trial_expired', $2, 'in_app', 'trial_expired')
+     ON CONFLICT (user_id, type, event_ref) WHERE event_ref IS NOT NULL DO NOTHING`,
+    [userId, JSON.stringify({ message: 'Everything you experienced is still here. Top up to keep going.', route: '/credits' })]
+  );
+
+  return { issued, spent, balance, removed: toRemove };
+}
+
 async function runTrialExpiry() {
   const { rows: users } = await query(
     `SELECT id, trial_claimed_at FROM users
@@ -90,53 +142,17 @@ async function runTrialExpiry() {
        AND trial_ends_at > NOW() - INTERVAL '25 hours'`
   );
 
+  let removedTotal = 0;
   for (const user of users) {
     try {
-      // Calculate unspent trial credits:
-      // total dripped minus total debits charged since trial started
-      const { rows: issuedRows } = await query(
-        `SELECT COALESCE(SUM(amount_credits), 0)::int AS issued
-         FROM credit_transactions
-         WHERE user_id = $1 AND type = 'trial_drip'`,
-        [user.id]
-      );
-      const { rows: debitRows } = await query(
-        `SELECT COALESCE(SUM(ABS(amount_credits)), 0)::int AS spent
-         FROM credit_transactions
-         WHERE user_id = $1
-           AND amount_credits < 0
-           AND created_at >= $2`,
-        [user.id, user.trial_claimed_at]
-      );
-      const { rows: balanceRows } = await query(
-        'SELECT balance FROM credits WHERE user_id = $1',
-        [user.id]
-      );
-
-      const issued   = issuedRows[0].issued;
-      const spent    = debitRows[0].spent;
-      const unspent  = Math.max(0, issued - spent);
-      const balance  = balanceRows[0]?.balance ?? 0;
-      const toRemove = Math.min(unspent, balance);
-
-      if (toRemove > 0) {
-        await query(
-          'UPDATE credits SET balance = balance - $1 WHERE user_id = $2',
-          [toRemove, user.id]
-        );
-      }
-
-      // In-app only, no push
-      await query(
-        `INSERT INTO notifications (user_id, type, payload, channel)
-         VALUES ($1, 'trial_expired', $2, 'in_app')`,
-        [user.id, JSON.stringify({ message: 'Everything you experienced is still here. Top up to keep going.', route: '/credits' })]
-      );
+      const r = await transaction((tx) => expireTrialCredits(tx, user.id, user.trial_claimed_at));
+      removedTotal += r.removed;
+      if (r.removed) await require('../services/cache').del(`credits:${user.id}`).catch(() => {});
     } catch (err) {
-      logger.error(`[trialExpiry] user ${user.id}:`, err.message);
+      logger.error({ err, userId: user.id }, '[trialExpiry] user expiry failed');
     }
   }
-  if (users.length) logger.info(`[trialExpiry] processed ${users.length} expired trials`);
+  if (users.length) logger.info({ count: users.length, removedTotal }, '[trialExpiry] processed expired trials');
 }
 
-module.exports = { runTrialDrip, runTrialReminder, runTrialExpiry };
+module.exports = { runTrialDrip, runTrialReminder, runTrialExpiry, expireTrialCredits };

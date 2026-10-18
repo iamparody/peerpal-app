@@ -1,13 +1,12 @@
 ﻿const express = require('express');
-const { query } = require('../db');
-const logger = require('../utils/logger');
-
+const { query, transaction } = require('../db');
 const auth = require('../middleware/auth');
 const { paymentLimiter } = require('../middleware/rateLimit');
 const { PACKAGES, getPackages } = require('../utils/daraja');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
 const cache = require('../services/cache');
 const { randomUUID } = require('crypto');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -90,7 +89,7 @@ router.post('/purchase', auth, paymentLimiter, async (req, res) => {
     paymentRef = result.reference;
     checkoutUrl = result.checkoutUrl;
   } catch (err) {
-    logger.error('Credits STK Push failed:', err.message);
+    console.error('Credits STK Push failed:', err.message);
     return res.status(502).json({ error: 'Could not send M-Pesa prompt. Please try again.', code: 'PAYMENT_ERROR' });
   }
 
@@ -122,7 +121,7 @@ router.post('/payment-webhook', async (req, res) => {
   try {
     event = verifyWebhook(req.rawBody, req.headers);
   } catch (err) {
-    logger.error('[credits/payment-webhook] verification failed:', err.message);
+    logger.error({ err }, '[credits/payment-webhook] verification failed');
     return;
   }
 
@@ -132,45 +131,58 @@ router.post('/payment-webhook', async (req, res) => {
     await query(
       `UPDATE credit_transactions SET status = 'failed' WHERE payment_reference = $1 AND status = 'pending'`,
       [invoiceId]
-    ).catch((e) => logger.error('[credits/payment-webhook] fail-update error:', e.message));
+    ).catch((e) => logger.error({ err: e }, '[credits/payment-webhook] fail-update error'));
     return;
   }
 
-  // Find the pending transaction — idempotency: WHERE status='pending' exits on duplicate fires
-  const { rows: txRows } = await query(
-    `SELECT id, user_id, amount_credits FROM credit_transactions
-     WHERE payment_reference = $1 AND status = 'pending' LIMIT 1`,
-    [invoiceId]
-  ).catch(() => ({ rows: [] }));
+  // Claim, credit and AI allowance in one transaction. The UPDATE ... AND status = 'pending'
+  // is the idempotency guard: a concurrent duplicate fire blocks on the row lock, re-checks
+  // status after the first commits, matches nothing and exits. (Previously a SELECT then a
+  // separate UPDATE let two fires both see 'pending' and both credit the balance.)
+  // If anything fails the row stays 'pending' and the balance untouched, so it can be reconciled.
+  let claimed;
+  try {
+    claimed = await transaction(async (tx) => {
+      const { rows } = await tx.query(
+        `UPDATE credit_transactions SET status = 'confirmed'
+         WHERE id = (SELECT id FROM credit_transactions
+                     WHERE payment_reference = $1 AND status = 'pending' LIMIT 1)
+           AND status = 'pending'
+         RETURNING id, user_id, amount_credits`,
+        [invoiceId]
+      );
+      if (!rows.length) return null;
+      const { user_id, amount_credits } = rows[0];
 
-  if (!txRows.length) {
-    logger.warn('[credits/payment-webhook] no pending transaction for invoice', invoiceId);
+      const { rowCount } = await tx.query(
+        'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
+        [amount_credits, user_id]
+      );
+      if (!rowCount) throw new Error(`credits row missing for user ${user_id}`);
+
+      // Award AI conversation allowance for the purchased bundle
+      const packages = await getPackages();
+      const purchasedPkg = Object.values(packages).find((p) => p.credits === amount_credits);
+      if (purchasedPkg?.ai_conversations) {
+        await tx.query(
+          'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
+          [purchasedPkg.ai_conversations, user_id]
+        );
+      }
+      return rows[0];
+    });
+  } catch (err) {
+    logger.error({ err, invoiceId }, '[credits/payment-webhook] RECONCILIATION NEEDED');
     return;
   }
 
-  const { id: transactionId, user_id, amount_credits } = txRows[0];
-
-  // Credit the balance
-  await query(
-    'UPDATE credits SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2',
-    [amount_credits, user_id]
-  ).catch((e) => logger.error('[credits/payment-webhook] credit error:', e.message));
-
-  // Award AI conversation allowance for the purchased bundle
-  const purchasedPkg = Object.values(await getPackages()).find((p) => p.credits === amount_credits);
-  if (purchasedPkg?.ai_conversations) {
-    await query(
-      'UPDATE credits SET ai_conversations_cap = ai_conversations_cap + $1 WHERE user_id = $2',
-      [purchasedPkg.ai_conversations, user_id]
-    ).catch((e) => logger.error('[credits/payment-webhook] AI conv award error:', e.message));
+  if (!claimed) {
+    logger.warn({ invoiceId }, '[credits/payment-webhook] no pending transaction for invoice');
+    return;
   }
 
+  const { user_id, amount_credits } = claimed;
   await cache.del(`credits:${user_id}`);
-
-  await query(
-    `UPDATE credit_transactions SET status = 'confirmed' WHERE id = $1 AND user_id = $2`,
-    [transactionId, user_id]
-  ).catch((e) => logger.error('[credits/payment-webhook] confirm error:', e.message));
 
   const notifPayload = JSON.stringify({ credits_added: amount_credits });
   await query(
@@ -178,14 +190,14 @@ router.post('/payment-webhook', async (req, res) => {
      VALUES ($1, 'credit_purchase_confirmed', $2, 'push'),
             ($1, 'credit_purchase_confirmed', $2, 'in_app')`,
     [user_id, notifPayload]
-  ).catch((e) => logger.error('[credits/payment-webhook] notify error:', e.message));
+  ).catch((e) => logger.error({ err: e }, '[credits/payment-webhook] notify error'));
 
   // Funnel step hook: purchase → converted
   await query(
     `UPDATE users SET reengagement_step = 'converted'
      WHERE id = $1 AND reengagement_step != 'converted'`,
     [user_id]
-  ).catch((e) => logger.error(e.message));
+  ).catch((e) => logger.error({ err: e }, '[reengagement-hook/purchase]'));
 });
 
 module.exports = router;
