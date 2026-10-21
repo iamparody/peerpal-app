@@ -20,9 +20,53 @@
 ---
 
 ## Current Phase
-**Infrastructure hardening block — Phases 52.4, 52.8, 52.9, 52.10, 52.1 all COMPLETE**
 
-**NEXT ACTION → Phase 51 admin panel updates (if any remain) or Phase 52.2/52.3 owner actions. Phase 42 COMPLETE. Phase 46 assigned to Seka — do not touch.**
+### Phase 53 — Therapist Portal: Client History + UI Redesign (IN PROGRESS)
+
+**Goal:** Longitudinal client tracking (sessions + notes history per member) and portal UI redesign using `frontend-design` + `ui-ux-pro-max` skills installed 2026-10-21.
+
+**NEXT ACTION → 53.0: Run frontend-design + ui-ux-pro-max design system queries; persist MASTER.md to `design-system/therapist-portal/MASTER.md`. Then 53.1 schema migrations.**
+
+| Item | Status |
+|------|--------|
+| 53.0 Design system | ⬜ |
+| 53.1 Schema — drop UNIQUE on session_notes, add note_type | ⬜ |
+| 53.2 Backend — client list, client detail, notes edit/fetch | ⬜ |
+| 53.3 Sessions tab — notes panel (load existing, multi-note, pre-session) | ⬜ |
+| 53.4 Clients tab + ClientDetailPanel | ⬜ |
+| 53.5 App.jsx — wire Clients tab | ⬜ |
+| 53.6 Dashboard polish | ⬜ |
+| 53.7 Sessions — returning client badge | ⬜ |
+| 53.8 Schedule — booked cell alias | ⬜ |
+| 53.9 UI redesign — apply MASTER.md across all tabs | ⬜ |
+| 53.10 Verification | ⬜ |
+
+**Owner actions still pending (unblocked, run when ready):**
+- Migrations 107, 108, 109, 110, 111
+- GitHub Secrets: `RENDER_DEPLOY_HOOK_STAGING`, `RENDER_DEPLOY_HOOK_PROD`, `STAGING_BACKEND_URL`
+- GitHub `production` environment (Settings → Environments)
+- `VITE_SENTRY_DSN` in Render + Vercel for all three portals
+- Phase 46 assigned to Seka — do not touch
+
+### PWA → APK Readiness (2026-10-19)
+Code work is ~1 day (Capacitor init + Android build). External blockers only:
+
+| Item | Status |
+|------|--------|
+| FCM server key (`FCM_SERVICE_ACCOUNT_JSON`) | ✅ Already in backend .env |
+| IntaSend payments live | ✅ Confirmed live |
+| Firebase web config | ✅ In Vercel env vars |
+| Google Play developer account | ❌ $25 one-time — owner action |
+| Clinical sign-off on peer screening | ❌ Pending — or ship with `PEER_SCREENING_LIVE=false` |
+
+**When Play account + sign-off done:** ~1 day to wrap PWA into APK via Capacitor and submit to Play Store.
+
+### Sentry — COMPLETE across all portals (commit 3a7c23b, 2026-10-17)
+- Frontend: `@sentry/react` + `services/sentry.js` + `initSentry()` in main.jsx ✅
+- Admin: `@sentry/react` + `services/sentry.js` + `initSentry()` in main.jsx ✅
+- Therapist: added `@sentry/react`, created `src/therapist/src/services/sentry.js`, called `initSentry()` in main.jsx ✅
+- All three portals scrub: booking_id, member_alias, therapist_id, room_token, mpesa_number, phone
+- **Owner action:** Set `VITE_SENTRY_DSN` in Render/Vercel env vars for all three portals
 
 ### Phase 42 — COMPLETE (commit 3b8133a, 2026-10-17)
 - Agreement checkbox + validation already present in OnboardingScreen Step 3
