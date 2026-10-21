@@ -1781,4 +1781,60 @@ router.get('/promo-codes/:id/redemptions', adminAuth, async (req, res) => {
   return res.json({ redemptions: rows });
 });
 
+// ─── GET /admin/members ───────────────────────────────────────────────────────
+// Search users by email or alias. Returns all roles so admin can find conflicts.
+router.get('/members', async (req, res) => {
+  const { email, alias } = req.query;
+  if (!email && !alias) {
+    return res.status(400).json({ error: 'email or alias query param required', code: 'MISSING_PARAM' });
+  }
+  try {
+    let rows;
+    if (email) {
+      ({ rows } = await query(
+        `SELECT u.id, u.alias, u.email, u.role, u.is_active, u.email_verified, u.created_at,
+                c.balance AS credit_balance
+         FROM users u
+         LEFT JOIN credits c ON c.user_id = u.id
+         WHERE u.email = $1`,
+        [email.toLowerCase().trim()]
+      ));
+    } else {
+      ({ rows } = await query(
+        `SELECT u.id, u.alias, u.email, u.role, u.is_active, u.email_verified, u.created_at,
+                c.balance AS credit_balance
+         FROM users u
+         LEFT JOIN credits c ON c.user_id = u.id
+         WHERE u.alias ILIKE $1
+         LIMIT 20`,
+        [`%${alias.trim()}%`]
+      ));
+    }
+    return res.json({ members: rows });
+  } catch (err) {
+    logger.error('admin/members GET error:', err.message);
+    return res.status(500).json({ error: 'Failed to search members', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── DELETE /admin/members/:id ────────────────────────────────────────────────
+// Hard-delete a user account. Only allowed for role='member'. Frees the email.
+router.delete('/members/:id', async (req, res) => {
+  try {
+    const { rows } = await query('SELECT alias, email, role FROM users WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+    const user = rows[0];
+    if (user.role !== 'member') {
+      return res.status(409).json({ error: 'Only member accounts can be deleted here. Use the Therapists tab for therapist accounts.', code: 'WRONG_ROLE' });
+    }
+    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    await auditLog(req.user.id, 'member.delete', 'user', req.params.id, user.alias,
+      JSON.stringify({ email: user.email, role: user.role }), null);
+    return res.json({ deleted: true, alias: user.alias });
+  } catch (err) {
+    logger.error('admin/members DELETE error:', err.message);
+    return res.status(500).json({ error: 'Failed to delete member', code: 'QUERY_ERROR' });
+  }
+});
+
 module.exports = router;
