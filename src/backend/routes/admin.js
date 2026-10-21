@@ -586,64 +586,72 @@ router.post('/therapists', async (req, res) => {
   const { generateAlias } = require('../utils/aliasGenerator');
   const { sendTherapistInvite } = require('../services/emailService');
 
-  const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
-  const alias = await generateAlias();
-
-  const { rows: userRows } = await query(
-    `INSERT INTO users (email, password_hash, alias, role, consent_version, email_verified)
-     VALUES ($1, $2, $3, 'therapist', '1.0', true)
-     RETURNING id`,
-    [email.toLowerCase().trim(), placeholderHash, alias]
-  );
-  const userId = userRows[0].id;
-
-  const inviteToken = crypto.randomBytes(32).toString('hex');
-  const inviteHash  = crypto.createHash('sha256').update(inviteToken).digest('hex');
-  await query(
-    `UPDATE users SET reset_token_hash = $1, reset_token_expires = NOW() + INTERVAL '72 hours'
-     WHERE id = $2`,
-    [inviteHash, userId]
-  );
-
-  const { rows: profileRows } = await query(
-    `INSERT INTO therapist_profiles
-       (user_id, display_name, full_name, credentials, years_experience,
-        languages, session_formats, location, statement,
-        plain_language_intro, cultural_competencies, approach_plain,
-        photo_url, availability_status, gender, age, rate_per_session_kes,
-        mpesa_number, category_ids)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-     RETURNING id`,
-    [
-      userId,
-      display_name.trim(),
-      full_name.trim(),
-      credentials.trim(),
-      years_experience || 0,
-      languages || [],
-      session_formats || [],
-      location || null,
-      statement || null,
-      plain_language_intro || null,
-      cultural_competencies || [],
-      approach_plain || null,
-      photo_url || null,
-      availability_status || 'available',
-      gender || null,
-      age || null,
-      rate_per_session_kes || 0,
-      mpesa_number || null,
-      category_ids || [],
-    ]
-  );
-
   try {
-    await sendTherapistInvite(email.toLowerCase().trim(), display_name.trim(), inviteToken);
+    const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+    const alias = await generateAlias();
+
+    const { rows: userRows } = await query(
+      `INSERT INTO users (email, password_hash, alias, role, consent_version, email_verified)
+       VALUES ($1, $2, $3, 'therapist', '1.0', true)
+       RETURNING id`,
+      [email.toLowerCase().trim(), placeholderHash, alias]
+    );
+    const userId = userRows[0].id;
+
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const inviteHash  = crypto.createHash('sha256').update(inviteToken).digest('hex');
+    await query(
+      `UPDATE users SET reset_token_hash = $1, reset_token_expires = NOW() + INTERVAL '72 hours'
+       WHERE id = $2`,
+      [inviteHash, userId]
+    );
+
+    const { rows: profileRows } = await query(
+      `INSERT INTO therapist_profiles
+         (user_id, display_name, full_name, credentials, years_experience,
+          languages, session_formats, location, statement,
+          plain_language_intro, cultural_competencies, approach_plain,
+          photo_url, availability_status, gender, age, rate_per_session_kes,
+          mpesa_number, category_ids)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       RETURNING id`,
+      [
+        userId,
+        display_name.trim(),
+        full_name.trim(),
+        credentials.trim(),
+        years_experience || 0,
+        languages || [],
+        session_formats || [],
+        location || null,
+        statement || null,
+        plain_language_intro || null,
+        cultural_competencies || [],
+        approach_plain || null,
+        photo_url || null,
+        availability_status || 'available',
+        gender || null,
+        age || null,
+        rate_per_session_kes || 0,
+        mpesa_number || null,
+        category_ids || [],
+      ]
+    );
+
+    try {
+      await sendTherapistInvite(email.toLowerCase().trim(), display_name.trim(), inviteToken);
+    } catch (err) {
+      logger.error('[therapist.invite] Email failed:', err.message);
+    }
+    await auditLog(req.user.id, 'therapist.create', 'therapist', userId, alias, null, email.toLowerCase().trim());
+    return res.status(201).json({ therapist_id: profileRows[0].id, alias });
   } catch (err) {
-    logger.error('[therapist.invite] Email failed:', err.message);
+    logger.error('[admin/therapists POST]', err.message);
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'A user with that email already exists.', code: 'DUPLICATE_EMAIL' });
+    }
+    return res.status(500).json({ error: 'Failed to create therapist.', code: 'SERVER_ERROR' });
   }
-  await auditLog(req.user.id, 'therapist.create', 'therapist', userId, alias, null, email.toLowerCase().trim());
-  return res.status(201).json({ therapist_id: profileRows[0].id, alias });
 });
 
 // ─── PATCH /admin/therapists/:id ─────────────────────────────────────────────
