@@ -436,6 +436,15 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
       setError('Email and full name are required for new therapists.');
       return;
     }
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (isNew && !EMAIL_RE.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (mpesa.trim() && !/^0[17]\d{8}$/.test(mpesa.trim())) {
+      setError('M-Pesa number must be 10 digits starting with 07 or 01 (e.g. 0712345678).');
+      return;
+    }
     setSaving(true);
     setError('');
     const body = {

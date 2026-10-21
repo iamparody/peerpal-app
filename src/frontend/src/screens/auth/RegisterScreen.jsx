@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
 import { track } from '../../lib/analytics';
 import { normalizeReferralCode, getPendingReferral, clearPendingReferral } from '../../utils/referral';
+import { isValidEmail } from '../../utils/validate';
 
 function safeStorage() {
   try { return window.localStorage; } catch { return null; }
@@ -30,6 +31,7 @@ export default function RegisterScreen() {
     e.preventDefault();
     setError('');
     if (!email || !password || !confirm) { setError('All fields are required.'); return; }
+    if (!isValidEmail(email)) { setError('Please enter a valid email address.'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     setLoading(true);

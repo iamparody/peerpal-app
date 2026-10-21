@@ -189,6 +189,9 @@ router.post('/login', loginCooldownMiddleware, async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required', code: 'MISSING_FIELDS' });
   }
+  if (!EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'Valid email is required', code: 'INVALID_EMAIL' });
+  }
 
   const t1 = Date.now();
   const { rows } = await query(

@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
+import { isValidEmail } from '../../utils/validate';
 
 export default function RecoverScreen() {
   const [email, setEmail] = useState('');
@@ -12,6 +13,7 @@ export default function RecoverScreen() {
     e.preventDefault();
     setError('');
     if (!email) { setError('Please enter your email address.'); return; }
+    if (!isValidEmail(email)) { setError('Please enter a valid email address.'); return; }
     setLoading(true);
     try {
       await client.post('/api/auth/recover', { email });

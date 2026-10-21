@@ -2,6 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import client from '../../api/client';
+import { isValidEmail } from '../../utils/validate';
 
 export default function LoginScreen() {
   const { login, user } = useAuth();
@@ -49,6 +50,7 @@ export default function LoginScreen() {
     e.preventDefault();
     setError('');
     if (!email || !password || inCooldown) return;
+    if (!isValidEmail(email)) { setError('Please enter a valid email address.'); return; }
     setLoading(true);
     try {
       const { data } = await client.post('/api/auth/login', { email, password });
