@@ -42,17 +42,17 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const { data } = await client.post('/api/auth/login', { email, password });
-    if (data.role !== 'therapist') {
-      throw new Error('This account does not have therapist access.');
-    }
     // Store token first so the profile fetch is authenticated
     localStorage.setItem('pt_token', data.token);
-    // Fetch profile to get onboarding_complete and is_verified
+    // Profile fetch is the access gate — therapistAuth returns 403 if no profile exists.
     let profile = {};
     try {
       const pr = await client.get('/api/therapy/therapist/profile');
       profile = pr.data.profile || {};
-    } catch { /* fall through — gate handled defensively */ }
+    } catch (profileErr) {
+      localStorage.removeItem('pt_token');
+      throw new Error('This account does not have therapist access.');
+    }
     const userData = {
       id:                 data.userId || data.id,
       alias:              data.alias,

@@ -557,7 +557,7 @@ router.get('/therapists', async (req, res) => {
             CASE WHEN tp.id IS NULL THEN true ELSE false END AS profile_missing
      FROM users u
      LEFT JOIN therapist_profiles tp ON tp.user_id = u.id
-     WHERE u.role = 'therapist'
+     WHERE u.role = 'therapist' OR tp.user_id IS NOT NULL
      ORDER BY COALESCE(tp.created_at, u.created_at) DESC`
   );
   return res.status(200).json({ therapists: rows });
@@ -667,8 +667,9 @@ router.post('/therapists', async (req, res) => {
         const existingAlias = existing[0].alias;
         try {
           const { profileId } = await transaction(async (tx) => {
+            // Don't change role — member keeps member access; profile existence gates therapist portal.
             await tx.query(
-              `UPDATE users SET role = 'therapist', reset_token_hash = $1,
+              `UPDATE users SET reset_token_hash = $1,
                   reset_token_expires = NOW() + INTERVAL '72 hours'
                WHERE id = $2`,
               [inviteHash, memberId]
@@ -698,7 +699,7 @@ router.post('/therapists', async (req, res) => {
           } catch (emailErr) {
             logger.error('[therapist.invite] Email failed:', emailErr.message);
           }
-          await auditLog(req.user.id, 'therapist.upgrade_from_member', 'therapist', memberId, existingAlias, 'member', 'therapist');
+          await auditLog(req.user.id, 'therapist.add_profile_to_member', 'therapist', memberId, existingAlias, null, email.toLowerCase().trim());
           return res.status(201).json({ therapist_id: profileId, alias: existingAlias, upgraded_from_member: true });
         } catch (upgradeErr) {
           logger.error('[admin/therapists POST] upgrade failed:', upgradeErr.message);

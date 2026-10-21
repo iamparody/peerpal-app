@@ -1,6 +1,6 @@
-// Therapist portal authentication. Verifies role = 'therapist' from DB on every request,
-// not from the JWT payload alone. Also blocks suspended therapists.
-// Therapist accounts are professional-only — no access to any member-facing routes.
+// Therapist portal authentication. Verifies a therapist_profiles row exists for the user,
+// not role alone — supports dual-role users (member + therapist same email).
+// Also blocks suspended therapists.
 const auth = require('./auth');
 const { query } = require('../db');
 
@@ -12,14 +12,14 @@ async function therapistAuth(req, res, next) {
   if (!req.user) return; // auth middleware already sent 401
 
   const { rows } = await query(
-    `SELECT u.role, tp.suspended, tp.id AS profile_id, tp.user_id
+    `SELECT tp.suspended, tp.id AS profile_id, tp.user_id
      FROM users u
      JOIN therapist_profiles tp ON tp.user_id = u.id
      WHERE u.id = $1 AND u.is_active = true`,
     [req.user.id]
   );
 
-  if (!rows.length || rows[0].role !== 'therapist') {
+  if (!rows.length) {
     return res.status(403).json({ error: 'Therapist access required', code: 'FORBIDDEN' });
   }
 
