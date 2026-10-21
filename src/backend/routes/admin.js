@@ -1,7 +1,7 @@
 const express = require('express');
 const logger = require('../utils/logger');
 
-const { query } = require('../db');
+const { query, transaction } = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const cache = require('../services/cache');
 const { refundCredit } = require('../utils/creditDeductor');
@@ -591,54 +591,59 @@ router.post('/therapists', async (req, res) => {
   try {
     const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
     const alias = await generateAlias();
-
-    const { rows: userRows } = await query(
-      `INSERT INTO users (email, password_hash, alias, role, consent_version, email_verified)
-       VALUES ($1, $2, $3, 'therapist', '1.0', true)
-       RETURNING id`,
-      [email.toLowerCase().trim(), placeholderHash, alias]
-    );
-    const userId = userRows[0].id;
-
     const inviteToken = crypto.randomBytes(32).toString('hex');
     const inviteHash  = crypto.createHash('sha256').update(inviteToken).digest('hex');
-    await query(
-      `UPDATE users SET reset_token_hash = $1, reset_token_expires = NOW() + INTERVAL '72 hours'
-       WHERE id = $2`,
-      [inviteHash, userId]
-    );
 
-    const { rows: profileRows } = await query(
-      `INSERT INTO therapist_profiles
-         (user_id, display_name, full_name, credentials, years_experience,
-          languages, session_formats, location, statement,
-          plain_language_intro, cultural_competencies, approach_plain,
-          photo_url, availability_status, gender, age, rate_per_session_kes,
-          mpesa_number, category_ids)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-       RETURNING id`,
-      [
-        userId,
-        display_name.trim(),
-        full_name.trim(),
-        credentials.trim(),
-        years_experience || 0,
-        languages || [],
-        session_formats || [],
-        location || null,
-        statement || null,
-        plain_language_intro || null,
-        cultural_competencies || [],
-        approach_plain || null,
-        photo_url || null,
-        availability_status || 'available',
-        gender || null,
-        age || null,
-        rate_per_session_kes || 0,
-        mpesa_number || null,
-        category_ids || [],
-      ]
-    );
+    // All DB writes in one transaction — profile insert failure rolls back the user row,
+    // preventing orphaned therapist accounts that block re-creation via DUPLICATE_EMAIL.
+    const { userId, profileId } = await transaction(async (tx) => {
+      const { rows: userRows } = await tx.query(
+        `INSERT INTO users (email, password_hash, alias, role, consent_version, email_verified)
+         VALUES ($1, $2, $3, 'therapist', '1.0', true)
+         RETURNING id`,
+        [email.toLowerCase().trim(), placeholderHash, alias]
+      );
+      const uId = userRows[0].id;
+
+      await tx.query(
+        `UPDATE users SET reset_token_hash = $1, reset_token_expires = NOW() + INTERVAL '72 hours'
+         WHERE id = $2`,
+        [inviteHash, uId]
+      );
+
+      const { rows: profileRows } = await tx.query(
+        `INSERT INTO therapist_profiles
+           (user_id, display_name, full_name, credentials, years_experience,
+            languages, session_formats, location, statement,
+            plain_language_intro, cultural_competencies, approach_plain,
+            photo_url, availability_status, gender, age, rate_per_session_kes,
+            mpesa_number, category_ids)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+         RETURNING id`,
+        [
+          uId,
+          display_name.trim(),
+          full_name.trim(),
+          credentials.trim(),
+          years_experience || 0,
+          languages || [],
+          session_formats || [],
+          location || null,
+          statement || null,
+          plain_language_intro || null,
+          cultural_competencies || [],
+          approach_plain || null,
+          photo_url || null,
+          availability_status || 'available',
+          gender || null,
+          age || null,
+          rate_per_session_kes || 0,
+          mpesa_number || null,
+          category_ids || [],
+        ]
+      );
+      return { userId: uId, profileId: profileRows[0].id };
+    });
 
     try {
       await sendTherapistInvite(email.toLowerCase().trim(), display_name.trim(), inviteToken);
@@ -646,7 +651,7 @@ router.post('/therapists', async (req, res) => {
       logger.error('[therapist.invite] Email failed:', err.message);
     }
     await auditLog(req.user.id, 'therapist.create', 'therapist', userId, alias, null, email.toLowerCase().trim());
-    return res.status(201).json({ therapist_id: profileRows[0].id, alias });
+    return res.status(201).json({ therapist_id: profileId, alias });
   } catch (err) {
     logger.error('[admin/therapists POST]', err.message);
     if (err.code === '23505') {
@@ -1800,14 +1805,16 @@ router.get('/members', async (req, res) => {
         [email.toLowerCase().trim()]
       ));
     } else {
+      // Escape ILIKE wildcards in user input to prevent unintended broad matches
+      const escaped = alias.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
       ({ rows } = await query(
         `SELECT u.id, u.alias, u.email, u.role, u.is_active, u.email_verified, u.created_at,
                 c.balance AS credit_balance
          FROM users u
          LEFT JOIN credits c ON c.user_id = u.id
-         WHERE u.alias ILIKE $1
+         WHERE u.alias ILIKE $1 ESCAPE '\\'
          LIMIT 20`,
-        [`%${alias.trim()}%`]
+        [`%${escaped}%`]
       ));
     }
     return res.json({ members: rows });
@@ -1818,22 +1825,30 @@ router.get('/members', async (req, res) => {
 });
 
 // ─── DELETE /admin/members/:id ────────────────────────────────────────────────
-// Hard-delete a user account. Only allowed for role='member'. Frees the email.
+// Soft-deletes (deactivates) a member account — preserves payment history and
+// FK-linked records. Does not free the email; email is freed only if needed via
+// a direct DB update. Hard-delete was unsafe due to cascade/restrict FK mix.
 router.delete('/members/:id', async (req, res) => {
   try {
-    const { rows } = await query('SELECT alias, email, role FROM users WHERE id = $1', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
-    const user = rows[0];
-    if (user.role !== 'member') {
-      return res.status(409).json({ error: 'Only member accounts can be deleted here. Use the Therapists tab for therapist accounts.', code: 'WRONG_ROLE' });
+    const { rows } = await query(
+      `UPDATE users SET is_active = false
+       WHERE id = $1 AND role = 'member'
+       RETURNING alias, email, role`,
+      [req.params.id]
+    );
+    if (!rows.length) {
+      // Either not found or not a member — check which
+      const { rows: check } = await query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+      if (!check.length) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+      return res.status(409).json({ error: 'Only member accounts can be deactivated here. Use the Therapists tab for therapist accounts.', code: 'WRONG_ROLE' });
     }
-    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
-    await auditLog(req.user.id, 'member.delete', 'user', req.params.id, user.alias,
-      JSON.stringify({ email: user.email, role: user.role }), null);
-    return res.json({ deleted: true, alias: user.alias });
+    const user = rows[0];
+    await auditLog(req.user.id, 'member.deactivate', 'user', req.params.id, user.alias,
+      JSON.stringify({ email: user.email }), JSON.stringify({ is_active: false }));
+    return res.json({ deactivated: true, alias: user.alias });
   } catch (err) {
     logger.error('admin/members DELETE error:', err.message);
-    return res.status(500).json({ error: 'Failed to delete member', code: 'QUERY_ERROR' });
+    return res.status(500).json({ error: 'Failed to deactivate member', code: 'QUERY_ERROR' });
   }
 });
 

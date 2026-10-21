@@ -261,8 +261,11 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
                     {(t.session_formats || []).join(', ') || '—'}
                   </td>
                   <td>
-                    {isSuspended ? (
-                      <span className="badge badge--banned" style={{ fontSize: 10 }}>Suspended</span>
+                    {/* Orphaned rows (no profile) have no tp.id — disable availability change */}
+                    {isSuspended || t.profile_missing ? (
+                      <span className="badge badge--banned" style={{ fontSize: 10 }}>
+                        {isSuspended ? 'Suspended' : '—'}
+                      </span>
                     ) : (
                       <select
                         style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6,
@@ -280,40 +283,49 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
                     <button
                       className={`btn btn--sm ${t.is_active ? 'btn--success' : 'btn--ghost'}`}
                       onClick={() => onToggleActive(t.id, t.is_active)}
+                      disabled={t.profile_missing}
                       style={{ fontSize: 11, padding: '0 8px', height: 28 }}
                     >
                       {t.is_active ? 'Active' : 'Inactive'}
                     </button>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
-                      <button className="btn btn--ghost btn--sm" onClick={() => onEdit(t)} style={{ fontSize: 11 }}>
-                        Edit
-                      </button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => onDocuments(t)} style={{ fontSize: 11 }} title="Review uploaded documents">
-                        Docs
-                      </button>
-                      {!isVerified && (
-                        <button className="btn btn--primary btn--sm" onClick={() => onVerify(t)} style={{ fontSize: 11 }}>
-                          Verify
+                    {t.profile_missing ? (
+                      // Orphaned auth user — no profile row, all profile actions are blocked.
+                      // Use the Members tab to deactivate this account.
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                        Use Members tab
+                      </span>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
+                        <button className="btn btn--ghost btn--sm" onClick={() => onEdit(t)} style={{ fontSize: 11 }}>
+                          Edit
                         </button>
-                      )}
-                      {isSuspended ? (
-                        <button className="btn btn--success btn--sm" onClick={() => onUnsuspend(t.id)} style={{ fontSize: 11 }}>
-                          Unsuspend
+                        <button className="btn btn--ghost btn--sm" onClick={() => onDocuments(t)} style={{ fontSize: 11 }} title="Review uploaded documents">
+                          Docs
                         </button>
-                      ) : (
-                        <button className="btn btn--danger btn--sm" onClick={() => onSuspend(t)} style={{ fontSize: 11 }}>
-                          Suspend
+                        {!isVerified && (
+                          <button className="btn btn--primary btn--sm" onClick={() => onVerify(t)} style={{ fontSize: 11 }}>
+                            Verify
+                          </button>
+                        )}
+                        {isSuspended ? (
+                          <button className="btn btn--success btn--sm" onClick={() => onUnsuspend(t.id)} style={{ fontSize: 11 }}>
+                            Unsuspend
+                          </button>
+                        ) : (
+                          <button className="btn btn--danger btn--sm" onClick={() => onSuspend(t)} style={{ fontSize: 11 }}>
+                            Suspend
+                          </button>
+                        )}
+                        <button className="btn btn--ghost btn--sm" onClick={() => onResetPassword(t)} style={{ fontSize: 11 }} title="Generate a password reset link">
+                          Reset PW
                         </button>
-                      )}
-                      <button className="btn btn--ghost btn--sm" onClick={() => onResetPassword(t)} style={{ fontSize: 11 }} title="Generate a password reset link">
-                        Reset PW
-                      </button>
-                      <button className="btn btn--danger btn--sm" onClick={() => onDelete(t)} style={{ fontSize: 11, opacity: 0.75 }} title="Permanently delete therapist and their login">
-                        Delete
-                      </button>
-                    </div>
+                        <button className="btn btn--danger btn--sm" onClick={() => onDelete(t)} style={{ fontSize: 11, opacity: 0.75 }} title="Permanently delete therapist and their login">
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

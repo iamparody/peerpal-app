@@ -25,15 +25,15 @@ export default function MembersTab() {
     }
   }
 
-  async function handleDelete(member) {
+  async function handleDeactivate(member) {
     if (!window.confirm(
-      `Permanently delete account "${member.alias}" (${member.email})?\n\nThis frees the email for re-use. The account and all its data will be gone.`
+      `Deactivate account "${member.alias}" (${member.email})?\n\nThe account will be blocked from signing in. All data is preserved. This action can be reversed by re-enabling the account directly in Supabase.`
     )) return;
     try {
       await client.delete(`/api/admin/members/${member.id}`);
-      setResults((prev) => prev.filter((m) => m.id !== member.id));
+      setResults((prev) => prev.map((m) => m.id === member.id ? { ...m, is_active: false } : m));
     } catch (err) {
-      alert(err.response?.data?.error || 'Delete failed.');
+      alert(err.response?.data?.error || 'Deactivate failed.');
     }
   }
 
@@ -110,10 +110,12 @@ export default function MembersTab() {
                     {m.role === 'member' ? (
                       <button
                         className="btn btn--danger btn--sm"
-                        onClick={() => handleDelete(m)}
+                        onClick={() => handleDeactivate(m)}
+                        disabled={!m.is_active}
                         style={{ fontSize: 12 }}
+                        title={m.is_active ? 'Deactivate this account' : 'Already inactive'}
                       >
-                        Delete
+                        {m.is_active ? 'Deactivate' : 'Inactive'}
                       </button>
                     ) : (
                       <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Use {m.role === 'therapist' ? 'Therapists' : 'N/A'} tab</span>
