@@ -588,11 +588,13 @@ router.post('/therapists', async (req, res) => {
   const { generateAlias } = require('../utils/aliasGenerator');
   const { sendTherapistInvite } = require('../services/emailService');
 
+  // Hoisted so the upgrade-from-member path in the catch block can reuse them.
+  const inviteToken = crypto.randomBytes(32).toString('hex');
+  const inviteHash  = crypto.createHash('sha256').update(inviteToken).digest('hex');
+
   try {
     const placeholderHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
     const alias = await generateAlias();
-    const inviteToken = crypto.randomBytes(32).toString('hex');
-    const inviteHash  = crypto.createHash('sha256').update(inviteToken).digest('hex');
 
     // All DB writes in one transaction — profile insert failure rolls back the user row,
     // preventing orphaned therapist accounts that block re-creation via DUPLICATE_EMAIL.
@@ -655,6 +657,54 @@ router.post('/therapists', async (req, res) => {
   } catch (err) {
     logger.error('[admin/therapists POST]', err.message);
     if (err.code === '23505') {
+      // Check if the duplicate is a member we can upgrade rather than a hard 409.
+      const { rows: existing } = await query(
+        'SELECT id, role, alias FROM users WHERE email = $1',
+        [email.toLowerCase().trim()]
+      );
+      if (existing.length && existing[0].role === 'member') {
+        const memberId = existing[0].id;
+        const existingAlias = existing[0].alias;
+        try {
+          const { profileId } = await transaction(async (tx) => {
+            await tx.query(
+              `UPDATE users SET role = 'therapist', reset_token_hash = $1,
+                  reset_token_expires = NOW() + INTERVAL '72 hours'
+               WHERE id = $2`,
+              [inviteHash, memberId]
+            );
+            const { rows: profileRows } = await tx.query(
+              `INSERT INTO therapist_profiles
+                 (user_id, display_name, full_name, credentials, years_experience,
+                  languages, session_formats, location, statement,
+                  plain_language_intro, cultural_competencies, approach_plain,
+                  photo_url, availability_status, gender, age, rate_per_session_kes,
+                  mpesa_number, category_ids)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+               RETURNING id`,
+              [
+                memberId, display_name.trim(), full_name.trim(), credentials.trim(),
+                years_experience || 0, languages || [], session_formats || [],
+                location || null, statement || null, plain_language_intro || null,
+                cultural_competencies || [], approach_plain || null, photo_url || null,
+                availability_status || 'available', gender || null, age || null,
+                rate_per_session_kes || 0, mpesa_number || null, category_ids || [],
+              ]
+            );
+            return { profileId: profileRows[0].id };
+          });
+          try {
+            await sendTherapistInvite(email.toLowerCase().trim(), display_name.trim(), inviteToken);
+          } catch (emailErr) {
+            logger.error('[therapist.invite] Email failed:', emailErr.message);
+          }
+          await auditLog(req.user.id, 'therapist.upgrade_from_member', 'therapist', memberId, existingAlias, 'member', 'therapist');
+          return res.status(201).json({ therapist_id: profileId, alias: existingAlias, upgraded_from_member: true });
+        } catch (upgradeErr) {
+          logger.error('[admin/therapists POST] upgrade failed:', upgradeErr.message);
+          return res.status(500).json({ error: 'Failed to upgrade member to therapist.', code: 'SERVER_ERROR' });
+        }
+      }
       return res.status(409).json({ error: 'A user with that email already exists.', code: 'DUPLICATE_EMAIL' });
     }
     return res.status(500).json({ error: 'Failed to create therapist.', code: 'SERVER_ERROR' });
