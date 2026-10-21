@@ -552,11 +552,13 @@ router.get('/therapists', async (req, res) => {
             tp.indemnity_verified, tp.good_conduct_verified, tp.good_conduct_expires_at,
             tp.teletherapy_agreement_signed_at, tp.credentials_verified_at, tp.credentials_verified_by,
             tp.mpesa_number, tp.average_rating, tp.total_ratings_count, tp.total_sessions,
-            tp.created_at,
-            u.email, u.alias
-     FROM therapist_profiles tp
-     JOIN users u ON u.id = tp.user_id
-     ORDER BY tp.created_at DESC`
+            COALESCE(tp.created_at, u.created_at) AS created_at,
+            u.email, u.alias, u.id AS user_id_fallback,
+            CASE WHEN tp.id IS NULL THEN true ELSE false END AS profile_missing
+     FROM users u
+     LEFT JOIN therapist_profiles tp ON tp.user_id = u.id
+     WHERE u.role = 'therapist'
+     ORDER BY COALESCE(tp.created_at, u.created_at) DESC`
   );
   return res.status(200).json({ therapists: rows });
 });

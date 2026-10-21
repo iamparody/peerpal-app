@@ -210,7 +210,7 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
               const isVerified  = t.is_verified;
 
               return (
-                <tr key={t.id} style={{ opacity: t.is_active ? 1 : 0.5 }}>
+                <tr key={t.user_id_fallback || t.id} style={{ opacity: t.is_active ? 1 : 0.5 }}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       {t.photo_url ? (
@@ -223,12 +223,12 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', flexShrink: 0,
                         }}>
-                          {t.display_name?.charAt(0)}
+                          {(t.display_name || t.email || '?').charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div>
                         <div style={{ fontWeight: 500, color: 'var(--color-text-primary)', fontSize: 14 }}>
-                          {t.display_name}
+                          {t.display_name || <span style={{ color: 'var(--color-warning, #f59e0b)', fontStyle: 'italic' }}>No profile — account only</span>}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{t.credentials}</div>
                         <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{t.email}</div>
