@@ -90,6 +90,8 @@ app.use((req, res, next) => {
 app.use('/api', apiLimiter);
 
 // ─── Health checks ────────────────────────────────────────────────────────────
+app.get('/', (_req, res) => res.json({ service: 'peerpal-backend', status: 'ok' }));
+
 app.get('/health', async (_req, res) => {
   try {
     const { query, poolMetrics } = require('./db');
