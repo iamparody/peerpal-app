@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import client from '../api/client';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -12,8 +12,9 @@ for (let h = 6; h <= 22; h++) {
 function toHHMM(iso) {
   try {
     const d = new Date(iso);
-    const h = String(d.getUTCHours()).padStart(2, '0');
-    const m = String(d.getUTCMinutes()).padStart(2, '0');
+    // availability slots use Nairobi local time; match with local hours
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
     return `${h}:${m}`;
   } catch {
     return null;
@@ -35,6 +36,8 @@ export default function ScheduleTab() {
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [empty, setEmpty]               = useState(false);
+  const [popover, setPopover]           = useState(null); // { booking, x, y }
+  const popoverRef                      = useRef(null);
 
   useEffect(() => {
     client.get('/api/therapy/therapist/availability')
@@ -58,17 +61,17 @@ export default function ScheduleTab() {
     );
   }
 
-  function hasBooking(dayLabel, hour) {
+  function getBooking(dayLabel, hour) {
     const dayNum = DAY_INDEX[dayLabel];
-    return bookings.some((b) => {
+    return bookings.find((b) => {
       const bDay = getDayOfWeek(b.scheduled_at);
       const bHour = toHHMM(b.scheduled_at);
-      return (
-        bDay === dayNum &&
-        bHour === hour &&
-        (b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress')
-      );
-    });
+      return bDay === dayNum && bHour === hour;
+    }) || null;
+  }
+
+  function hasBooking(dayLabel, hour) {
+    return !!getBooking(dayLabel, hour);
   }
 
   async function toggleCell(dayLabel, hour) {
@@ -108,7 +111,7 @@ export default function ScheduleTab() {
   if (loading) return <div className="loading">Loading schedule…</div>;
 
   return (
-    <div>
+    <div onClick={(e) => { if (popoverRef.current && !popoverRef.current.contains(e.target)) setPopover(null); }}>
       <div className="page-header">
         <div>
           <h1 className="page-title">Schedule</h1>
@@ -116,12 +119,12 @@ export default function ScheduleTab() {
             {saving ? 'Saving…' : 'Tap a cell to toggle your availability'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 13 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="flex gap-16 items-center text-sm">
+          <div className="flex items-center gap-6">
             <div style={{ width: 16, height: 16, borderRadius: 3, background: 'rgba(143,175,154,0.35)', border: '1px solid #8FAF9A' }} />
             <span>Available</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="flex items-center gap-6">
             <div style={{ width: 16, height: 16, borderRadius: 3, background: 'rgba(217,164,65,0.25)', border: '1px solid #D9A441' }} />
             <span>Booked</span>
           </div>
@@ -129,16 +132,33 @@ export default function ScheduleTab() {
       </div>
 
       {empty && (
-        <div style={{
-          background: 'var(--color-warning-bg)',
-          border: '1px solid rgba(217,164,65,0.25)',
-          borderRadius: 8,
-          padding: '12px 16px',
-          fontSize: 14,
-          color: 'var(--color-status-pending)',
-          marginBottom: 20,
-        }}>
+        <div className="warning-notice mb-20">
           Set your availability so members can book sessions
+        </div>
+      )}
+
+      {popover && (
+        <div ref={popoverRef} style={{
+          position: 'fixed',
+          top: popover.y + 8,
+          left: popover.x + 8,
+          zIndex: 200,
+          background: 'var(--color-card-bg)',
+          border: '1px solid var(--color-card-border)',
+          borderRadius: 8,
+          boxShadow: 'var(--shadow-modal)',
+          padding: '12px 16px',
+          minWidth: 180,
+          fontSize: 13,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{popover.booking.member_alias || 'Member'}</div>
+          {popover.booking.prior_sessions_count > 0 && (
+            <div style={{ marginBottom: 4 }}>
+              <span className="badge badge--session-n">Session {popover.booking.prior_sessions_count + 1}</span>
+            </div>
+          )}
+          <div style={{ color: 'var(--color-text-muted)', marginBottom: 2 }}>{popover.booking.session_format || '—'}</div>
+          <div style={{ color: 'var(--color-text-muted)' }}>{popover.booking.duration_minutes ? `${popover.booking.duration_minutes} min` : ''}</div>
         </div>
       )}
 
@@ -184,7 +204,8 @@ export default function ScheduleTab() {
                   {hour}
                 </td>
                 {DAYS.map((day) => {
-                  const booked    = hasBooking(day, hour);
+                  const booking   = getBooking(day, hour);
+                  const booked    = !!booking;
                   const avail     = isAvailable(day, hour);
                   let bg          = 'transparent';
                   let cursor      = 'pointer';
@@ -192,22 +213,23 @@ export default function ScheduleTab() {
                   if (booked) {
                     bg = 'rgba(217,164,65,0.20)';
                     borderColor = '#D9A441';
-                    cursor = 'default';
+                    cursor = 'pointer';
                   } else if (avail) {
                     bg = 'rgba(143,175,154,0.25)';
                     borderColor = '#8FAF9A';
                   }
                   return (
-                    <td
-                      key={day}
-                      style={{
-                        padding: '4px',
-                        textAlign: 'center',
-                      }}
-                    >
+                    <td key={day} style={{ padding: '4px', textAlign: 'center', position: 'relative' }}>
                       <div
-                        onClick={() => toggleCell(day, hour)}
-                        title={booked ? 'Confirmed booking — cannot deactivate' : avail ? 'Click to remove availability' : 'Click to add availability'}
+                        onClick={(e) => {
+                          if (booked) {
+                            e.stopPropagation();
+                            setPopover((prev) => prev?.booking?.id === booking.id ? null : { booking, x: e.clientX, y: e.clientY });
+                          } else {
+                            toggleCell(day, hour);
+                          }
+                        }}
+                        title={booked ? booking.member_alias : avail ? 'Click to remove availability' : 'Click to add availability'}
                         style={{
                           width: '100%',
                           height: 28,
@@ -216,8 +238,18 @@ export default function ScheduleTab() {
                           border: `1px solid ${borderColor}`,
                           cursor,
                           transition: 'background 0.12s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
                         }}
-                      />
+                      >
+                        {booked && (
+                          <span style={{ fontSize: 10, fontWeight: 600, color: '#8B6B4F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90%', padding: '0 2px' }}>
+                            {booking.member_alias || 'Booked'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                   );
                 })}

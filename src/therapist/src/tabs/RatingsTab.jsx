@@ -90,15 +90,7 @@ export default function RatingsTab() {
       </div>
 
       {total < 5 && (
-        <div style={{
-          background: 'var(--color-warning-bg)',
-          border: '1px solid rgba(217,164,65,0.25)',
-          borderRadius: 8,
-          padding: '12px 16px',
-          fontSize: 14,
-          color: 'var(--color-status-pending)',
-          marginBottom: 20,
-        }}>
+        <div className="warning-notice mb-20">
           Your rating appears publicly once you have 5 or more reviews. You currently have {total}.
         </div>
       )}

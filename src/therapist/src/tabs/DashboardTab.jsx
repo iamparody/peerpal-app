@@ -90,7 +90,7 @@ export default function DashboardTab() {
           <div className="stat-card__icon-wrap stat-card__icon-wrap--pending">
             <CurrencyDollar size={22} weight="fill" />
           </div>
-          <div className="stat-card__value" style={{ fontSize: 32, letterSpacing: -1 }}>
+          <div className="stat-card__value stat-card__value--lg">
             {stats.this_month_earnings_kes != null
               ? `KES ${Number(stats.this_month_earnings_kes).toLocaleString()}`
               : 'KES 0'}
@@ -115,7 +115,7 @@ export default function DashboardTab() {
         </div>
       </div>
 
-      <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="two-col">
         {/* Upcoming sessions next 7 days */}
         <div className="card">
           <div className="card-header">
@@ -129,22 +129,17 @@ export default function DashboardTab() {
           ) : (
             <div style={{ padding: '8px 0' }}>
               {upcoming.map((s) => (
-                <div key={s.id} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '12px 20px',
-                  borderBottom: '1px solid rgba(194,164,138,0.08)',
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
-                      {s.member_alias || 'Member'}
+                <div key={s.id} className="row-item">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-8 mb-2">
+                      <span className="fw-600 text-base">{s.member_alias || 'Member'}</span>
+                      {s.prior_sessions_count > 0 && (
+                        <span className="badge badge--session-n">Session {s.prior_sessions_count + 1}</span>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                      {formatEAT(s.scheduled_at)}
-                    </div>
+                    <div className="text-xs text-muted">{formatEAT(s.scheduled_at)}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div className="flex gap-6 items-center">
                     <FormatBadge format={s.session_format} />
                     <StatusBadge status={s.status} />
                   </div>
@@ -167,17 +162,12 @@ export default function DashboardTab() {
           ) : (
             <div style={{ padding: '8px 0' }}>
               {pending.map((p) => (
-                <div key={p.id} style={{
-                  padding: '14px 20px',
-                  borderBottom: '1px solid rgba(194,164,138,0.08)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>{p.member_alias || 'Member'}</span>
+                <div key={p.id} className="row-item--lg" style={{ display: 'block', padding: '14px 20px', borderBottom: '1px solid rgba(194,164,138,0.08)' }}>
+                  <div className="flex items-center gap-8 mb-8">
+                    <span className="fw-600 text-base">{p.member_alias || 'Member'}</span>
                     <FormatBadge format={p.session_format} />
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10 }}>
-                    {formatEAT(p.scheduled_at)}
-                  </div>
+                  <div className="text-xs text-muted mb-10">{formatEAT(p.scheduled_at)}</div>
                   <div className="btn-group">
                     <button
                       className="btn btn--success btn--sm"

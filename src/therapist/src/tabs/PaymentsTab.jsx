@@ -103,43 +103,27 @@ export default function PaymentsTab() {
 
       {/* Summary row */}
       {summary && (
-        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
+        <div className="stat-grid mb-24">
           <div className="stat-card stat-card--pending">
-            <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.month_kes || 0).toLocaleString()}
-            </div>
+            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.month_kes || 0).toLocaleString()}</div>
             <div className="stat-card__label">This Month</div>
           </div>
           <div className="stat-card stat-card--review">
-            <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.lifetime_kes || 0).toLocaleString()}
-            </div>
+            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.lifetime_kes || 0).toLocaleString()}</div>
             <div className="stat-card__label">Lifetime</div>
           </div>
           <div className="stat-card stat-card--open">
-            <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.pending_kes || 0).toLocaleString()}
-            </div>
+            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.pending_kes || 0).toLocaleString()}</div>
             <div className="stat-card__label">Pending Payouts</div>
           </div>
           <div className="stat-card">
-            <div className="stat-card__value" style={{ fontSize: 26, letterSpacing: -0.5 }}>
-              KES {Number(summary.completed_kes || 0).toLocaleString()}
-            </div>
+            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.completed_kes || 0).toLocaleString()}</div>
             <div className="stat-card__label">Completed Payouts</div>
           </div>
         </div>
       )}
 
-      <div style={{
-        background: 'var(--color-success-bg)',
-        border: '1px solid rgba(143,175,154,0.30)',
-        borderRadius: 8,
-        padding: '10px 16px',
-        fontSize: 13,
-        color: '#4a7a5e',
-        marginBottom: 20,
-      }}>
+      <div className="success-notice mb-20">
         Sessions are paid out 24 hours after completion, pending any disputes.
       </div>
 
@@ -169,7 +153,7 @@ export default function PaymentsTab() {
                 <tbody>
                   {payments.map((p, i) => (
                     <tr key={p.id || i}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatEAT(p.payout_date || p.created_at)}</td>
+                      <td className="no-wrap">{formatEAT(p.payout_date || p.created_at)}</td>
                       <td>{p.member_alias || '—'}</td>
                       <td>
                         <span className={`badge badge--${(p.session_format || 'text').toLowerCase()}`}>
@@ -178,7 +162,7 @@ export default function PaymentsTab() {
                       </td>
                       <td>{p.duration_minutes ? `${p.duration_minutes} min` : '—'}</td>
                       <td>KES {Number(p.rate_kes || 0).toLocaleString()}</td>
-                      <td style={{ fontWeight: 600 }}>KES {Number(p.therapist_payout_kes || 0).toLocaleString()}</td>
+                      <td className="fw-600">KES {Number(p.therapist_payout_kes || 0).toLocaleString()}</td>
                       <td><PayoutBadge status={p.payout_status || p.status} /></td>
                     </tr>
                   ))}

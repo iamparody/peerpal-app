@@ -1071,9 +1071,12 @@ router.post('/ratings', auth, async (req, res) => {
 // ─── POST /therapy/session-notes ─────────────────────────────────────────────
 // Therapist only — member cannot access this endpoint or data.
 router.post('/session-notes', therapistAuth, async (req, res) => {
-  const { booking_id, content } = req.body;
+  const { booking_id, content, note_type = 'session' } = req.body;
   if (!booking_id || !content?.trim()) {
     return res.status(400).json({ error: 'booking_id and content are required', code: 'MISSING_FIELDS' });
+  }
+  if (!['pre', 'session', 'follow_up'].includes(note_type)) {
+    return res.status(400).json({ error: 'Invalid note_type', code: 'INVALID_NOTE_TYPE' });
   }
   try {
     const { rows: bookingRows } = await query(
@@ -1082,13 +1085,12 @@ router.post('/session-notes', therapistAuth, async (req, res) => {
     );
     if (!bookingRows.length) return res.status(404).json({ error: 'Booking not found', code: 'NOT_FOUND' });
 
-    await query(
-      `INSERT INTO therapy_session_notes (booking_id, therapist_id, content)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (booking_id) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()`,
-      [booking_id, req.therapist.profile_id, content.trim()]
+    const { rows } = await query(
+      `INSERT INTO therapy_session_notes (booking_id, therapist_id, content, note_type)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [booking_id, req.therapist.profile_id, content.trim(), note_type]
     );
-    return res.status(200).json({ saved: true });
+    return res.status(200).json({ saved: true, id: rows[0].id });
   } catch (err) {
     logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to save notes', code: 'QUERY_ERROR' });
@@ -1171,7 +1173,10 @@ router.get('/therapist/dashboard', therapistAuth, async (req, res) => {
     const [upcomingRes, pendingRes, earningsRes, profileRes] = await Promise.all([
       query(
         `SELECT b.id, b.scheduled_at, b.session_format, b.duration_minutes, b.status,
-                u.alias AS member_alias
+                u.alias AS member_alias,
+                (SELECT COUNT(*) FROM therapist_bookings
+                 WHERE member_user_id = b.member_user_id AND therapist_id = $1
+                 AND status = 'completed' AND scheduled_at < b.scheduled_at)::int AS prior_sessions_count
          FROM therapist_bookings b
          JOIN users u ON u.id = b.member_user_id
          WHERE b.therapist_id = $1
@@ -1248,7 +1253,10 @@ router.get('/therapist/bookings', therapistAuth, async (req, res) => {
       `SELECT b.id, b.scheduled_at, b.session_format, b.duration_minutes,
               b.status, b.payment_status, b.notes AS member_notes,
               b.cancellation_reason, b.created_at,
-              u.alias AS member_alias
+              u.alias AS member_alias,
+              (SELECT COUNT(*) FROM therapist_bookings
+               WHERE member_user_id = b.member_user_id AND therapist_id = $1
+               AND status = 'completed' AND scheduled_at < b.scheduled_at)::int AS prior_sessions_count
        FROM therapist_bookings b
        JOIN users u ON u.id = b.member_user_id
        WHERE ${conditions.join(' AND ')}
@@ -1286,12 +1294,17 @@ router.get('/therapist/availability', therapistAuth, async (req, res) => {
         [therapistId]
       ),
       query(
-        `SELECT scheduled_at, duration_minutes, status
-         FROM therapist_bookings
-         WHERE therapist_id = $1
-           AND status IN ('confirmed','in_progress')
-           AND scheduled_at >= NOW()
-           AND scheduled_at <= NOW() + INTERVAL '28 days'`,
+        `SELECT b.id, b.scheduled_at, b.duration_minutes, b.status, b.session_format,
+                u.alias AS member_alias,
+                (SELECT COUNT(*) FROM therapist_bookings
+                 WHERE member_user_id = b.member_user_id AND therapist_id = $1
+                 AND status = 'completed' AND scheduled_at < b.scheduled_at)::int AS prior_sessions_count
+         FROM therapist_bookings b
+         JOIN users u ON u.id = b.member_user_id
+         WHERE b.therapist_id = $1
+           AND b.status IN ('confirmed','in_progress')
+           AND b.scheduled_at >= NOW()
+           AND b.scheduled_at <= NOW() + INTERVAL '28 days'`,
         [therapistId]
       ),
     ]);
@@ -1639,6 +1652,121 @@ router.patch('/therapist/onboarding/complete', therapistAuth, async (req, res) =
   );
 
   return res.json({ onboarding_complete: true });
+});
+
+// ─── GET /therapy/therapist/clients ──────────────────────────────────────────
+router.get('/therapist/clients', therapistAuth, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT
+         b.member_user_id,
+         u.alias,
+         COUNT(b.id)::int                                        AS total_sessions,
+         MAX(b.scheduled_at)                                     AS last_session_at,
+         (SELECT format FROM therapist_bookings
+          WHERE member_user_id = b.member_user_id AND therapist_id = $1 AND status = 'completed'
+          ORDER BY scheduled_at DESC LIMIT 1)                    AS last_session_format,
+         COUNT(n.id)::int                                        AS note_count
+       FROM therapist_bookings b
+       JOIN users u ON u.id = b.member_user_id
+       LEFT JOIN therapy_session_notes n ON n.booking_id = b.id AND n.therapist_id = $1
+       WHERE b.therapist_id = $1 AND b.status = 'completed'
+       GROUP BY b.member_user_id, u.alias
+       ORDER BY MAX(b.scheduled_at) DESC`,
+      [req.therapist.profile_id]
+    );
+    return res.json({ clients: rows });
+  } catch (err) {
+    logger.error({ err }, err.message);
+    return res.status(500).json({ error: 'Failed to fetch clients', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── GET /therapy/therapist/clients/:member_user_id ───────────────────────────
+router.get('/therapist/clients/:member_user_id', therapistAuth, async (req, res) => {
+  const { member_user_id } = req.params;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(member_user_id)) {
+    return res.status(404).json({ error: 'Client not found', code: 'NOT_FOUND' });
+  }
+  try {
+    const { rows: bookings } = await query(
+      `SELECT b.id, b.scheduled_at, b.status, b.format, b.duration_minutes,
+              COALESCE(json_agg(
+                json_build_object('id', n.id, 'note_type', n.note_type, 'content', n.content, 'created_at', n.created_at)
+                ORDER BY n.created_at
+              ) FILTER (WHERE n.id IS NOT NULL), '[]'::json) AS notes
+       FROM therapist_bookings b
+       LEFT JOIN therapy_session_notes n ON n.booking_id = b.id AND n.therapist_id = $1
+       WHERE b.therapist_id = $1 AND b.member_user_id = $2
+       GROUP BY b.id
+       ORDER BY b.scheduled_at ASC`,
+      [req.therapist.profile_id, member_user_id]
+    );
+    if (!bookings.length) return res.status(404).json({ error: 'Client not found', code: 'NOT_FOUND' });
+
+    const { rows: [client] } = await query(
+      'SELECT alias FROM users WHERE id = $1', [member_user_id]
+    );
+    return res.json({ client: { alias: client?.alias ?? null, member_user_id }, bookings });
+  } catch (err) {
+    logger.error({ err }, err.message);
+    return res.status(500).json({ error: 'Failed to fetch client history', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── GET /therapy/session-notes?booking_id=X ─────────────────────────────────
+router.get('/session-notes', therapistAuth, async (req, res) => {
+  const { booking_id } = req.query;
+  if (!booking_id) return res.status(400).json({ error: 'booking_id required', code: 'MISSING_FIELDS' });
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(booking_id)) return res.status(400).json({ error: 'Invalid booking_id', code: 'INVALID_FIELDS' });
+  try {
+    const { rows } = await query(
+      `SELECT n.id, n.note_type, n.content, n.created_at, n.updated_at
+       FROM therapy_session_notes n
+       JOIN therapist_bookings b ON b.id = n.booking_id
+       WHERE n.booking_id = $1 AND b.therapist_id = $2
+       ORDER BY n.created_at ASC`,
+      [booking_id, req.therapist.profile_id]
+    );
+    return res.json({ notes: rows });
+  } catch (err) {
+    logger.error({ err }, err.message);
+    return res.status(500).json({ error: 'Failed to fetch notes', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── PATCH /therapy/session-notes/:id ────────────────────────────────────────
+router.patch('/session-notes/:id', therapistAuth, async (req, res) => {
+  const { content, note_type } = req.body;
+  if (!content?.trim() && !note_type) {
+    return res.status(400).json({ error: 'content or note_type required', code: 'MISSING_FIELDS' });
+  }
+  if (note_type && !['pre', 'session', 'follow_up'].includes(note_type)) {
+    return res.status(400).json({ error: 'Invalid note_type', code: 'INVALID_NOTE_TYPE' });
+  }
+  try {
+    // Fixed positions: $1=note_id, $2=therapist_id — SET params use $3+
+    const noteId = req.params.id;
+    const therapistId = req.therapist.profile_id;
+    const extra = [];
+    const extraVals = [];
+    if (content?.trim()) { extra.push(`content = $${extraVals.push(content.trim()) + 2}`); }
+    if (note_type)        { extra.push(`note_type = $${extraVals.push(note_type) + 2}`); }
+    extra.push(`updated_at = NOW()`);
+
+    const { rowCount } = await query(
+      `UPDATE therapy_session_notes SET ${extra.join(', ')}
+       WHERE id = $1 AND therapist_id = $2`,
+      [noteId, therapistId, ...extraVals]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Note not found', code: 'NOT_FOUND' });
+    return res.json({ saved: true });
+  } catch (err) {
+    logger.error({ err }, err.message);
+    return res.status(500).json({ error: 'Failed to update note', code: 'QUERY_ERROR' });
+  }
 });
 
 module.exports = router;

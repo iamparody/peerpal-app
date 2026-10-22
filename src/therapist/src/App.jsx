@@ -5,6 +5,7 @@ import OnboardingScreen from './screens/OnboardingScreen';
 import SetPasswordScreen from './screens/SetPasswordScreen';
 import DashboardTab from './tabs/DashboardTab';
 import SessionsTab  from './tabs/SessionsTab';
+import ClientsTab   from './tabs/ClientsTab';
 import ScheduleTab  from './tabs/ScheduleTab';
 import PaymentsTab  from './tabs/PaymentsTab';
 import RatingsTab   from './tabs/RatingsTab';
@@ -12,6 +13,7 @@ import ProfileTab   from './tabs/ProfileTab';
 import {
   House,
   CalendarBlank,
+  Users,
   Clock,
   CurrencyDollar,
   Star,
@@ -22,6 +24,7 @@ import {
 
 const TABS = [
   { id: 'sessions',   label: 'Sessions',   Icon: CalendarBlank },
+  { id: 'clients',    label: 'Clients',    Icon: Users },
   { id: 'dashboard',  label: 'Dashboard',  Icon: House },
   { id: 'schedule',   label: 'Schedule',   Icon: Clock },
   { id: 'payments',   label: 'Payments',   Icon: CurrencyDollar },
@@ -72,6 +75,7 @@ function TherapistShell() {
   function renderTab() {
     switch (activeTab) {
       case 'sessions':   return <SessionsTab />;
+      case 'clients':    return <ClientsTab />;
       case 'dashboard':  return <DashboardTab />;
       case 'schedule':   return <ScheduleTab />;
       case 'payments':   return <PaymentsTab />;

@@ -110,15 +110,7 @@ export default function ProfileTab() {
         </div>
       </div>
 
-      <div style={{
-        background: 'var(--color-warning-bg)',
-        border: '1px solid rgba(217,164,65,0.25)',
-        borderRadius: 8,
-        padding: '10px 16px',
-        fontSize: 13,
-        color: 'var(--color-status-pending)',
-        marginBottom: 20,
-      }}>
+      <div className="warning-notice mb-20">
         Editing credentials triggers re-verification by admin.
       </div>
 
@@ -174,9 +166,9 @@ export default function ProfileTab() {
             </div>
             <div className="form-group">
               <label className="form-label">Session Formats</label>
-              <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
+              <div className="flex gap-16" style={{ marginTop: 6 }}>
                 {FORMAT_OPTIONS.map((fmt) => (
-                  <label key={fmt} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                  <label key={fmt} className="flex items-center gap-6 text-base" style={{ cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={form.session_formats.includes(fmt)}
@@ -212,11 +204,9 @@ export default function ProfileTab() {
               </select>
             </div>
 
-            {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
+            {error && <div className="error-text mb-12">{error}</div>}
             {saved && (
-              <div style={{ fontSize: 13, color: 'var(--color-success)', marginBottom: 12 }}>
-                Profile saved successfully.
-              </div>
+              <div className="text-sm text-success mb-12">Profile saved successfully.</div>
             )}
 
             <button
@@ -257,13 +247,9 @@ export default function ProfileTab() {
               { label: 'Average Rating',     value: ro.average_rating != null ? Number(ro.average_rating).toFixed(1) : undefined },
             ].map(({ label, value }) => (
               value != null && value !== '' ? (
-                <div key={label} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                    {label}
-                  </div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>
-                    {value}
-                  </div>
+                <div key={label} className="mb-12">
+                  <div className="uppercase-label mb-2">{label}</div>
+                  <div className="text-base">{value}</div>
                 </div>
               ) : null
             ))}
