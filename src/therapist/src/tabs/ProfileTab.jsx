@@ -5,13 +5,33 @@ import client from '../api/client';
 const FORMAT_OPTIONS = ['video', 'voice', 'text'];
 const AVAILABILITY_OPTIONS = ['available', 'busy', 'on_leave'];
 
+function CategoryPill({ label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '7px 16px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+        cursor: 'pointer', fontFamily: 'inherit',
+        background: active ? 'var(--color-accent)' : 'transparent',
+        color: active ? '#fff' : 'var(--color-text-muted)',
+        border: `1.5px solid ${active ? 'var(--color-accent)' : 'var(--color-card-border)'}`,
+        transition: 'background 0.12s, color 0.12s, border-color 0.12s',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function ProfileTab() {
   const { therapist } = useAuth();
-  const [profile, setProfile]   = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [error, setError]       = useState('');
+  const [profile, setProfile]     = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [error, setError]         = useState('');
+  const [categories, setCategories] = useState([]);
 
   // Editable fields
   const [form, setForm] = useState({
@@ -21,9 +41,16 @@ export default function ProfileTab() {
     cultural_competencies:  '',
     languages:              '',
     session_formats:        [],
+    category_ids:           [],
     rate_per_session_kes:   '',
     availability_status:    'available',
   });
+
+  useEffect(() => {
+    client.get('/api/therapy/categories')
+      .then((r) => setCategories(r.data.categories ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const endpoint = `/api/therapy/therapist/profile`;
@@ -43,6 +70,7 @@ export default function ProfileTab() {
             ? p.languages.join(', ')
             : (p.languages || ''),
           session_formats:       p.session_formats || [],
+          category_ids:          p.category_ids || [],
           rate_per_session_kes:  p.rate_per_session_kes || '',
           availability_status:   p.availability_status || 'available',
         });
@@ -68,6 +96,16 @@ export default function ProfileTab() {
           : [...f.session_formats, fmt],
       };
     });
+    setSaved(false);
+  }
+
+  function toggleCategory(id) {
+    setForm((f) => ({
+      ...f,
+      category_ids: f.category_ids.includes(id)
+        ? f.category_ids.filter((x) => x !== id)
+        : [...f.category_ids, id],
+    }));
     setSaved(false);
   }
 
@@ -180,6 +218,25 @@ export default function ProfileTab() {
                 ))}
               </div>
             </div>
+            {categories.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">Areas you work with</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                  {categories.map((cat) => (
+                    <CategoryPill
+                      key={cat.id}
+                      label={cat.name}
+                      active={form.category_ids.includes(cat.id)}
+                      onClick={() => toggleCategory(cat.id)}
+                    />
+                  ))}
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                  Select the areas that match your practice. Admin can update these after verification.
+                </p>
+              </div>
+            )}
+
             <div className="form-group">
               <label className="form-label">Rate per Session (KES)</label>
               <input

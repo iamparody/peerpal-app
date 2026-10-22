@@ -1498,7 +1498,7 @@ router.patch('/therapist/profile', therapistAuth, async (req, res) => {
   const therapistId = req.therapist.profile_id;
   const EDITABLE = [
     'display_name', 'photo_url', 'plain_language_intro', 'approach_plain', 'cultural_competencies',
-    'languages', 'session_formats', 'rate_per_session_kes', 'availability_status', 'statement',
+    'languages', 'session_formats', 'category_ids', 'rate_per_session_kes', 'availability_status', 'statement',
     'years_experience', 'location', 'gender', 'age',
     'credentials', 'registration_number', 'kcpa_level',
   ];

@@ -17,6 +17,25 @@ const MOBILE_STYLES = `
 
 const FORMAT_OPTIONS = ['video', 'voice', 'text'];
 
+function CategoryPill({ label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '7px 16px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+        cursor: 'pointer', fontFamily: 'inherit',
+        background: active ? 'var(--color-accent)' : 'transparent',
+        color: active ? '#fff' : 'var(--color-text-muted)',
+        border: `1.5px solid ${active ? 'var(--color-accent)' : 'var(--color-card-border)'}`,
+        transition: 'background 0.12s, color 0.12s, border-color 0.12s',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 const DOC_TYPES = [
   { key: 'photo',         label: 'Profile Photo',           accept: 'image/jpeg,image/png,image/webp', required: true,  hint: 'JPG, PNG or WebP · max 10 MB' },
   { key: 'kcpa_cert',     label: 'KCPA Certificate',         accept: 'application/pdf,image/jpeg,image/png', required: true,  hint: 'PDF or image · max 10 MB' },
@@ -202,12 +221,13 @@ export default function OnboardingScreen() {
   const { refreshProfile, logout } = useAuth();
   const [step, setStep]            = useState(1);
   const [error, setError]          = useState('');
+  const [categories, setCategories] = useState([]);
 
   // Step 1 state
   const [s1, setS1] = useState({
     display_name: '', years_experience: '', credentials: '',
     registration_number: '', kcpa_level: '', gender: '', age: '',
-    location: '', languages: '', session_formats: [], rate_per_session_kes: '',
+    location: '', languages: '', session_formats: [], category_ids: [], rate_per_session_kes: '',
   });
 
   // Step 2 state
@@ -218,6 +238,13 @@ export default function OnboardingScreen() {
   const [agreementChecked, setAgreement]  = useState(false);
   const [submitting, setSubmitting]       = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+
+  // Load available categories on mount
+  useEffect(() => {
+    client.get('/api/therapy/categories')
+      .then((r) => setCategories(r.data.categories ?? []))
+      .catch(() => {});
+  }, []);
 
   // Pre-populate from existing admin-entered data on mount
   useEffect(() => {
@@ -237,6 +264,7 @@ export default function OnboardingScreen() {
           languages:           Array.isArray(p.languages) ? p.languages.join(', ') : (p.languages || prev.languages),
           session_formats:     p.session_formats?.length ? p.session_formats : prev.session_formats,
           rate_per_session_kes: p.rate_per_session_kes != null ? String(p.rate_per_session_kes) : prev.rate_per_session_kes,
+          category_ids: p.category_ids?.length ? p.category_ids : prev.category_ids,
         }));
         setS2((prev) => ({
           ...prev,
@@ -262,6 +290,15 @@ export default function OnboardingScreen() {
         : [...p.session_formats, fmt],
     }));
     setError('');
+  }
+
+  function toggleCategory(id) {
+    setS1((p) => ({
+      ...p,
+      category_ids: p.category_ids.includes(id)
+        ? p.category_ids.filter((x) => x !== id)
+        : [...p.category_ids, id],
+    }));
   }
 
   function setFile(docType, file) {
@@ -309,6 +346,7 @@ export default function OnboardingScreen() {
         years_experience:      s1.years_experience ? parseInt(s1.years_experience) : undefined,
         languages:             s1.languages.split(',').map((l) => l.trim()).filter(Boolean),
         session_formats:       s1.session_formats,
+        category_ids:          s1.category_ids,
         rate_per_session_kes:  s1.rate_per_session_kes ? parseInt(s1.rate_per_session_kes) : undefined,
         plain_language_intro:  s2.plain_language_intro,
         approach_plain:        s2.approach_plain || undefined,
@@ -367,6 +405,7 @@ export default function OnboardingScreen() {
       {step === 1 && (
         <Step1
           s={s1} set={set1} toggleFormat={toggleFormat}
+          categories={categories} toggleCategory={toggleCategory}
           error={error}
           onNext={() => { const e = validateStep1(); if (e) { setError(e); return; } setError(''); setStep(2); }}
         />
@@ -437,7 +476,7 @@ export default function OnboardingScreen() {
 // ══════════════════════════════════════════════════════════════════════════
 // Step 1 — Professional Details
 // ══════════════════════════════════════════════════════════════════════════
-function Step1({ s, set, toggleFormat, error, onNext }) {
+function Step1({ s, set, toggleFormat, categories, toggleCategory, error, onNext }) {
   return (
     <form onSubmit={(e) => { e.preventDefault(); onNext(); }}>
       <div style={{ marginBottom: 24 }}>
@@ -500,6 +539,25 @@ function Step1({ s, set, toggleFormat, error, onNext }) {
           ))}
         </div>
       </div>
+
+      {categories.length > 0 && (
+        <div className="form-group">
+          <label className="form-label">Areas you work with</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+            {categories.map((cat) => (
+              <CategoryPill
+                key={cat.id}
+                label={cat.name}
+                active={s.category_ids.includes(cat.id)}
+                onClick={() => toggleCategory(cat.id)}
+              />
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+            Select the areas that match your practice. Admin can update these after verification.
+          </p>
+        </div>
+      )}
 
       <ErrorBar msg={error} />
 
