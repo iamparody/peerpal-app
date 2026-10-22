@@ -1,6 +1,10 @@
 ﻿const { Resend } = require('resend');
 const logger = require('../utils/logger');
 
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 let _resend = null;
 function getResend() {
   if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
@@ -173,6 +177,7 @@ async function sendTherapistPasswordReset(email, displayName, token) {
 }
 
 function therapistVerifiedTemplate(name, portalUrl) {
+  const n = escapeHtml(name); const u = escapeHtml(portalUrl);
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -180,7 +185,7 @@ function therapistVerifiedTemplate(name, portalUrl) {
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
     <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
       <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
-      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${n},</p>
       <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
         Your PeerPal therapist account has been verified.<br>
         You can now receive bookings from clients on the platform.
@@ -190,7 +195,7 @@ function therapistVerifiedTemplate(name, portalUrl) {
       </p>
       <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px">
         <tr><td style="background:#5BAD9A;border-radius:8px;padding:14px 28px">
-          <a href="${portalUrl}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Go to my portal</a>
+          <a href="${u}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Go to my portal</a>
         </td></tr>
       </table>
       <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
@@ -202,6 +207,7 @@ function therapistVerifiedTemplate(name, portalUrl) {
 }
 
 function therapistSuspendedTemplate(name) {
+  const n = escapeHtml(name);
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -209,7 +215,7 @@ function therapistSuspendedTemplate(name) {
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
     <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
       <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
-      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${n},</p>
       <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
         Your PeerPal therapist account has been suspended.<br>
         You will not receive new bookings while your account is suspended.
@@ -227,6 +233,7 @@ function therapistSuspendedTemplate(name) {
 }
 
 function therapistUnsuspendedTemplate(name, portalUrl) {
+  const n = escapeHtml(name); const u = escapeHtml(portalUrl);
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -234,7 +241,7 @@ function therapistUnsuspendedTemplate(name, portalUrl) {
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
     <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
       <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
-      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${n},</p>
       <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
         Your PeerPal therapist account suspension has been lifted.<br>
         You are now available to receive bookings again.
@@ -244,7 +251,7 @@ function therapistUnsuspendedTemplate(name, portalUrl) {
       </p>
       <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px">
         <tr><td style="background:#5BAD9A;border-radius:8px;padding:14px 28px">
-          <a href="${portalUrl}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Go to my portal</a>
+          <a href="${u}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Go to my portal</a>
         </td></tr>
       </table>
       <hr style="border:none;border-top:1px solid #eee;margin:28px 0">

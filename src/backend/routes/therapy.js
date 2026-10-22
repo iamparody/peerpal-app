@@ -1531,7 +1531,7 @@ router.patch('/therapist/profile', therapistAuth, async (req, res) => {
 // ─── POST /therapy/therapist/change-password ─────────────────────────────────
 router.post('/therapist/change-password', therapistAuth, async (req, res) => {
   const { current_password, new_password } = req.body;
-  if (!current_password || !new_password) {
+  if (typeof current_password !== 'string' || typeof new_password !== 'string' || !current_password || !new_password) {
     return res.status(400).json({ error: 'current_password and new_password are required', code: 'MISSING_FIELDS' });
   }
   if (new_password.length < 8) {
@@ -1733,7 +1733,7 @@ router.get('/therapist/clients/:member_user_id', therapistAuth, async (req, res)
   }
   try {
     const { rows: bookings } = await query(
-      `SELECT b.id, b.scheduled_at, b.status, b.format, b.duration_minutes,
+      `SELECT b.id, b.scheduled_at, b.status, b.session_format, b.duration_minutes,
               COALESCE(json_agg(
                 json_build_object('id', n.id, 'note_type', n.note_type, 'content', n.content, 'created_at', n.created_at)
                 ORDER BY n.created_at
@@ -1781,6 +1781,10 @@ router.get('/session-notes', therapistAuth, async (req, res) => {
 
 // ─── PATCH /therapy/session-notes/:id ────────────────────────────────────────
 router.patch('/session-notes/:id', therapistAuth, async (req, res) => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid note id', code: 'INVALID_FIELDS' });
+  }
   const { content, note_type } = req.body;
   if (!content?.trim() && !note_type) {
     return res.status(400).json({ error: 'content or note_type required', code: 'MISSING_FIELDS' });
