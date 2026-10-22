@@ -33,8 +33,14 @@ export default function ProfileTab() {
   const [error, setError]         = useState('');
   const [categories, setCategories]     = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoError, setPhotoError]       = useState('');
+  const [photoError, setPhotoError]         = useState('');
   const photoInputRef = useRef();
+
+  // Change-password state
+  const [pwForm, setPwForm]   = useState({ current: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwSaved, setPwSaved]   = useState(false);
+  const [pwError, setPwError]   = useState('');
 
   // Editable fields
   const [form, setForm] = useState({
@@ -130,6 +136,27 @@ export default function ProfileTab() {
       setPhotoError('Photo upload failed. Please try again.');
     } finally {
       setPhotoUploading(false);
+    }
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setPwError('');
+    setPwSaved(false);
+    if (pwForm.next.length < 8) { setPwError('New password must be at least 8 characters.'); return; }
+    if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match.'); return; }
+    setPwSaving(true);
+    try {
+      await client.post('/api/therapy/therapist/change-password', {
+        current_password: pwForm.current,
+        new_password: pwForm.next,
+      });
+      setPwSaved(true);
+      setPwForm({ current: '', next: '', confirm: '' });
+    } catch (err) {
+      setPwError(err?.response?.data?.error || 'Failed to update password.');
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -372,6 +399,57 @@ export default function ProfileTab() {
                 Profile data unavailable — fill in the form on the left to set up your profile.
               </p>
             )}
+          </div>
+
+          <div className="card" style={{ padding: '20px 24px', marginTop: 16 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--color-text-primary)' }}>
+              Change Password
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+              You will be signed out of all devices after changing your password.
+            </p>
+            <form onSubmit={handleChangePassword}>
+              <div className="form-group">
+                <label className="form-label">Current password</label>
+                <input
+                  type="password"
+                  value={pwForm.current}
+                  onChange={(e) => setPwForm((f) => ({ ...f, current: e.target.value }))}
+                  placeholder="Your current password"
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">New password</label>
+                <input
+                  type="password"
+                  value={pwForm.next}
+                  onChange={(e) => setPwForm((f) => ({ ...f, next: e.target.value }))}
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm new password</label>
+                <input
+                  type="password"
+                  value={pwForm.confirm}
+                  onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))}
+                  placeholder="Repeat new password"
+                  autoComplete="new-password"
+                />
+              </div>
+              {pwError && <div className="error-text mb-12">{pwError}</div>}
+              {pwSaved && <div className="text-sm text-success mb-12">Password updated successfully.</div>}
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={pwSaving || !pwForm.current || !pwForm.next || !pwForm.confirm}
+                style={{ width: '100%', justifyContent: 'center', padding: '11px 14px' }}
+              >
+                {pwSaving ? 'Updating…' : 'Update password'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ const { paymentLimiter } = require('../middleware/rateLimit');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund } = require('../utils/therapyRefund');
 const { getTurnCredentialsWithFallback } = require('../utils/turnCredentials');
+const bcrypt = require('bcrypt');
 const { therapyRooms } = require('../ws/signaling');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { initiatePayout } = require('../utils/therapistPayout');
@@ -1524,6 +1525,34 @@ router.patch('/therapist/profile', therapistAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, err.message);
     return res.status(500).json({ error: 'Failed to update profile', code: 'QUERY_ERROR' });
+  }
+});
+
+// ─── POST /therapy/therapist/change-password ─────────────────────────────────
+router.post('/therapist/change-password', therapistAuth, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'current_password and new_password are required', code: 'MISSING_FIELDS' });
+  }
+  if (new_password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters', code: 'INVALID_PASSWORD' });
+  }
+  try {
+    const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [req.therapist.user_id]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+    const match = await bcrypt.compare(current_password, rows[0].password_hash);
+    if (!match) {
+      return res.status(400).json({ error: 'Current password is incorrect.', code: 'INVALID_PASSWORD' });
+    }
+    const hash = await bcrypt.hash(new_password, 10);
+    await query(
+      'UPDATE users SET password_hash = $1, jwt_issued_before = NOW() WHERE id = $2',
+      [hash, req.therapist.user_id]
+    );
+    return res.status(200).json({ updated: true });
+  } catch (err) {
+    logger.error({ err }, err.message);
+    return res.status(500).json({ error: 'Failed to update password', code: 'QUERY_ERROR' });
   }
 });
 

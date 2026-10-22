@@ -7,6 +7,13 @@ export default function SetPasswordScreen({ token, onDone }) {
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState('');
   const [success,   setSuccess]   = useState(false);
+  const [linkExpired, setLinkExpired] = useState(false);
+
+  // Resend-link state
+  const [resendEmail,   setResendEmail]   = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendDone,    setResendDone]    = useState(false);
+  const [resendError,   setResendError]   = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -17,13 +24,30 @@ export default function SetPasswordScreen({ token, onDone }) {
     try {
       await client.post('/api/auth/reset-password', { token, new_password: password });
       setSuccess(true);
-      // Clear the token from the URL without a page reload
       window.history.replaceState({}, '', window.location.pathname);
       setTimeout(onDone, 2000);
     } catch (err) {
-      setError(err?.response?.data?.error || 'Link expired or invalid — ask an admin to resend the invite.');
+      const code = err?.response?.data?.code;
+      if (code === 'INVALID_TOKEN' || code === 'TOKEN_EXPIRED') {
+        setLinkExpired(true);
+      }
+      setError(err?.response?.data?.error || 'Link expired or invalid.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend(e) {
+    e.preventDefault();
+    setResendError('');
+    setResendLoading(true);
+    try {
+      await client.post('/api/auth/recover', { email: resendEmail.trim() });
+      setResendDone(true);
+    } catch {
+      setResendError('Something went wrong. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   }
 
@@ -55,14 +79,57 @@ export default function SetPasswordScreen({ token, onDone }) {
         </div>
 
         {success ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '20px 0',
-            color: 'var(--color-text-primary)',
-            fontSize: 15,
-          }}>
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--color-text-primary)', fontSize: 15 }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
             Password set! Redirecting to sign in…
+          </div>
+        ) : linkExpired ? (
+          <div>
+            <div style={{
+              background: 'rgba(179,92,92,0.08)', border: '1px solid rgba(179,92,92,0.25)',
+              borderRadius: 6, padding: '9px 12px', fontSize: 13,
+              color: 'var(--color-status-open)', marginBottom: 20,
+            }}>
+              {error}
+            </div>
+            {resendDone ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 14, color: 'var(--color-text-primary)' }}>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>📬</div>
+                Check your inbox — a new link is on its way.
+              </div>
+            ) : (
+              <form onSubmit={handleResend}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+                  Enter your email address and we'll send you a new setup link.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Email address</label>
+                  <input
+                    type="email"
+                    value={resendEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    autoFocus
+                  />
+                </div>
+                {resendError && (
+                  <div style={{
+                    fontSize: 13, color: 'var(--color-status-open)', marginBottom: 12,
+                  }}>
+                    {resendError}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={resendLoading || !resendEmail.trim()}
+                  style={{ width: '100%', justifyContent: 'center', padding: '11px 14px', fontSize: 14 }}
+                >
+                  {resendLoading ? 'Sending…' : 'Send new link'}
+                </button>
+              </form>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -90,13 +157,9 @@ export default function SetPasswordScreen({ token, onDone }) {
 
             {error && (
               <div style={{
-                background: 'rgba(179,92,92,0.08)',
-                border: '1px solid rgba(179,92,92,0.25)',
-                borderRadius: 6,
-                padding: '9px 12px',
-                fontSize: 13,
-                color: 'var(--color-status-open)',
-                marginBottom: 16,
+                background: 'rgba(179,92,92,0.08)', border: '1px solid rgba(179,92,92,0.25)',
+                borderRadius: 6, padding: '9px 12px', fontSize: 13,
+                color: 'var(--color-status-open)', marginBottom: 16,
               }}>
                 {error}
               </div>
