@@ -820,6 +820,16 @@ router.patch('/therapists/:id/verify', async (req, res) => {
          WHERE id = $2`,
         [req.user.id, req.params.id]
       );
+      // Notify therapist — fire-and-forget, does not block response
+      query(
+        `SELECT u.email, tp.display_name FROM therapist_profiles tp JOIN users u ON u.id = tp.user_id WHERE tp.id = $1`,
+        [req.params.id]
+      ).then(({ rows }) => {
+        if (rows[0]?.email) {
+          const { sendTherapistVerified } = require('../services/emailService');
+          sendTherapistVerified(rows[0].email, rows[0].display_name || 'there').catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     await auditLog(req.user.id, 'therapist.verify', 'therapist', req.params.id, null, null, allVerified ? 'verified' : 'partial');
@@ -842,7 +852,9 @@ router.patch('/therapists/:id/suspend', async (req, res) => {
 
   try {
     const { rows: tpRows } = await query(
-      'SELECT id, user_id FROM therapist_profiles WHERE id = $1',
+      `SELECT tp.id, tp.user_id, tp.display_name, u.email
+       FROM therapist_profiles tp JOIN users u ON u.id = tp.user_id
+       WHERE tp.id = $1`,
       [req.params.id]
     );
     if (!tpRows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
@@ -878,6 +890,12 @@ router.patch('/therapists/:id/suspend', async (req, res) => {
       ).catch(() => {});
     }));
 
+    // Notify therapist — fire-and-forget, does not block response
+    if (tpRows[0]?.email) {
+      const { sendTherapistSuspended } = require('../services/emailService');
+      sendTherapistSuspended(tpRows[0].email, tpRows[0].display_name || 'there').catch(() => {});
+    }
+
     await auditLog(req.user.id, 'therapist.suspend', 'therapist', req.params.id, null, null, reason.trim());
     return res.status(200).json({ suspended: true, bookings_cancelled: bookings.length });
   } catch (err) {
@@ -889,13 +907,22 @@ router.patch('/therapists/:id/suspend', async (req, res) => {
 // ─── PATCH /admin/therapists/:id/unsuspend ───────────────────────────────────
 router.patch('/therapists/:id/unsuspend', async (req, res) => {
   try {
-    const { rowCount } = await query(
-      `UPDATE therapist_profiles
+    const { rows: unsuspendRows } = await query(
+      `UPDATE therapist_profiles tp
        SET suspended = false, availability_status = 'available', updated_at = NOW()
-       WHERE id = $1`,
+       FROM users u
+       WHERE tp.id = $1 AND u.id = tp.user_id
+       RETURNING tp.display_name, u.email`,
       [req.params.id]
     );
-    if (!rowCount) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+    if (!unsuspendRows.length) return res.status(404).json({ error: 'Therapist not found', code: 'NOT_FOUND' });
+
+    // Notify therapist — fire-and-forget, does not block response
+    if (unsuspendRows[0]?.email) {
+      const { sendTherapistUnsuspended } = require('../services/emailService');
+      sendTherapistUnsuspended(unsuspendRows[0].email, unsuspendRows[0].display_name || 'there').catch(() => {});
+    }
+
     await auditLog(req.user.id, 'therapist.unsuspend', 'therapist', req.params.id, null, null, null);
     return res.status(200).json({ unsuspended: true });
   } catch (err) {

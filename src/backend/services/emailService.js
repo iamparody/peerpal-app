@@ -172,4 +172,106 @@ async function sendTherapistPasswordReset(email, displayName, token) {
   await enqueueEmail(email, 'Reset your PeerPal therapist password', inviteTherapistTemplate(displayName, link));
 }
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendTherapistInvite, sendTherapistPasswordReset, deliverEmail, deliverEmailSafe };
+function therapistVerifiedTemplate(name, portalUrl) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F5F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
+    <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
+      <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
+        Your PeerPal therapist account has been verified.<br>
+        You can now receive bookings from clients on the platform.
+      </p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#444">
+        Log in to complete your schedule and start accepting sessions.
+      </p>
+      <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px">
+        <tr><td style="background:#5BAD9A;border-radius:8px;padding:14px 28px">
+          <a href="${portalUrl}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Go to my portal</a>
+        </td></tr>
+      </table>
+      <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
+      <p style="font-size:12px;color:#aaa;margin:0">The PeerPal Team</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function therapistSuspendedTemplate(name) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F5F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
+    <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
+      <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
+        Your PeerPal therapist account has been suspended.<br>
+        You will not receive new bookings while your account is suspended.
+      </p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#444">
+        If you have questions, please contact us at
+        <a href="mailto:support@peer-pal.com" style="color:#5BAD9A">support@peer-pal.com</a>.
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
+      <p style="font-size:12px;color:#aaa;margin:0">The PeerPal Team</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function therapistUnsuspendedTemplate(name, portalUrl) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F5F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;margin:40px auto">
+    <tr><td style="background:#ffffff;border-radius:12px;padding:40px 36px;color:#1A1A2E">
+      <p style="font-size:22px;font-weight:600;margin:0 0 8px">PeerPal</p>
+      <p style="font-size:16px;color:#555;margin:0 0 28px">Hi ${name},</p>
+      <p style="font-size:16px;line-height:1.6;margin:0 0 28px">
+        Your PeerPal therapist account suspension has been lifted.<br>
+        You are now available to receive bookings again.
+      </p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#444">
+        Log in to review your schedule.
+      </p>
+      <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px">
+        <tr><td style="background:#5BAD9A;border-radius:8px;padding:14px 28px">
+          <a href="${portalUrl}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600">Go to my portal</a>
+        </td></tr>
+      </table>
+      <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
+      <p style="font-size:12px;color:#aaa;margin:0">The PeerPal Team</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendTherapistVerified(email, displayName) {
+  const portalUrl = (process.env.THERAPIST_PORTAL_URL || '').trim() || getAppUrl();
+  enqueueEmail(email, 'Your PeerPal account is verified', therapistVerifiedTemplate(displayName, portalUrl));
+}
+
+async function sendTherapistSuspended(email, displayName) {
+  enqueueEmail(email, 'Your PeerPal account has been suspended', therapistSuspendedTemplate(displayName));
+}
+
+async function sendTherapistUnsuspended(email, displayName) {
+  const portalUrl = (process.env.THERAPIST_PORTAL_URL || '').trim() || getAppUrl();
+  enqueueEmail(email, 'Your PeerPal account has been reinstated', therapistUnsuspendedTemplate(displayName, portalUrl));
+}
+
+module.exports = {
+  sendVerificationEmail, sendPasswordResetEmail,
+  sendTherapistInvite, sendTherapistPasswordReset,
+  sendTherapistVerified, sendTherapistSuspended, sendTherapistUnsuspended,
+  deliverEmail, deliverEmailSafe,
+};
