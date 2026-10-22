@@ -84,11 +84,8 @@ export default function LoginScreen() {
         }
         setError("Having trouble? Take a breath — you can keep trying.");
       } else {
-        const code = err.response?.data?.code;
-        if (code === 'NO_ACCOUNT') {
-          setError('No account associated with that email.');
-        } else if (err.response?.status === 401) {
-          setError('Incorrect password. Please try again.');
+        if (err.response?.status === 401) {
+          setError('Incorrect email or password.');
         } else {
           setError('Something went wrong. Please try again.');
         }

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function ErrorBox({ msg }) {
   if (!msg) return null;
   return (
@@ -97,6 +99,7 @@ export default function LoginScreen() {
   const { login }                   = useAuth();
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
+  const [showPw, setShowPw]         = useState(false);
   const [error, setError]           = useState('');
   const [loading, setLoading]       = useState(false);
   const [showForgot, setShowForgot] = useState(false);
@@ -104,11 +107,22 @@ export default function LoginScreen() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!EMAIL_RE.test(email)) { setError('Enter a valid email address.'); return; }
     setLoading(true);
     try {
       await login(email, password);
     } catch (err) {
-      setError(err.message || err.response?.data?.error || 'Login failed.');
+      if (err.message === 'This account does not have therapist access.') {
+        setError(err.message);
+      } else if (!err.response) {
+        setError('Connection error. Check your internet and try again.');
+      } else if (err.response.status === 401) {
+        setError('Incorrect email or password.');
+      } else if (err.response.status === 400 && err.response.data?.code === 'INVALID_EMAIL') {
+        setError('Enter a valid email address.');
+      } else {
+        setError(err.response.data?.error || 'Login failed.');
+      }
     } finally {
       setLoading(false);
     }
@@ -144,13 +158,22 @@ export default function LoginScreen() {
             </div>
             <div className="form-group" style={{ marginBottom: error ? 8 : 4 }}>
               <label className="form-label">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  style={{ paddingRight: 44 }}
+                />
+                <button type="button" onClick={() => setShowPw(v => !v)} style={{ position: 'absolute', right: 12, bottom: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--color-text-muted)' }} aria-label={showPw ? 'Hide password' : 'Show password'}>
+                  {showPw
+                    ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  }
+                </button>
+              </div>
             </div>
 
             <div style={{ textAlign: 'right', marginBottom: 16 }}>
