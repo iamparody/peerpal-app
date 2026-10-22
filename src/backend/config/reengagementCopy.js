@@ -2,10 +2,18 @@
 // Privacy rules (spec Section: Privacy rules):
 //   - Never reference mood level, emotional state, session content, or clinical language
 //   - Lock-screen text must be safe to read in any context
-// Each key maps to an array of { title, body }. pick() selects one at random.
+// Each key maps to an array of { title, body }. pick/pickAvoiding select one at random.
 
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Avoids repeating the last-sent title. Falls back to full pool if only 1 variant.
+function pickAvoiding(arr, lastTitle) {
+  if (!arr || arr.length === 0) return null;
+  if (arr.length === 1) return arr[0];
+  const candidates = arr.filter(item => item.title !== lastTitle);
+  return candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : arr[Math.floor(Math.random() * arr.length)];
 }
 
 const COPY = {
@@ -61,54 +69,72 @@ const COPY = {
   ],
 
   credit_low: [
-    { title: "You have 1 credit left", body: "Top up to stay connected when you need support." },
+    { title: "You have 1 credit left",  body: "Top up to stay connected when you need support." },
+    { title: "Running low on credits",  body: "One credit remaining. A quick top-up keeps you going." },
+    { title: "Almost out of credits",   body: "Top up now — support is here when you need it." },
   ],
 
   credit_zero: [
-    { title: "Out of credits",  body: "Don't let that stop you. Top up and keep going." },
-    { title: "Credits ran out", body: "You can still access the AI chat. Top up for peer sessions." },
+    { title: "Out of credits",              body: "Don't let that stop you. Top up and keep going." },
+    { title: "Credits ran out",             body: "You can still access the AI chat. Top up for peer sessions." },
+    { title: "Credits gone, support isn't", body: "Top up to reconnect with peer support or a therapist." },
   ],
 
   no_safety_plan: [
-    { title: "A small step worth taking", body: "A safety plan takes 5 minutes and is there when you need it." },
-    { title: "Be prepared, just in case", body: "Setting up a safety plan is one of the kindest things you can do for yourself." },
+    { title: "A small step worth taking",  body: "A safety plan takes 5 minutes and is there when you need it." },
+    { title: "Be prepared, just in case",  body: "Setting up a safety plan is one of the kindest things you can do for yourself." },
+    { title: "Five minutes now, peace of mind later", body: "A safety plan is a quiet thing to have ready." },
   ],
 
   low_mood_streak: [
     { title: "You've been checking in",  body: "Take a moment today. A peer or your companion is here." },
     { title: "You're not alone in this", body: "It's okay to ask for support. We're here." },
+    { title: "Still here with you",      body: "Hard stretches pass. We're with you through this one." },
   ],
 
   first_call_nudge: [
-    { title: "PeerPal", body: "Someone is ready to listen when you are." },
+    { title: "PeerPal",                   body: "Someone is ready to listen when you are." },
+    { title: "You don't have to wait",    body: "A peer is available right now. Come say hello." },
+    { title: "Ready when you are",        body: "Someone on the other side is here to listen." },
   ],
 
   therapist_upsell: [
-    { title: "You've been showing up",   body: "Peer support is powerful. A therapist can go even deeper." },
-    { title: "Ready for the next step?", body: "You've used peer support. A therapist can help you go further." },
+    { title: "You've been showing up",    body: "Peer support is powerful. A therapist can go even deeper." },
+    { title: "Ready for the next step?",  body: "You've used peer support. A therapist can help you go further." },
+    { title: "Peer support opened a door", body: "A therapist can help you walk through it." },
   ],
 
   reengagement_step1: [
-    { title: "Your companion is waiting", body: "It only takes 2 minutes to set up. Come say hello." },
+    { title: "Your companion is waiting",  body: "It only takes 2 minutes to set up. Come say hello." },
+    { title: "Meet your AI companion",     body: "Tell it about yourself. It remembers what you share." },
+    { title: "Something to try today",     body: "Your companion is set up and ready. Start a conversation." },
   ],
 
   reengagement_step2: [
     { title: "Your companion hasn't heard from you yet", body: "How are you doing today? Start a conversation." },
+    { title: "Check in with your companion",             body: "It's been quiet. Come say something — anything." },
+    { title: "Your companion is here",                   body: "Even a short conversation makes a difference. Start one." },
   ],
 
   reengagement_step3: [
-    { title: "It's been a while", body: "We've been thinking about you. How are you?" },
+    { title: "It's been a while",      body: "We've been thinking about you. How are you?" },
+    { title: "We missed you",          body: "No catching up needed. Come back at your own pace." },
+    { title: "Your space is still here", body: "Everything is as you left it. Come back when ready." },
   ],
 
   reengagement_purchase: [
     { title: "Keep the momentum going", body: "You've used your free credits. Top up from KSh 100." },
+    { title: "Don't stop now",          body: "Your free credits are done. Top up to keep going." },
+    { title: "You've already started",  body: "Free credits used. Keep the momentum — top up from KSh 100." },
   ],
 };
 
-function getReengagementCopy(type, vars = {}) {
+function getReengagementCopy(type, vars = {}, lastTitle = null) {
   const templates = COPY[type];
   if (!templates) return null;
-  let { title, body } = pick(templates);
+  const variant = lastTitle ? pickAvoiding(templates, lastTitle) : pick(templates);
+  if (!variant) return null;
+  let { title, body } = variant;
   for (const [key, val] of Object.entries(vars)) {
     title = title.replace(`{${key}}`, val);
     body  = body.replace(`{${key}}`, val);

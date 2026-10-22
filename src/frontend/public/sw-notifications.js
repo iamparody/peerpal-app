@@ -86,8 +86,8 @@
     },
 
     streak_reminder: {
-      title: () => 'Keep your streak going',
-      body: (d) => d.streak_count ? `${d.streak_count} days — don't break it now.` : 'Log your mood today to keep your streak.',
+      title: (d) => d.title || 'Keep your streak going',
+      body: (d) => d.body || (d.streak_count ? `${d.streak_count} days — don't break it now.` : 'Log your mood today to keep your streak.'),
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -95,8 +95,8 @@
     },
 
     streak_broken: {
-      title: () => "Streak reset — that's okay",
-      body: () => "Every day is a fresh start. Check in when you're ready.",
+      title: (d) => d.title || "Streak reset — that's okay",
+      body: (d) => d.body || "Every day is a fresh start. Check in when you're ready.",
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -113,8 +113,8 @@
     },
 
     session_followup_peer: {
-      title: () => 'How are you doing?',
-      body: () => 'You supported someone today. Check in with yourself too.',
+      title: (d) => d.title || 'How are you doing?',
+      body: (d) => d.body || 'You supported someone today. Check in with yourself too.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -122,8 +122,8 @@
     },
 
     session_followup_therapy: {
-      title: () => 'Reflection time',
-      body: () => 'Your therapy session has ended. Writing something down can help it land.',
+      title: (d) => d.title || 'Reflection time',
+      body: (d) => d.body || 'Your therapy session has ended. Writing something down can help it land.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -131,8 +131,8 @@
     },
 
     dormant_nudge: {
-      title: () => 'We missed you',
-      body: () => "It has been a while. Come back at your own pace — we're here.",
+      title: (d) => d.title || 'We missed you',
+      body: (d) => d.body || "It has been a while. Come back at your own pace — we're here.",
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -140,8 +140,8 @@
     },
 
     ai_dormant: {
-      title: () => 'Your companion is waiting',
-      body: () => "Start a conversation whenever you're ready.",
+      title: (d) => d.title || 'Your companion is waiting',
+      body: (d) => d.body || "Start a conversation whenever you're ready.",
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -158,8 +158,8 @@
     },
 
     credit_zero: {
-      title: () => 'No credits remaining',
-      body: () => 'Top up to request peer support or book a therapy session.',
+      title: (d) => d.title || 'No credits remaining',
+      body: (d) => d.body || 'Top up to request peer support or book a therapy session.',
       vibrate: [100, 50, 100],
       requireInteraction: false,
       renotify: false,
@@ -167,8 +167,8 @@
     },
 
     no_safety_plan: {
-      title: () => 'Set up your safety plan',
-      body: () => 'Having one ready — even a simple one — makes a difference in hard moments.',
+      title: (d) => d.title || 'Set up your safety plan',
+      body: (d) => d.body || 'Having one ready — even a simple one — makes a difference in hard moments.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -176,8 +176,8 @@
     },
 
     therapist_upsell: {
-      title: () => 'Ready for deeper support?',
-      body: () => 'Browse therapists on PeerPal and express interest in minutes.',
+      title: (d) => d.title || 'Ready for deeper support?',
+      body: (d) => d.body || 'Browse therapists on PeerPal and express interest in minutes.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -185,8 +185,8 @@
     },
 
     unmatched_request: {
-      title: () => 'No peer found this time',
-      body: () => 'Your credits have been refunded. Try again or visit your calm space.',
+      title: (d) => d.title || 'No peer found this time',
+      body: (d) => d.body || 'Your credits have been refunded. Try again or visit your calm space.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -194,8 +194,8 @@
     },
 
     first_call_nudge: {
-      title: () => 'PeerPal',
-      body: () => 'Someone is ready to listen when you are.',
+      title: (d) => d.title || 'PeerPal',
+      body: (d) => d.body || 'Someone is ready to listen when you are.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -203,8 +203,8 @@
     },
 
     bad_mood_followup: {
-      title: () => 'Checking in on you',
-      body: () => 'You logged a tough mood earlier. How are you feeling now?',
+      title: (d) => d.title || 'Checking in on you',
+      body: (d) => d.body || 'You logged a tough mood earlier. How are you feeling now?',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -212,8 +212,8 @@
     },
 
     low_mood_streak: {
-      title: () => "We're thinking of you",
-      body: () => "You've been having a rough stretch. Peer support or a calm space might help.",
+      title: (d) => d.title || "We're thinking of you",
+      body: (d) => d.body || "You've been having a rough stretch. Peer support or a calm space might help.",
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -240,8 +240,8 @@
     },
 
     reengagement_step1: {
-      title: () => 'Your companion is waiting',
-      body: () => 'It only takes 2 minutes to set up. Come say hello.',
+      title: (d) => d.title || 'Your companion is waiting',
+      body: (d) => d.body || 'It only takes 2 minutes to set up. Come say hello.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -249,8 +249,8 @@
     },
 
     reengagement_step2: {
-      title: () => "Your companion hasn't heard from you yet",
-      body: () => 'How are you doing today? Start a conversation.',
+      title: (d) => d.title || "Your companion hasn't heard from you yet",
+      body: (d) => d.body || 'How are you doing today? Start a conversation.',
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -258,8 +258,8 @@
     },
 
     reengagement_step3: {
-      title: () => "It's been a while",
-      body: () => "We've been thinking about you. How are you?",
+      title: (d) => d.title || "It's been a while",
+      body: (d) => d.body || "We've been thinking about you. How are you?",
       vibrate: [100],
       requireInteraction: false,
       renotify: false,
@@ -267,8 +267,8 @@
     },
 
     reengagement_purchase: {
-      title: () => 'Keep the momentum going',
-      body: () => "You've used your free credits. Top up from KSh 100.",
+      title: (d) => d.title || 'Keep the momentum going',
+      body: (d) => d.body || "You've used your free credits. Top up from KSh 100.",
       vibrate: [100],
       requireInteraction: false,
       renotify: false,

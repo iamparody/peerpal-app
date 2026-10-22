@@ -44,13 +44,19 @@ function hadRecentPush(user) {
   return (Date.now() - new Date(user.last_reengagement_push_at).getTime()) < 86400000;
 }
 
-async function markPushSent(userId) {
-  await query(`UPDATE users SET last_reengagement_push_at = NOW() WHERE id = $1`, [userId]);
+async function markPushSent(userId, type, chosenTitle) {
+  await query(
+    `UPDATE users
+     SET last_reengagement_push_at = NOW(),
+         last_nudge_variant = COALESCE(last_nudge_variant, '{}'::jsonb) || jsonb_build_object($2::text, $3::text)
+     WHERE id = $1`,
+    [userId, type, chosenTitle]
+  );
 }
 
 // Returns true if send succeeded, false if duplicate suppressed (23505 unique violation).
 async function sendNudge(user, type, notifType, vars = {}, route = '/mood', eventRef = null) {
-  const copy = getReengagementCopy(type, vars);
+  const copy = getReengagementCopy(type, vars, user.last_nudge_variant?.[type]);
   if (!copy) return false;
 
   try {
@@ -70,7 +76,7 @@ async function sendNudge(user, type, notifType, vars = {}, route = '/mood', even
   if (user.fcm_token) {
     await enqueuePushNotification(user.fcm_token, copy.title, copy.body, { type: notifType, route });
   }
-  await markPushSent(user.id);
+  await markPushSent(user.id, type, copy.title);
   return true;
 }
 
@@ -416,6 +422,7 @@ async function runReengagementJob() {
             u.last_reengagement_push_at, u.engagement_segment,
             u.reengagement_step, u.onboarding_completed_at,
             u.first_session_completed_at, u.last_session_at,
+            u.last_nudge_variant,
             COALESCE(cr.balance, 0) AS credits_balance,
             MAX(m.created_at) AS last_mood_at
      FROM users u

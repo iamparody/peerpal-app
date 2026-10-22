@@ -3160,6 +3160,44 @@ Scope-contained improvements to the live session experience. No new routes or mi
 - [ ] Session card shows "Session N" for returning clients
 - [ ] Schedule booked cell shows alias
 
+---
+
+## Phase 54 — Messaging & Copy Intelligence
+
+> Two connected problems: (1) `WelcomeScreen` ignores the already-fetched `lastMood` and sends every user the same flat affirmation pool. (2) `sw-notifications.js` hardcodes single-variant strings for all push types, silently overriding the rotation pool already built in `reengagementCopy.js`. Both fixes bring the copy system to life without new infrastructure.
+
+### 54.1 WelcomeScreen — Context-Aware Messages
+- [x] Bucket `ALL_MESSAGES` in `WelcomeScreen.jsx` into 4 mood-contextual pools: `high` (good/great), `mid` (neutral), `low` (low/very_low), `no_data` (no prior mood entry)
+- [x] Replace `pickMessages()` with `pickByContext(lastMood)` — selects pool by mood tier, then picks 3 distinct from that pool
+- [x] Add a fifth pool `first_visit` — distinct copy for users whose `welcomeSeen` was `false` on this visit
+- [x] Ensure each pool has ≥ 5 distinct messages so the 3-pick never exhausts the pool
+- [x] Fix timing bug: `setMessages(pickByContext(...))` called inside useEffect after mood resolves, not at mount
+
+### 54.2 Push Notifications — Fix SW Passthrough
+- [x] In `sw-notifications.js`, for every re-engagement nudge type, change `title: () => 'hardcoded'` to `title: (d) => d.title || 'hardcoded fallback'` and same for `body`
+- [x] 16 types patched; non-passthrough types (credit_low, milestone, journal_prompt, peer_request_broadcast, etc.) unchanged
+
+### 54.3 Push Notifications — Expand Thin Variant Pools
+- [x] In `reengagementCopy.js`, expand all thin pools to 3+ variants: `first_call_nudge`, `reengagement_step1/2/3`, `reengagement_purchase`, `credit_low`, `no_safety_plan`, `therapist_upsell`, `low_mood_streak`, `credit_zero`
+- [x] Add `pickAvoiding(arr, lastTitle)` — skips last-used title, falls back to full pool if only 1 variant
+- [x] `getReengagementCopy` accepts optional `lastTitle` param; backward-compatible (default null)
+
+### 54.4 Push Notifications — Recency Dedup
+- [x] Migration 112: `last_nudge_variant JSONB DEFAULT '{}'` added to users; rollback SQL written
+- [x] `reengagementJob.js` SELECT includes `u.last_nudge_variant`
+- [x] `sendNudge` passes `user.last_nudge_variant?.[type]` to `getReengagementCopy`
+- [x] `markPushSent` extended to write chosen title back to `last_nudge_variant` atomically
+
+### 54.5 Verification
+- [ ] Log in as user with mood level 8 → welcome screen shows high-energy messages, not generic pool
+- [ ] Log in as user with mood level 2 → welcome screen shows low-mood compassionate messages
+- [ ] Log in as new user (`welcomeSeen = false`) → first_visit pool messages appear
+- [ ] Trigger `dormant_nudge` push twice for same user → two different title/body variants arrive on device
+- [ ] Trigger `reengagement_step1` push → device shows a variant from the expanded pool, not "Your companion is waiting" every time
+- [ ] Second consecutive push of same type → different variant than first (recency dedup working)
+
+---
+
 ### P5: Health Equity Collaboration Document
 
 **Goal:** A concept/collaboration document for the Health Equity partnership meeting. Draft after user shares meeting summary.

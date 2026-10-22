@@ -4,38 +4,61 @@ import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 import MoodBlob from '../components/MoodBlob';
 
-const ALL_MESSAGES = [
-  "You showed up. That's everything.",
-  "Take it one breath at a time.",
-  "We're really glad you're here.",
-  "Every day you open this is a win.",
-  "You don't have to have it together.",
-  "Small steps still move you forward.",
-  "This is your space. No pressure.",
-  "You matter more than you know.",
-  "Rest is also progress.",
-  "Being here takes courage.",
-  "You're doing better than you think.",
-  "One moment at a time — that's enough.",
-  "You are not alone in this.",
-  "Healing isn't linear. That's okay.",
-  "Today doesn't have to be perfect.",
-  "Showing up for yourself counts.",
-  "You're allowed to take up space.",
-  "Kindness starts with yourself.",
-  "Even on hard days, you're here.",
-  "We see you. We're glad you came.",
-];
+const MOOD_POOLS = {
+  first_visit: [
+    "This is the beginning of something. We're glad you're here.",
+    "You took the first step. That's the hardest one.",
+    "Welcome. This space is entirely yours.",
+    "Starting is enough. You've already done it.",
+    "We're really glad you made it here.",
+  ],
+  high: [
+    "Something's working. Stay with it.",
+    "Good days are worth noting. You're having one.",
+    "You're bringing real energy today. Keep it.",
+    "It shows. Keep coming back.",
+    "This is what showing up looks like.",
+  ],
+  mid: [
+    "Not every day has to be remarkable. This one counts too.",
+    "Steady is its own kind of strong.",
+    "Being in the middle is still somewhere. You're here.",
+    "Today doesn't have to be perfect.",
+    "This is your space. No pressure.",
+  ],
+  low: [
+    "Hard days are part of it. You came anyway.",
+    "Coming back on a tough day takes courage.",
+    "You don't have to have it together to be here.",
+    "The fact that you opened this matters.",
+    "We're here, no matter what kind of day it is.",
+    "Even on hard days, you're here.",
+  ],
+  no_data: [
+    "We're really glad you're here.",
+    "This is your space. No pressure.",
+    "One moment at a time — that's enough.",
+    "You matter more than you know.",
+    "Every check-in tells your story a little more.",
+  ],
+};
 
-// Pick 3 random distinct messages — called inside component so it re-runs on every mount
-function pickMessages() {
-  const pool = [...ALL_MESSAGES];
-  const picked = [];
-  for (let i = 0; i < 3; i++) {
-    const idx = Math.floor(Math.random() * pool.length);
-    picked.push(pool.splice(idx, 1)[0]);
+function pick3(pool) {
+  const arr = [...pool];
+  const out = [];
+  for (let i = 0; i < Math.min(3, arr.length); i++) {
+    const idx = Math.floor(Math.random() * arr.length);
+    out.push(arr.splice(idx, 1)[0]);
   }
-  return picked;
+  return out;
+}
+
+function pickByContext(mood, isFirstVisit) {
+  if (isFirstVisit)                               return pick3(MOOD_POOLS.first_visit);
+  if (mood === 'good' || mood === 'great')         return pick3(MOOD_POOLS.high);
+  if (mood === 'neutral')                          return pick3(MOOD_POOLS.mid);
+  if (mood === 'low' || mood === 'very_low')       return pick3(MOOD_POOLS.low);
+  return pick3(MOOD_POOLS.no_data);
 }
 
 function timeGreeting() {
@@ -49,7 +72,7 @@ export default function WelcomeScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [messages] = useState(() => pickMessages());
+  const [messages, setMessages] = useState(() => pick3(MOOD_POOLS.no_data));
   const [lastMood, setLastMood] = useState(null);
   const [welcomeSeen, setWelcomeSeen] = useState(true);
   const [msgIndex, setMsgIndex] = useState(0);
@@ -59,6 +82,8 @@ export default function WelcomeScreen() {
   const navTimer = useRef(null);
   const msgTimer = useRef(null);
   const navigated = useRef(false);
+  // ref mirrors state so the setInterval closure always reads the current pool length
+  const messagesRef = useRef(messages);
 
   useEffect(() => {
     // Fetch last mood and welcome_seen status in parallel
@@ -68,9 +93,13 @@ export default function WelcomeScreen() {
       client.get('/api/trial/status').catch(() => ({ data: { is_claimed: true } })),
     ]).then(([moodRes, statusRes, trialRes]) => {
       const entries = moodRes.data.entries ?? moodRes.data ?? [];
-      if (entries.length > 0) setLastMood(entries[0].mood_level);
+      const mood = entries.length > 0 ? entries[0].mood_level : null;
+      if (mood) setLastMood(mood);
       const seen = statusRes.data.welcome_seen ?? true;
       setWelcomeSeen(seen);
+      const next = pickByContext(mood, !seen);
+      messagesRef.current = next;
+      setMessages(next);
       // First-time user with unclaimed trial: redirect to trial welcome screen
       if (!seen && !trialRes.data.is_claimed) {
         navigate('/trial-welcome', { replace: true });
@@ -88,7 +117,7 @@ export default function WelcomeScreen() {
     msgTimer.current = setInterval(() => {
       setMsgVisible(false);
       setTimeout(() => {
-        currentIndex = (currentIndex + 1) % messages.length;
+        currentIndex = (currentIndex + 1) % messagesRef.current.length;
         setMsgIndex(currentIndex);
         setMsgVisible(true);
       }, 350);

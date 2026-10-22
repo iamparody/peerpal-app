@@ -41,6 +41,24 @@
 | 53.9 UI redesign — apply MASTER.md across all tabs | ⬜ |
 | 53.10 Verification | ⬜ |
 
+---
+
+### Phase 54 — Messaging & Copy Intelligence (IN PROGRESS)
+
+**Goal:** Make in-app and push copy respond to who the user actually is.
+
+| Item | Status |
+|------|--------|
+| 54.1 WelcomeScreen — context-aware message pools (high/mid/low/no_data/first_visit) | ✅ |
+| 54.2 SW passthrough — activate existing rotation (16 types patched) | ✅ |
+| 54.3 Expand thin variant pools in reengagementCopy.js + pickAvoiding | ✅ |
+| 54.4 Migration 112 + recency dedup in reengagementJob (last_nudge_variant) | ✅ (run migration before deploy) |
+| 54.5 Verification | ⬜ |
+
+**NEXT ACTION:** Run migration 112 in Supabase, then verify: log in as new user → first_visit pool; log in as user with last mood=low → low pool; trigger same nudge type twice → different variants.
+
+---
+
 **Owner actions still pending (unblocked, run when ready):**
 - Migrations 107, 108, 109, 110, 111
 - GitHub Secrets: `RENDER_DEPLOY_HOOK_STAGING`, `RENDER_DEPLOY_HOOK_PROD`, `STAGING_BACKEND_URL`
