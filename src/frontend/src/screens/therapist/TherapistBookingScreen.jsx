@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Clock, VideoCamera, Phone, ChatText } from '@phosphor-icons/react';
 import client from '../../api/client';
 
@@ -37,6 +37,7 @@ export default function TherapistBookingScreen() {
   const [error, setError] = useState('');
   const countdownRef = useRef(null);
   const pollRef = useRef(null);
+  const queryClient = useQueryClient();
 
   const { data: therapistData } = useQuery({
     queryKey: ['therapy', 'therapist', therapistId],
@@ -51,11 +52,17 @@ export default function TherapistBookingScreen() {
 
   const therapist = therapistData?.therapist;
   const formats = therapist?.session_formats ?? [];
-  const baseRate = therapist?.rate_per_session_kes ?? 0;
-  // 45-min session is 75% of the 60-min rate
-  const rate = selectedDuration === 45 ? Math.round(baseRate * 0.75) : baseRate;
-  const platformFee = Math.round(rate * 0.2);
-  const total = rate + platformFee;
+
+  // Server-authoritative pricing — never computed client-side
+  const { data: quoteData, isLoading: quoteLoading } = useQuery({
+    queryKey: ['therapy', 'quote', therapistId, selectedDuration],
+    queryFn: () => client.get('/api/therapy/booking/quote', {
+      params: { therapist_id: therapistId, duration_minutes: selectedDuration },
+    }).then(r => r.data),
+    enabled: !!therapistId,
+    staleTime: 60_000,
+  });
+  const clientChargeKes = quoteData?.client_charge_kes ?? null;
 
   // API returns ISO strings — parse into { iso, localDate, displayTime } objects grouped by local date
   const slotsByDate = {};
@@ -156,14 +163,15 @@ export default function TherapistBookingScreen() {
       }
 
       const { data } = await client.post('/api/therapy/bookings', {
-        therapist_id:     therapistId,
-        category_id:      categoryId,
-        lock_id:          lockId,
-        session_format:   selectedFormat,
-        scheduled_at:     selectedSlot.iso,
-        duration_minutes: selectedDuration,
+        therapist_id:               therapistId,
+        category_id:                categoryId,
+        lock_id:                    lockId,
+        session_format:             selectedFormat,
+        scheduled_at:               selectedSlot.iso,
+        duration_minutes:           selectedDuration,
         phone,
-        notes:            notes.trim() || null,
+        notes:                      notes.trim() || null,
+        expected_client_charge_kes: clientChargeKes,
       });
 
       // Paystack (redirect flow): checkout_url present → go there
@@ -202,7 +210,18 @@ export default function TherapistBookingScreen() {
         }
       }, 5000);
     } catch (err) {
-      setError(err.response?.data?.message || err.response?.data?.error || 'Booking failed. Please try again.');
+      const code = err.response?.data?.code;
+      if (code === 'PRICE_CHANGED') {
+        // Invalidate the cached quote so the new price is fetched and shown
+        queryClient.invalidateQueries({ queryKey: ['therapy', 'quote', therapistId, selectedDuration] });
+        const newCharge = err.response.data.client_charge_kes;
+        setError(
+          `The session price has changed to KES ${newCharge?.toLocaleString() ?? '—'}. ` +
+          `Review the updated price and tap "Schedule Session" to confirm.`
+        );
+      } else {
+        setError(err.response?.data?.error || 'Booking failed. Please try again.');
+      }
       setSubmitting(false);
     }
   }
@@ -395,12 +414,14 @@ export default function TherapistBookingScreen() {
             </p>
           </Section>
 
-          {/* Cost summary — shown once format + duration are chosen */}
+          {/* Cost summary — server-authoritative price only */}
           {selectedFormat && selectedDuration && (
             <div style={{ background: 'var(--color-surface-card)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)' }}>Session fee</span>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>KES {total.toLocaleString()}</span>
+                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                  {quoteLoading ? '…' : clientChargeKes != null ? `KES ${clientChargeKes.toLocaleString()}` : '—'}
+                </span>
               </div>
               <p style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}>+ 1 credit deducted from your balance on booking</p>
             </div>
@@ -430,7 +451,7 @@ export default function TherapistBookingScreen() {
           {selectedFormat && selectedDuration && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)' }}>
-                {selectedSlot ? `KES ${total.toLocaleString()}` : 'Select a time slot'}
+                {selectedSlot && clientChargeKes != null ? `KES ${clientChargeKes.toLocaleString()}` : 'Select a time slot'}
               </span>
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>1 credit on booking</span>
             </div>

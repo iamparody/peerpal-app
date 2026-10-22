@@ -9,6 +9,7 @@ const auth     = require('../middleware/auth');
 const therapistAuth = require('../middleware/therapistAuth');
 const { deductCredit, refundCredit } = require('../utils/creditDeductor');
 const { initiatePayment, verifyWebhook } = require('../services/payment');
+const { calculateTherapyPricing } = require('../services/pricing');
 const { paymentLimiter } = require('../middleware/rateLimit');
 const { parseB2CCallback } = require('../utils/therapistPayout');
 const { issueFullRefund } = require('../utils/therapyRefund');
@@ -21,7 +22,6 @@ const { initiatePayout } = require('../utils/therapistPayout');
 const router = express.Router();
 
 const THERAPY_CONSENT_VERSION = '2.0';
-const PLATFORM_FEE_RATE       = 0.20;
 const SLOT_LOCK_MINUTES        = 5;
 const SLOT_DURATION_MINUTES    = 60; // default slot duration when generating grid
 const DISPUTE_WINDOW_HOURS     = 24;
@@ -257,6 +257,35 @@ router.post('/consent', auth, async (req, res) => {
   }
 });
 
+// ─── GET /therapy/booking/quote ───────────────────────────────────────────────
+// Stateless — returns the authoritative server-computed price for a session.
+// Frontend must display this value; must never compute pricing independently.
+// Client submits expected_client_charge_kes when creating the booking; if the
+// live price has changed, the server rejects with PRICE_CHANGED so the user
+// can reconfirm before payment is initiated.
+router.get('/booking/quote', auth, async (req, res) => {
+  const { therapist_id, duration_minutes: durationParam } = req.query;
+  if (!therapist_id) {
+    return res.status(400).json({ error: 'therapist_id is required', code: 'MISSING_FIELDS' });
+  }
+  const durationMinutes = parseInt(durationParam, 10) || 60;
+  if (![45, 60].includes(durationMinutes)) {
+    return res.status(400).json({ error: 'duration_minutes must be 45 or 60', code: 'INVALID_FIELDS' });
+  }
+  try {
+    const { rows } = await query(
+      'SELECT rate_per_session_kes FROM therapist_profiles WHERE id = $1 AND is_active = true AND is_verified = true AND suspended = false',
+      [therapist_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Therapist not available', code: 'NOT_FOUND' });
+    const pricing = await calculateTherapyPricing(rows[0].rate_per_session_kes, durationMinutes);
+    return res.json({ ...pricing, duration_minutes: durationMinutes });
+  } catch (err) {
+    logger.error({ err }, err.message);
+    return res.status(500).json({ error: 'Failed to compute quote', code: 'QUERY_ERROR' });
+  }
+});
+
 // ─── POST /therapy/bookings ───────────────────────────────────────────────────
 // Creates a draft booking and fires an M-Pesa STK push via IntaSend.
 // No credit deducted here — only on payment webhook success.
@@ -266,6 +295,7 @@ router.post('/bookings', auth, paymentLimiter, async (req, res) => {
     therapist_id, category_id, session_format,
     scheduled_at, duration_minutes = 60,
     lock_id, phone, notes,
+    expected_client_charge_kes,
   } = req.body;
 
   if (!therapist_id || !category_id || !session_format || !scheduled_at || !lock_id || !phone) {
@@ -301,23 +331,31 @@ router.post('/bookings', auth, paymentLimiter, async (req, res) => {
       return res.status(409).json({ error: 'Slot lock expired or invalid', code: 'LOCK_INVALID' });
     }
 
-    // Fetch therapist rate
+    // Fetch therapist rate and compute authoritative pricing server-side
     const { rows: tpRows } = await query(
       'SELECT rate_per_session_kes FROM therapist_profiles WHERE id = $1 AND is_active = true AND is_verified = true AND suspended = false',
       [therapist_id]
     );
     if (!tpRows.length) return res.status(404).json({ error: 'Therapist not available', code: 'NOT_FOUND' });
-    const baseRate = tpRows[0].rate_per_session_kes;
-    const rateKes  = duration_minutes === 45 ? Math.round(baseRate * 0.75) : baseRate;
 
-    const platformFeeKes     = Math.ceil(rateKes * PLATFORM_FEE_RATE);
-    const therapistPayoutKes = rateKes - platformFeeKes;
-    const bookingId          = uuidv4();
-    const draftExpiresAt     = new Date(Date.now() + 10 * 60 * 1000); // 10-minute payment window
+    const pricing = await calculateTherapyPricing(tpRows[0].rate_per_session_kes, duration_minutes);
+    const { clientChargeKes, platformFeeKes, therapistPayoutKes, therapistRateKes, feeRateBps } = pricing;
+
+    // If client sent an expected price and it no longer matches, reject so they can reconfirm
+    if (expected_client_charge_kes != null && expected_client_charge_kes !== clientChargeKes) {
+      return res.status(409).json({
+        error: 'Session price has changed. Please review the new price and confirm to proceed.',
+        code:  'PRICE_CHANGED',
+        client_charge_kes: clientChargeKes,
+      });
+    }
+
+    const bookingId      = uuidv4();
+    const draftExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10-minute payment window
 
     // 1. Fire payment FIRST — if it fails, no booking is created (clean state)
     const { reference: paymentReference, checkoutUrl } = await initiatePayment({
-      amount:    rateKes,
+      amount:    clientChargeKes,
       phone,
       email:     userRows[0].email,
       bookingId,
@@ -327,13 +365,17 @@ router.post('/bookings', auth, paymentLimiter, async (req, res) => {
     await query(
       `INSERT INTO therapist_bookings
          (id, member_user_id, therapist_id, category_id, session_format,
-          scheduled_at, duration_minutes, rate_kes, platform_fee_kes, therapist_payout_kes,
+          scheduled_at, duration_minutes,
+          rate_kes, platform_fee_kes, therapist_payout_kes,
+          therapist_rate_kes, client_charge_kes, fee_rate_bps,
           status, payment_status, escrow_status, credit_charged, notes, idempotency_key,
           payment_reference, expires_at, slot_lock_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft','unpaid','held',0,$11,$12,$13,$14,$15)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft','unpaid','held',0,$14,$15,$16,$17,$18)`,
       [
         bookingId, req.user.id, therapist_id, category_id, session_format,
-        scheduled_at, duration_minutes, rateKes, platformFeeKes, therapistPayoutKes,
+        scheduled_at, duration_minutes,
+        clientChargeKes, platformFeeKes, therapistPayoutKes,
+        therapistRateKes, clientChargeKes, feeRateBps,
         notes || null, bookingId, paymentReference, draftExpiresAt, lock_id,
       ]
     );
@@ -441,7 +483,8 @@ router.post('/bookings/:id/retry-payment', auth, paymentLimiter, async (req, res
   const { phone } = req.body; // member may supply a different number for retry
   try {
     const { rows } = await query(
-      `SELECT b.id, b.rate_kes, b.slot_lock_id, sl.expires_at AS lock_expires_at,
+      `SELECT b.id, COALESCE(b.client_charge_kes, b.rate_kes) AS charge_kes,
+              b.slot_lock_id, sl.expires_at AS lock_expires_at,
               u.email, u.phone
        FROM therapist_bookings b
        JOIN users u ON u.id = b.member_user_id
@@ -465,7 +508,7 @@ router.post('/bookings/:id/retry-payment', auth, paymentLimiter, async (req, res
     }
 
     const { reference: paymentReference, checkoutUrl } = await initiatePayment({
-      amount:    b.rate_kes,
+      amount:    b.charge_kes,
       phone:     stkPhone,
       email:     b.email,
       bookingId,
