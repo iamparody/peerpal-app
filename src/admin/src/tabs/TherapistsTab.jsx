@@ -651,31 +651,156 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
   );
 }
 
+// ─── VerifyPanel helpers ──────────────────────────────────────────────────────
+const VERIFY_DOCS = [
+  { type: 'kcpa_cert',     label: 'KCPA verification letter' },
+  { type: 'academic_cert', label: 'Academic certificate' },
+  { type: 'indemnity',     label: 'Professional indemnity proof' },
+  { type: 'good_conduct',  label: 'Certificate of Good Conduct' },
+  { type: 'agreement',     label: 'Signed therapist agreement' },
+];
+
+const CONFIRM_LABEL = 'I have viewed the supporting document and confirmed this credential';
+
+function fmtTs(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString('en-KE', {
+      timeZone: 'Africa/Nairobi',
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return null; }
+}
+
+function stepCardStyle(complete) {
+  return {
+    padding: '12px 14px', borderRadius: 8, marginBottom: 8,
+    background: complete ? 'rgba(143,175,154,0.08)' : 'var(--color-surface-secondary)',
+    border: `1px solid ${complete ? 'var(--color-calm)' : 'var(--color-border)'}`,
+  };
+}
+
+// Steps 1–3: text value + explicit confirmation checkbox
+function TextStep({ num, label, placeholder, value, setValue, confirmed, setConfirmed, timestamp }) {
+  const complete = Boolean(value.trim()) && confirmed;
+  return (
+    <div style={stepCardStyle(complete)}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, marginRight: 8 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+            {num}. {label}
+          </div>
+          <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Enter as shown on document</label>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            style={{ width: '100%', marginTop: 4, marginBottom: 8, fontSize: 12 }}
+          />
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              style={{ cursor: 'pointer', accentColor: 'var(--color-calm)', width: 14, height: 14, marginTop: 1, flexShrink: 0 }}
+            />
+            {CONFIRM_LABEL}
+          </label>
+          {complete && fmtTs(timestamp) && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>
+              Confirmed {fmtTs(timestamp)}
+            </div>
+          )}
+        </div>
+        {complete && <span style={{ color: 'var(--color-calm)', fontSize: 16, flexShrink: 0 }}>✓</span>}
+      </div>
+    </div>
+  );
+}
+
+// Steps 4–6: boolean checkbox only
+function BoolStep({ num, label, checked, setChecked, children, timestamp }) {
+  return (
+    <div style={stepCardStyle(checked)}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => setChecked(e.target.checked)}
+          style={{ marginTop: 2, cursor: 'pointer', accentColor: 'var(--color-calm)', width: 16, height: 16, flexShrink: 0 }}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-primary)' }}>
+            {num}. {label}
+          </div>
+          {children}
+          {checked && fmtTs(timestamp) && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+              Confirmed {fmtTs(timestamp)}
+            </div>
+          )}
+        </div>
+        {checked && <span style={{ color: 'var(--color-calm)', fontSize: 16, flexShrink: 0 }}>✓</span>}
+      </div>
+    </div>
+  );
+}
+
 // ─── VerifyPanel — 6-step checklist ──────────────────────────────────────────
 function VerifyPanel({ therapist, onClose, onSaved }) {
-  const [kcpaLevel,        setKcpaLevel]        = useState(therapist.kcpa_level ?? '');
-  const [regNumber,        setRegNumber]        = useState(therapist.registration_number ?? '');
-  const [kmpdcNumber,      setKmpdcNumber]      = useState(therapist.kmpdc_number ?? '');
-  const [indemnity,        setIndemnity]        = useState(therapist.indemnity_verified ?? false);
-  const [goodConduct,      setGoodConduct]      = useState(therapist.good_conduct_verified ?? false);
-  const [conductExpiry,    setConductExpiry]    = useState(therapist.good_conduct_expires_at?.slice(0,10) ?? '');
-  const [teletherapy,      setTeletherapy]      = useState(Boolean(therapist.teletherapy_agreement_signed_at));
-  const [saving,           setSaving]           = useState(false);
-  const [error,            setError]            = useState('');
+  // Steps 1–3: text value + explicit confirmation (decoupled)
+  const [kcpaLevel,     setKcpaLevel]     = useState(therapist.kcpa_level ?? '');
+  const [kcpaOk,        setKcpaOk]        = useState(Boolean(therapist.kcpa_level));
+  const [regNumber,     setRegNumber]     = useState(therapist.registration_number ?? '');
+  const [regOk,         setRegOk]         = useState(Boolean(therapist.registration_number));
+  const [kmpdcNumber,   setKmpdcNumber]   = useState(therapist.kmpdc_number ?? '');
+  const [kmpdcOk,       setKmpdcOk]       = useState(Boolean(therapist.kmpdc_number));
+  // Steps 4–6: boolean
+  const [indemnity,     setIndemnity]     = useState(therapist.indemnity_verified ?? false);
+  const [goodConduct,   setGoodConduct]   = useState(therapist.good_conduct_verified ?? false);
+  const [conductExpiry, setConductExpiry] = useState(therapist.good_conduct_expires_at?.slice(0,10) ?? '');
+  const [teletherapy,   setTeletherapy]   = useState(Boolean(therapist.teletherapy_agreement_signed_at));
+  // Document viewer
+  const [docs,          setDocs]          = useState(null);
+  const [docsLoading,   setDocsLoading]   = useState(true);
 
-  const allDone = kcpaLevel && regNumber && kmpdcNumber && indemnity && goodConduct && teletherapy;
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  useEffect(() => {
+    client.get(`/api/admin/therapists/${therapist.id}/documents`)
+      .then((r) => setDocs(r.data.documents ?? []))
+      .catch(() => setDocs([]))
+      .finally(() => setDocsLoading(false));
+  }, [therapist.id]);
+
+  const allDone =
+    (kcpaLevel.trim() && kcpaOk) &&
+    (regNumber.trim() && regOk) &&
+    (kmpdcNumber.trim() && kmpdcOk) &&
+    indemnity && goodConduct && teletherapy;
+
+  async function handleViewDoc(docType) {
+    try {
+      const r = await client.get(`/api/admin/therapists/${therapist.id}/documents`);
+      const doc = (r.data.documents ?? []).find((d) => d.type === docType);
+      if (doc?.signed_url) window.open(doc.signed_url, '_blank', 'noopener');
+    } catch { /* silent — no stale URLs ever reach here */ }
+  }
 
   async function handleSave() {
     setSaving(true);
     setError('');
     try {
       await client.patch(`/api/admin/therapists/${therapist.id}/verify`, {
-        kcpa_level: kcpaLevel || null,
-        registration_number: regNumber || null,
-        kmpdc_number: kmpdcNumber || null,
-        indemnity_verified: indemnity,
-        good_conduct_verified: goodConduct,
-        good_conduct_expires_at: conductExpiry || null,
+        kcpa_level:                   kcpaLevel.trim() || null,
+        registration_number:          regNumber.trim() || null,
+        kmpdc_number:                 kmpdcNumber.trim() || null,
+        indemnity_verified:           indemnity,
+        good_conduct_verified:        goodConduct,
+        good_conduct_expires_at:      conductExpiry || null,
         teletherapy_agreement_signed: teletherapy,
       });
       onSaved();
@@ -686,23 +811,7 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
     }
   }
 
-  const Check = ({ label, checked, onChange, children }) => (
-    <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: 12,
-      padding: '12px 14px', borderRadius: 8,
-      background: checked ? 'rgba(143,175,154,0.08)' : 'var(--color-surface-secondary)',
-      border: `1px solid ${checked ? 'var(--color-calm)' : 'var(--color-border)'}`,
-      marginBottom: 8,
-    }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
-        style={{ marginTop: 2, cursor: 'pointer', accentColor: 'var(--color-calm)', width: 16, height: 16 }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text-primary)' }}>{label}</div>
-        {children}
-      </div>
-      {checked && <span style={{ color: 'var(--color-calm)', fontSize: 16 }}>✓</span>}
-    </div>
-  );
+  const hasAnyDoc = (docs ?? []).some((d) => VERIFY_DOCS.some((v) => v.type === d.type));
 
   return (
     <>
@@ -714,72 +823,81 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
         </div>
 
         <div className="slide-panel__body">
+
+          {/* ── Uploaded documents ── */}
+          <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              Uploaded Documents
+            </div>
+            {docsLoading ? (
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>Loading…</p>
+            ) : !hasAnyDoc ? (
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '10px 14px', background: 'var(--color-surface-secondary)', borderRadius: 8 }}>
+                No documents uploaded yet
+              </div>
+            ) : (
+              VERIFY_DOCS.map(({ type, label }) => {
+                const doc = (docs ?? []).find((d) => d.type === type);
+                return (
+                  <div key={type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: doc ? 'var(--color-calm)' : 'var(--color-warning)' }} />
+                      <span style={{ fontSize: 12 }}>{label}</span>
+                    </div>
+                    {doc && (
+                      <button className="btn btn--ghost btn--sm" onClick={() => handleViewDoc(type)} style={{ fontSize: 11 }}>
+                        View ↗
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 1.5 }}>
             Complete all 6 steps to verify this therapist. Saving partial progress is allowed — verification
             is granted automatically when all 6 are confirmed.
           </p>
 
-          {/* Step 1 */}
-          <Check
-            label="1. KCPA registration level confirmed"
-            checked={Boolean(kcpaLevel)}
-            onChange={(v) => !v && setKcpaLevel('')}
-          >
-            <input
-              type="text"
-              value={kcpaLevel}
-              onChange={(e) => setKcpaLevel(e.target.value)}
-              placeholder="e.g. Licensed Professional Counsellor"
-              style={{ width: '100%', marginTop: 6, fontSize: 12 }}
-            />
-          </Check>
+          <TextStep
+            num={1} label="KCPA registration level confirmed"
+            placeholder="e.g. Licensed Professional Counsellor"
+            value={kcpaLevel}   setValue={setKcpaLevel}
+            confirmed={kcpaOk}  setConfirmed={setKcpaOk}
+            timestamp={therapist.kcpa_verified_at}
+          />
 
-          {/* Step 2 */}
-          <Check
-            label="2. Professional registration number verified"
-            checked={Boolean(regNumber)}
-            onChange={(v) => !v && setRegNumber('')}
-          >
-            <input
-              type="text"
-              value={regNumber}
-              onChange={(e) => setRegNumber(e.target.value)}
-              placeholder="KPS/KCPA registration number"
-              style={{ width: '100%', marginTop: 6, fontSize: 12 }}
-            />
-          </Check>
+          <TextStep
+            num={2} label="Professional registration number verified"
+            placeholder="KPS/KCPA registration number"
+            value={regNumber}  setValue={setRegNumber}
+            confirmed={regOk}  setConfirmed={setRegOk}
+            timestamp={therapist.registration_number_verified_at}
+          />
 
-          {/* Step 3 */}
-          <Check
-            label="3. KMPDC number confirmed (if applicable)"
-            checked={Boolean(kmpdcNumber)}
-            onChange={(v) => !v && setKmpdcNumber('')}
-          >
-            <input
-              type="text"
-              value={kmpdcNumber}
-              onChange={(e) => setKmpdcNumber(e.target.value)}
-              placeholder="KMPDC number or N/A"
-              style={{ width: '100%', marginTop: 6, fontSize: 12 }}
-            />
-          </Check>
+          <TextStep
+            num={3} label="KMPDC number confirmed (if applicable)"
+            placeholder="KMPDC number or N/A"
+            value={kmpdcNumber}  setValue={setKmpdcNumber}
+            confirmed={kmpdcOk}  setConfirmed={setKmpdcOk}
+            timestamp={therapist.kmpdc_verified_at}
+          />
 
-          {/* Step 4 */}
-          <Check
-            label="4. Professional indemnity insurance verified"
-            checked={indemnity}
-            onChange={setIndemnity}
+          <BoolStep
+            num={4} label="Professional indemnity insurance verified"
+            checked={indemnity} setChecked={setIndemnity}
+            timestamp={therapist.indemnity_verified_at}
           >
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
               Valid, current indemnity insurance policy confirmed
             </p>
-          </Check>
+          </BoolStep>
 
-          {/* Step 5 */}
-          <Check
-            label="5. Certificate of Good Conduct verified"
-            checked={goodConduct}
-            onChange={setGoodConduct}
+          <BoolStep
+            num={5} label="Certificate of Good Conduct verified"
+            checked={goodConduct} setChecked={setGoodConduct}
+            timestamp={therapist.good_conduct_verified_at}
           >
             <div style={{ marginTop: 6 }}>
               <label style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Expiry date</label>
@@ -790,18 +908,17 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
                 style={{ width: '100%', marginTop: 4, fontSize: 12 }}
               />
             </div>
-          </Check>
+          </BoolStep>
 
-          {/* Step 6 */}
-          <Check
-            label="6. Teletherapy agreement signed"
-            checked={teletherapy}
-            onChange={setTeletherapy}
+          <BoolStep
+            num={6} label="Teletherapy agreement signed"
+            checked={teletherapy} setChecked={setTeletherapy}
+            timestamp={therapist.teletherapy_agreement_signed_at}
           >
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
               PeerPal teletherapy platform agreement received and filed
             </p>
-          </Check>
+          </BoolStep>
 
           {allDone && (
             <div style={{
