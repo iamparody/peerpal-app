@@ -1531,7 +1531,7 @@ router.patch('/therapist/profile', therapistAuth, async (req, res) => {
 // Accepts multipart/form-data: file (binary) + document_type (string)
 // Streams to Supabase Storage via service role. Returns { file_path }.
 const multer = require('multer');
-const { uploadDocument, ALLOWED_DOCUMENT_TYPES } = require('../services/storage');
+const { uploadDocument, getPublicUrl, ALLOWED_DOCUMENT_TYPES, PHOTO_BUCKET } = require('../services/storage');
 const _upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.post('/therapist/documents/upload', therapistAuth, _upload.single('file'), async (req, res) => {
@@ -1548,6 +1548,8 @@ router.post('/therapist/documents/upload', therapistAuth, _upload.single('file')
 
   const userId = req.therapist.user_id;
   const { originalname, mimetype, buffer } = req.file;
+  const isPhoto = document_type === 'photo';
+  const bucket = isPhoto ? PHOTO_BUCKET : undefined; // undefined → default private bucket
 
   try {
     const { path } = await uploadDocument({
@@ -1556,6 +1558,7 @@ router.post('/therapist/documents/upload', therapistAuth, _upload.single('file')
       filename: originalname,
       mimeType: mimetype,
       buffer,
+      bucket,
     });
 
     // Upsert into documents JSONB array — replace entry of same type if exists
@@ -1578,6 +1581,16 @@ router.post('/therapist/documents/upload', therapistAuth, _upload.single('file')
        WHERE id = $1`,
       [req.therapist.profile_id, document_type, path]
     );
+
+    // For photos: also set photo_url to a permanent public URL
+    if (isPhoto) {
+      const photoUrl = getPublicUrl(PHOTO_BUCKET, path);
+      await query(
+        `UPDATE therapist_profiles SET photo_url = $1, updated_at = NOW() WHERE id = $2`,
+        [photoUrl, req.therapist.profile_id]
+      );
+      return res.status(200).json({ file_path: path, photo_url: photoUrl });
+    }
 
     return res.status(200).json({ file_path: path });
   } catch (err) {

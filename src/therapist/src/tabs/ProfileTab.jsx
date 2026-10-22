@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 
@@ -31,7 +31,10 @@ export default function ProfileTab() {
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
   const [error, setError]         = useState('');
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories]     = useState([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError]       = useState('');
+  const photoInputRef = useRef();
 
   // Editable fields
   const [form, setForm] = useState({
@@ -109,14 +112,36 @@ export default function ProfileTab() {
     setSaved(false);
   }
 
+  async function handlePhotoUpload(file) {
+    if (!file) return;
+    setPhotoError('');
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('document_type', 'photo');
+      const { data } = await client.post('/api/therapy/therapist/documents/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setForm((f) => ({ ...f, photo_url: data.photo_url }));
+      setProfile((p) => ({ ...p, photo_url: data.photo_url }));
+      setSaved(false);
+    } catch (err) {
+      setPhotoError('Photo upload failed. Please try again.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
     setError('');
     setSaved(false);
     try {
+      const { photo_url: _photoUrl, ...formWithoutPhoto } = form;
       const payload = {
-        ...form,
+        ...formWithoutPhoto,
         cultural_competencies: form.cultural_competencies
           .split(',').map((s) => s.trim()).filter(Boolean),
         languages: form.languages
@@ -160,13 +185,44 @@ export default function ProfileTab() {
           </h2>
           <form onSubmit={handleSave}>
             <div className="form-group">
-              <label className="form-label">Photo URL</label>
-              <input
-                type="text"
-                value={form.photo_url}
-                onChange={(e) => setField('photo_url', e.target.value)}
-                placeholder="https://…"
-              />
+              <label className="form-label">Profile Photo</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                {form.photo_url ? (
+                  <img
+                    src={form.photo_url}
+                    alt="Profile"
+                    style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-card-border)', flexShrink: 0 }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-main-bg)', border: '2px dashed var(--color-card-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22 }}>
+                    🧑
+                  </div>
+                )}
+                <div>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handlePhotoUpload(e.target.files[0] || null)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={photoUploading}
+                  >
+                    {photoUploading ? 'Uploading…' : form.photo_url ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    JPG, PNG or WebP · max 5 MB
+                  </p>
+                </div>
+              </div>
+              {photoError && (
+                <p style={{ fontSize: 13, color: 'var(--color-status-open)', marginTop: 6 }}>{photoError}</p>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Plain Language Introduction</label>

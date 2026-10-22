@@ -38,7 +38,7 @@ function buildPath(userId, documentType, filename) {
   return `${userId}/${documentType}/${safe}`;
 }
 
-async function uploadDocument({ userId, documentType, filename, mimeType, buffer }) {
+async function uploadDocument({ userId, documentType, filename, mimeType, buffer, bucket = BUCKET }) {
   if (!ALLOWED_DOCUMENT_TYPES.has(documentType)) {
     throw Object.assign(new Error(`Invalid document_type: ${documentType}`), { status: 400 });
   }
@@ -53,12 +53,18 @@ async function uploadDocument({ userId, documentType, filename, mimeType, buffer
   const supabase = getClient();
 
   const { error } = await supabase.storage
-    .from(BUCKET)
+    .from(bucket)
     .upload(path, buffer, { contentType: mimeType, upsert: true });
 
   if (error) throw Object.assign(new Error(`Storage upload failed: ${error.message}`), { status: 502 });
 
   return { path };
+}
+
+function getPublicUrl(bucket, path) {
+  const supabase = getClient();
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 async function getSignedUrl(path) {
@@ -77,4 +83,6 @@ async function deleteDocument(path) {
   if (error) logger.warn('[storage] delete failed:', error.message);
 }
 
-module.exports = { uploadDocument, getSignedUrl, deleteDocument, ALLOWED_DOCUMENT_TYPES, BUCKET };
+const PHOTO_BUCKET = 'therapist-photos';
+
+module.exports = { uploadDocument, getSignedUrl, getPublicUrl, deleteDocument, ALLOWED_DOCUMENT_TYPES, BUCKET, PHOTO_BUCKET };
