@@ -9,33 +9,26 @@ jobs:
     name: Render staging deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger deploy
+      - name: Deploy and verify staging
         run: |
           if [ -z "$HOOK" ]; then
             echo "RENDER_DEPLOY_HOOK_STAGING not configured — skipping staging deploy"
             exit 0
           fi
           curl -fsS -X POST "$HOOK"
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
-
-      - name: Wait for Render to spin up
-        if: ${{ env.RENDER_DEPLOY_HOOK_STAGING != '' }}
-        run: sleep 90
-        env:
-          RENDER_DEPLOY_HOOK_STAGING: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
-
-      - name: Health check staging
-        run: |
           if [ -z "$STAGING_URL" ]; then
             echo "STAGING_BACKEND_URL not configured — skipping health check"
             exit 0
           fi
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$STAGING_URL/health")
-          echo "Staging /health returned HTTP $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Staging health check failed"
-            exit 1
-          fi
+          echo "Waiting for Render to deploy..."
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$STAGING_URL/health")
+            echo "Attempt $i: /health → $STATUS"
+            [ "$STATUS" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "Staging health check failed after 5 minutes"
+          exit 1
         env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
           STAGING_URL: ${{ secrets.STAGING_BACKEND_URL }}
