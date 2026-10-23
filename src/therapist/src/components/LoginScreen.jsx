@@ -114,14 +114,14 @@ export default function LoginScreen() {
     } catch (err) {
       if (err.message === 'This account does not have therapist access.') {
         setError(err.message);
-      } else if (!err.response) {
-        setError('Connection error. Check your internet and try again.');
-      } else if (err.response.status === 401) {
+      } else if (err.response?.status === 401) {
         setError('Incorrect email or password.');
-      } else if (err.response.status === 400 && err.response.data?.code === 'INVALID_EMAIL') {
+      } else if (err.response?.status === 400 && err.response.data?.code === 'INVALID_EMAIL') {
         setError('Enter a valid email address.');
+      } else if (!err.response) {
+        setError('Could not reach the server. Make sure the backend is running and try again.');
       } else {
-        setError(err.response.data?.error || 'Login failed.');
+        setError(err.response.data?.error || 'Login failed. Please try again.');
       }
     } finally {
       setLoading(false);
