@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { CurrencyDollar, Clock, CheckCircle } from '@phosphor-icons/react';
 import client from '../api/client';
 
@@ -105,26 +106,24 @@ export default function PaymentsTab() {
       {/* Summary row */}
       {summary && (
         <div className="stat-grid mb-24">
-          <div className="stat-card stat-card--earnings">
-            <div className="stat-card__icon-wrap stat-card__icon-wrap--earnings"><CurrencyDollar size={22} weight="fill" /></div>
-            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.month_kes || 0).toLocaleString()}</div>
-            <div className="stat-card__label">This Month</div>
-          </div>
-          <div className="stat-card stat-card--total">
-            <div className="stat-card__icon-wrap stat-card__icon-wrap--total"><CurrencyDollar size={22} weight="fill" /></div>
-            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.lifetime_kes || 0).toLocaleString()}</div>
-            <div className="stat-card__label">Lifetime Earnings</div>
-          </div>
-          <div className="stat-card stat-card--rating">
-            <div className="stat-card__icon-wrap stat-card__icon-wrap--rating"><Clock size={22} weight="fill" /></div>
-            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.pending_kes || 0).toLocaleString()}</div>
-            <div className="stat-card__label">Pending Payouts</div>
-          </div>
-          <div className="stat-card stat-card--sessions">
-            <div className="stat-card__icon-wrap stat-card__icon-wrap--sessions"><CheckCircle size={22} weight="fill" /></div>
-            <div className="stat-card__value stat-card__value--lg">KES {Number(summary.completed_kes || 0).toLocaleString()}</div>
-            <div className="stat-card__label">Completed Payouts</div>
-          </div>
+          {[
+            { mod: 'earnings', icon: <CurrencyDollar size={22} weight="fill" />, value: `KES ${Number(summary.month_kes || 0).toLocaleString()}`,     label: 'This Month' },
+            { mod: 'total',    icon: <CurrencyDollar size={22} weight="fill" />, value: `KES ${Number(summary.lifetime_kes || 0).toLocaleString()}`,  label: 'Lifetime Earnings' },
+            { mod: 'rating',   icon: <Clock size={22} weight="fill" />,          value: `KES ${Number(summary.pending_kes || 0).toLocaleString()}`,   label: 'Pending Payouts' },
+            { mod: 'sessions', icon: <CheckCircle size={22} weight="fill" />,    value: `KES ${Number(summary.completed_kes || 0).toLocaleString()}`, label: 'Completed Payouts' },
+          ].map(({ mod, icon, value, label }, i) => (
+            <motion.div
+              key={mod}
+              className={`stat-card stat-card--${mod}`}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: i * 0.07, type: 'spring', stiffness: 280, damping: 26 }}
+            >
+              <div className={`stat-card__icon-wrap stat-card__icon-wrap--${mod}`}>{icon}</div>
+              <div className="stat-card__value stat-card__value--lg">{value}</div>
+              <div className="stat-card__label">{label}</div>
+            </motion.div>
+          ))}
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { Star } from '@phosphor-icons/react';
 import client from '../api/client';
 
@@ -128,10 +129,16 @@ export default function RatingsTab() {
           ) : (
             <div style={{ padding: '8px 0' }}>
               {reviews.map((r, i) => (
-                <div key={i} style={{
-                  padding: '14px 20px',
-                  borderBottom: i < reviews.length - 1 ? '1px solid rgba(194,164,138,0.08)' : 'none',
-                }}>
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06, type: 'spring', stiffness: 280, damping: 26 }}
+                  style={{
+                    padding: '14px 20px',
+                    borderBottom: i < reviews.length - 1 ? '1px solid rgba(194,164,138,0.08)' : 'none',
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                     <StarRow rating={r.rating} />
                     <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
@@ -145,7 +152,7 @@ export default function RatingsTab() {
                       {r.comment}
                     </p>
                   )}
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
