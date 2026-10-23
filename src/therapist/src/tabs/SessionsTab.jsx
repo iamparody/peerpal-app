@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import SessionRoom from '../components/SessionRoom';
+import { AnimatePresence, motion } from 'motion/react';
 import { X } from '@phosphor-icons/react';
+import SessionRoom from '../components/SessionRoom';
 import client from '../api/client';
+import { groupNotesByType, notesLabel, NOTE_TYPE_LABELS } from '../utils/notesUtils';
 
 function formatEAT(iso) {
   if (!iso) return '—';
@@ -20,11 +22,6 @@ function StatusBadge({ status }) {
 
 function FormatBadge({ format }) {
   return <span className={`badge badge--${(format || 'text').toLowerCase()}`}>{format || 'text'}</span>;
-}
-
-function NoteTypeBadge({ type }) {
-  const map = { pre: 'Pre-session', session: 'Session', follow_up: 'Follow-up' };
-  return <span className={`badge badge--note-${type}`}>{map[type] || type}</span>;
 }
 
 const NOTE_TYPE_OPTIONS = [
@@ -50,7 +47,11 @@ function NotesPanel({ booking, onClose, onCountChange }) {
 
   useEffect(() => {
     client.get('/api/therapy/session-notes', { params: { booking_id: booking.id } })
-      .then((r) => { setNotes(r.data.notes || []); onCountChange(booking.id, (r.data.notes || []).length); })
+      .then((r) => {
+        const list = r.data.notes || [];
+        setNotes(list);
+        onCountChange(booking.id, list.length);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [booking.id]);
@@ -77,10 +78,24 @@ function NotesPanel({ booking, onClose, onCountChange }) {
     }
   }
 
+  const groups = groupNotesByType(notes);
+
   return (
     <>
-      <div className="panel-overlay" onClick={onClose} />
-      <div className="slide-panel">
+      <motion.div
+        className="panel-overlay"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="slide-panel"
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      >
         <div className="slide-panel__header">
           <span className="slide-panel__title">
             Notes{notes.length > 0 ? ` (${notes.length})` : ''}
@@ -89,6 +104,7 @@ function NotesPanel({ booking, onClose, onCountChange }) {
             <X size={16} />
           </button>
         </div>
+
         <div className="slide-panel__body">
           <p className="text-sm text-muted mb-12">
             <strong>{booking.member_alias || 'Member'}</strong> — {formatEAT(booking.scheduled_at)}
@@ -97,18 +113,37 @@ function NotesPanel({ booking, onClose, onCountChange }) {
             Private — not visible to client
           </div>
 
-          {/* Existing notes */}
+          {/* Existing notes grouped by type */}
           {loading ? (
             <div className="text-sm text-muted mb-16">Loading notes…</div>
-          ) : notes.length > 0 ? (
-            <div className="flex-col gap-10 mb-20">
-              {notes.map((n) => (
-                <div key={n.id} className="note-card">
-                  <div className="flex items-center gap-8 mb-6">
-                    <NoteTypeBadge type={n.note_type} />
-                    <span className="text-xs text-muted">{formatEAT(n.created_at)}</span>
+          ) : groups.length > 0 ? (
+            <div className="flex-col gap-16 mb-20">
+              {groups.map((g, gi) => (
+                <div key={g.type}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text-muted)',
+                    marginBottom: 8,
+                  }}>
+                    {g.label}
                   </div>
-                  <p className="text-sm pre-wrap" style={{ margin: 0 }}>{n.content}</p>
+                  <div className="flex-col gap-8">
+                    {g.notes.map((n, i) => (
+                      <motion.div
+                        key={n.id}
+                        className="note-card"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: (gi * 3 + i) * 0.05, type: 'spring', stiffness: 280, damping: 26 }}
+                      >
+                        <div className="text-xs text-muted mb-4">{formatEAT(n.created_at)}</div>
+                        <p className="text-sm pre-wrap" style={{ margin: 0 }}>{n.content}</p>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -141,6 +176,7 @@ function NotesPanel({ booking, onClose, onCountChange }) {
           </div>
           {error && <div className="error-text">{error}</div>}
         </div>
+
         <div className="slide-panel__footer">
           <button className="btn btn--ghost btn--sm" onClick={onClose}>Close</button>
           <button
@@ -151,7 +187,7 @@ function NotesPanel({ booking, onClose, onCountChange }) {
             {saving ? 'Saving…' : 'Save Note'}
           </button>
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }
@@ -218,11 +254,6 @@ export default function SessionsTab() {
     }
   }
 
-  function notesLabel(bookingId) {
-    const n = noteCounts[bookingId];
-    return n != null ? `Notes (${n})` : 'Notes';
-  }
-
   return (
     <div>
       {activeSession && (
@@ -232,13 +263,17 @@ export default function SessionsTab() {
           onEnd={() => { setActiveSession(null); load(filter, 1); }}
         />
       )}
-      {notesFor && (
-        <NotesPanel
-          booking={notesFor}
-          onClose={() => setNotesFor(null)}
-          onCountChange={(id, count) => setNoteCounts((c) => ({ ...c, [id]: count }))}
-        />
-      )}
+
+      <AnimatePresence>
+        {notesFor && (
+          <NotesPanel
+            key={notesFor.id}
+            booking={notesFor}
+            onClose={() => setNotesFor(null)}
+            onCountChange={(id, count) => setNoteCounts((c) => ({ ...c, [id]: count }))}
+          />
+        )}
+      </AnimatePresence>
 
       <div className="page-header">
         <div>
@@ -323,13 +358,13 @@ export default function SessionsTab() {
                         Start Session
                       </button>
                       <button className="btn btn--accent btn--sm" onClick={() => setNotesFor(b)}>
-                        {notesLabel(b.id)}
+                        {notesLabel(noteCounts[b.id])}
                       </button>
                     </>
                   )}
                   {b.status === 'completed' && (
                     <button className="btn btn--accent btn--sm" onClick={() => setNotesFor(b)}>
-                      {notesLabel(b.id)}
+                      {notesLabel(noteCounts[b.id])}
                     </button>
                   )}
                 </div>
