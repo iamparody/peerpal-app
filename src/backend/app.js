@@ -52,9 +52,12 @@ app.use(helmet({
 }));
 
 // CORS — explicit allowlist + Vercel preview subdomains
+// Localhost ports are always allowed (can't be remotely spoofed) so local dev
+// works regardless of whether FRONTEND_URL is set to production values.
+const DEV_ORIGINS = ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'];
 const ALLOWED_ORIGINS = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
-  : ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'];
+  ? [...process.env.FRONTEND_URL.split(',').map((o) => o.trim()), ...DEV_ORIGINS]
+  : DEV_ORIGINS;
 
 const VERCEL_PREVIEW_RE = /^https:\/\/[a-z0-9-]+-iamparodys-projects\.vercel\.app$/;
 const THERAPIST_PORTAL = 'https://tportal-one.vercel.app';
