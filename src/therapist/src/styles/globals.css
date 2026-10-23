@@ -222,13 +222,13 @@ html, body, #root {
 .topbar {
   height: var(--topbar-h);
   background: var(--color-card-bg);
-  border-bottom: 1px solid var(--color-card-border);
+  border-bottom: 2px solid rgba(194,164,138,0.30);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
   flex-shrink: 0;
-  box-shadow: 0 1px 4px rgba(47,38,34,0.04);
+  box-shadow: 0 2px 8px rgba(47,38,34,0.06);
 }
 
 .topbar__breadcrumb {
@@ -313,12 +313,42 @@ html, body, #root {
   margin-top: 4px;
 }
 
+/* ── Dashboard hero ──────────────────────────────────────────────────── */
+.dashboard-hero {
+  background: linear-gradient(135deg, #2F2622 0%, #3D2C22 55%, #4B3A2F 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dashboard-hero__greeting {
+  font-size: 22px;
+  font-weight: 700;
+  color: #F5EDE4;
+  letter-spacing: -0.4px;
+  margin-bottom: 5px;
+}
+.dashboard-hero__sub {
+  font-size: 14px;
+  color: rgba(245,237,228,0.60);
+}
+.dashboard-hero__date {
+  font-size: 13px;
+  color: rgba(245,237,228,0.45);
+  flex-shrink: 0;
+  text-align: right;
+}
+
 /* ── Cards ────────────────────────────────────────────────────────────── */
 .card {
   background: var(--color-card-bg);
   border: 1px solid var(--color-card-border);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 2px 16px rgba(47,38,34,0.07), 0 1px 3px rgba(47,38,34,0.04);
 }
 
 .card-header {
@@ -395,15 +425,21 @@ html, body, #root {
 .stat-card--review::after  { background: linear-gradient(90deg, var(--color-status-review)  60%, transparent); }
 .stat-card--risk::after    { background: linear-gradient(90deg, var(--color-status-pending) 60%, transparent); }
 
+/* Therapist dashboard — contextually correct palette */
+.stat-card--sessions::after { background: linear-gradient(90deg, #7B9BB5 60%, transparent); }
+.stat-card--earnings::after { background: linear-gradient(90deg, #8FAF9A 60%, transparent); }
+.stat-card--rating::after   { background: linear-gradient(90deg, #D9A441 60%, transparent); }
+.stat-card--total::after    { background: linear-gradient(90deg, #C2A48A 60%, transparent); }
+
 /* ── Icon wrapper ── */
 .stat-card__icon-wrap {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   flex-shrink: 0;
 }
@@ -413,6 +449,11 @@ html, body, #root {
 .stat-card__icon-wrap--pending { background: rgba(217, 164, 65,  0.10); color: var(--color-status-pending); }
 .stat-card__icon-wrap--review  { background: rgba(123, 155, 181, 0.12); color: var(--color-status-review); }
 .stat-card__icon-wrap--risk    { background: rgba(217, 164, 65,  0.10); color: var(--color-status-pending); }
+
+.stat-card__icon-wrap--sessions { background: rgba(123, 155, 181, 0.13); color: #5A82A0; }
+.stat-card__icon-wrap--earnings { background: rgba(143, 175, 154, 0.15); color: #4E8066; }
+.stat-card__icon-wrap--rating   { background: rgba(217, 164, 65,  0.13); color: #B8872A; }
+.stat-card__icon-wrap--total    { background: rgba(194, 164, 138, 0.18); color: #8B6B4F; }
 
 /* ── Value (large animated number) ── */
 .stat-card__value {
