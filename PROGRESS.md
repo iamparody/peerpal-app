@@ -27,7 +27,7 @@
 
 **Assessment (2026-10-23):** Both portals diagnosed as "default UI with functionality, no heart." Admin uses generic slate-800/blue-500 Tailwind palette — zero brand DNA. Therapist has warm palette but no animation. Neither portal has a motion library. `frontend-design`/`ui-ux-pro-max` skills referenced in original spec are not installed on this machine. Motion.dev (`motion` package, ~18kB) is the correct tool. Kokonut UI is Vue-only — not applicable. Plan below supersedes original 53.0 design-system-query approach.
 
-**NEXT ACTION → A.1: `npm install motion` in `src/admin` and `src/therapist`. Then A.2 admin CSS rebrand.**
+**NEXT ACTION → Phase 53 COMPLETE. Next: 54.5 Verification (new user → first_visit pool; low mood → low pool; same nudge twice → different variants). Run migration 112 in Supabase first.**
 
 ---
 
@@ -205,7 +205,7 @@ Add to `src/backend/package.json`:
 
 | Step | Task | Est | Status |
 |------|------|-----|--------|
-| A.1 | `npm install motion` — admin + therapist | 5 min | ⬜ |
+| A.1 | `npm install motion` — admin + therapist | 5 min | ✅ commit 41974f1 |
 | A.2 | Admin CSS rebrand (index.css vars only) | 30 min | ⬜ |
 | A.3 | Motion — therapist portal shell | 1 hr | ⬜ |
 | A.4 | Motion — admin portal shell | 1 hr | ⬜ |
