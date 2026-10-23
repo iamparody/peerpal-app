@@ -38,9 +38,11 @@ function CreateForm({ onCreated }) {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 24 }}>
-      <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>Create promo code</h3>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '200px 90px 110px 1fr auto', gap: 12 }}>
+    <div className="card" style={{ marginBottom: 24, padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--color-card-border)', background: 'var(--color-bg-deep, var(--color-bg))' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>Create promo code</span>
+      </div>
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '200px 90px 110px 1fr auto', gap: 12, padding: '16px 20px', alignItems: 'end' }}>
         <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Code</label>
           <input
@@ -56,7 +58,7 @@ function CreateForm({ onCreated }) {
         </div>
         <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Credits</label>
-          <input type="number" min="1" value={credits} onChange={(e) => setCredits(e.target.value)} required />
+          <input type="number" min="1" value={credits} onChange={(e) => setCredits(e.target.value)} placeholder="e.g. 10" required />
         </div>
         <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Max uses</label>
@@ -70,7 +72,6 @@ function CreateForm({ onCreated }) {
           className={`btn btn--primary btn--sm${saving ? ' btn--loading' : ''}`}
           type="submit"
           disabled={saving || !!codeError}
-          style={{ alignSelf: 'end' }}
         >
           {saving ? 'Creating…' : 'Create'}
         </button>
