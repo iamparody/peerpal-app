@@ -76,9 +76,9 @@ export default function RatingsTab() {
   }
 
   const avg     = Number(data.average_rating || 0);
-  const total   = data.total_count || 0;
-  const dist    = data.distribution || {};
-  const reviews = data.reviews || data.comments || [];
+  const total   = data.total_ratings_count || 0;
+  const dist    = Object.fromEntries((data.distribution || []).map(({ star, count }) => [star, count]));
+  const reviews = data.ratings || [];
 
   return (
     <div>

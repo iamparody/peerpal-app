@@ -24,10 +24,10 @@ import {
 } from '@phosphor-icons/react';
 
 const TABS = [
-  { id: 'sessions',   label: 'Sessions',   Icon: CalendarBlank },
-  { id: 'clients',    label: 'Clients',    Icon: Users },
   { id: 'dashboard',  label: 'Dashboard',  Icon: House },
+  { id: 'sessions',   label: 'Sessions',   Icon: CalendarBlank },
   { id: 'schedule',   label: 'Schedule',   Icon: Clock },
+  { id: 'clients',    label: 'Clients',    Icon: Users },
   { id: 'payments',   label: 'Payments',   Icon: CurrencyDollar },
   { id: 'ratings',    label: 'Ratings',    Icon: Star },
   { id: 'profile',    label: 'Profile',    Icon: UserCircle },
@@ -38,7 +38,7 @@ const BOTTOM_NAV_TABS = TABS.slice(0, 5);
 
 function TherapistShell() {
   const { therapist, logout } = useAuth();
-  const [activeTab,  setActiveTab]  = useState('sessions');
+  const [activeTab,  setActiveTab]  = useState('dashboard');
   const [collapsed,  setCollapsed]  = useState(false);
 
   // Suspension notice
