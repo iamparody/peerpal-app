@@ -40,7 +40,7 @@ function CreateForm({ onCreated }) {
   return (
     <div className="card" style={{ marginBottom: 24 }}>
       <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>Create promo code</h3>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '200px 90px 110px 1fr auto', gap: 12, alignItems: 'end' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '200px 90px 110px 1fr auto', gap: 12 }}>
         <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Code</label>
           <input
@@ -70,6 +70,7 @@ function CreateForm({ onCreated }) {
           className={`btn btn--primary btn--sm${saving ? ' btn--loading' : ''}`}
           type="submit"
           disabled={saving || !!codeError}
+          style={{ alignSelf: 'end' }}
         >
           {saving ? 'Creating…' : 'Create'}
         </button>
