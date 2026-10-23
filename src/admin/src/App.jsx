@@ -45,10 +45,19 @@ const TABS = [
 
 function AdminShell() {
   const { admin, logout } = useAuth();
-  const [activeTab,      setActiveTab]      = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.slice(1);
+    return TABS.some((t) => t.id === hash) ? hash : 'overview';
+  });
   const [collapsed,      setCollapsed]      = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [badges, setBadges] = useState({ emergency: 0, escalations: 0, reports: 0, risk: 0, flags: 0 });
+
+  const navigateTo = useCallback((id) => {
+    setActiveTab(id);
+    window.location.hash = id;
+    setMobileMenuOpen(false);
+  }, []);
 
   const setBadge = useCallback(
     (key) => (count) => setBadges((prev) => ({ ...prev, [key]: count })),
@@ -62,7 +71,7 @@ function AdminShell() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'overview':    return <OverviewTab onNavigate={setActiveTab} onBadgesUpdate={updateAllBadges} />;
+      case 'overview':    return <OverviewTab onNavigate={navigateTo} onBadgesUpdate={updateAllBadges} />;
       case 'emergency':   return <EmergencyTab   onCountChange={setBadge('emergency')} />;
       case 'escalations': return <EscalationsTab onCountChange={setBadge('escalations')} />;
       case 'referrals':   return <ReferralsTab />;
@@ -113,7 +122,7 @@ function AdminShell() {
                 key={id}
                 title={collapsed ? label : undefined}
                 className={`sidebar__item${isActive ? ' active' : ''}`}
-                onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+                onClick={() => navigateTo(id)}
                 whileHover={{ x: 4 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
