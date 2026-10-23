@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { CalendarBlank, CurrencyDollar, Star, CheckCircle } from '@phosphor-icons/react';
 import client from '../api/client';
 
@@ -79,40 +80,26 @@ export default function DashboardTab() {
 
       {/* Stat cards */}
       <div className="stat-grid">
-        <div className="stat-card stat-card--review">
-          <div className="stat-card__icon-wrap stat-card__icon-wrap--review">
-            <CalendarBlank size={22} weight="fill" />
-          </div>
-          <div className="stat-card__value">{stats.upcoming_today ?? 0}</div>
-          <div className="stat-card__label">Sessions Today</div>
-        </div>
-        <div className="stat-card stat-card--pending">
-          <div className="stat-card__icon-wrap stat-card__icon-wrap--pending">
-            <CurrencyDollar size={22} weight="fill" />
-          </div>
-          <div className="stat-card__value stat-card__value--lg">
-            {stats.this_month_earnings_kes != null
-              ? `KES ${Number(stats.this_month_earnings_kes).toLocaleString()}`
-              : 'KES 0'}
-          </div>
-          <div className="stat-card__label">This Month Earnings</div>
-        </div>
-        <div className="stat-card stat-card--open">
-          <div className="stat-card__icon-wrap stat-card__icon-wrap--open">
-            <Star size={22} weight="fill" />
-          </div>
-          <div className="stat-card__value">
-            {stats.avg_rating != null ? Number(stats.avg_rating).toFixed(1) : '—'}
-          </div>
-          <div className="stat-card__label">Avg Rating</div>
-        </div>
-        <div className="stat-card stat-card--resolved">
-          <div className="stat-card__icon-wrap" style={{ background: 'rgba(143,175,154,0.12)', color: '#4a7a5e' }}>
-            <CheckCircle size={22} weight="fill" />
-          </div>
-          <div className="stat-card__value">{stats.total_sessions ?? 0}</div>
-          <div className="stat-card__label">Total Sessions</div>
-        </div>
+        {[
+          { mod: 'review', icon: <CalendarBlank size={22} weight="fill" />, value: stats.upcoming_today ?? 0, label: 'Sessions Today' },
+          { mod: 'pending', icon: <CurrencyDollar size={22} weight="fill" />, value: stats.this_month_earnings_kes != null ? `KES ${Number(stats.this_month_earnings_kes).toLocaleString()}` : 'KES 0', label: 'This Month Earnings' },
+          { mod: 'open', icon: <Star size={22} weight="fill" />, value: stats.avg_rating != null ? Number(stats.avg_rating).toFixed(1) : '—', label: 'Avg Rating' },
+          { mod: 'resolved', icon: <CheckCircle size={22} weight="fill" />, value: stats.total_sessions ?? 0, label: 'Total Sessions', iconStyle: { background: 'rgba(143,175,154,0.12)', color: '#4a7a5e' } },
+        ].map(({ mod, icon, value, label, iconStyle }, i) => (
+          <motion.div
+            key={mod}
+            className={`stat-card stat-card--${mod}`}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: i * 0.07, type: 'spring', stiffness: 280, damping: 26 }}
+          >
+            <div className={`stat-card__icon-wrap${iconStyle ? '' : ` stat-card__icon-wrap--${mod}`}`} style={iconStyle}>
+              {icon}
+            </div>
+            <div className={`stat-card__value${mod === 'pending' ? ' stat-card__value--lg' : ''}`}>{value}</div>
+            <div className="stat-card__label">{label}</div>
+          </motion.div>
+        ))}
       </div>
 
       <div className="two-col">

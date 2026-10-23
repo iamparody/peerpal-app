@@ -1,4 +1,5 @@
 ﻿import { useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen    from './components/LoginScreen';
 import OverviewTab    from './tabs/OverviewTab';
@@ -108,11 +109,14 @@ function AdminShell() {
             const count    = badgeKey ? badges[badgeKey] : 0;
             const isActive = activeTab === id;
             return (
-              <button
+              <motion.button
                 key={id}
                 title={collapsed ? label : undefined}
                 className={`sidebar__item${isActive ? ' active' : ''}`}
                 onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
                 <Icon
                   size={18}
@@ -121,11 +125,17 @@ function AdminShell() {
                 />
                 {!collapsed && <span className="sidebar__item-label">{label}</span>}
                 {count > 0 && (
-                  <span className={`sidebar__item-badge${badgeKey === 'escalations' ? ' sidebar__item-badge--warn' : ''}`}>
+                  <motion.span
+                    className={`sidebar__item-badge${badgeKey === 'escalations' ? ' sidebar__item-badge--warn' : ''}`}
+                    key={count}
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                  >
                     {count}
-                  </span>
+                  </motion.span>
                 )}
-              </button>
+              </motion.button>
             );
           })}
 
@@ -176,7 +186,17 @@ function AdminShell() {
 
         <main className="content">
           <div className="content-inner">
-            {renderTab()}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                {renderTab()}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </main>
       </div>

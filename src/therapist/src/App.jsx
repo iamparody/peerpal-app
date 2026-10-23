@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen      from './components/LoginScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
@@ -103,11 +104,14 @@ function TherapistShell() {
           {TABS.map(({ id, label, Icon }) => {
             const isActive = activeTab === id;
             return (
-              <button
+              <motion.button
                 key={id}
                 title={collapsed ? label : undefined}
                 className={`sidebar__item${isActive ? ' active' : ''}`}
                 onClick={() => setActiveTab(id)}
+                whileHover={{ x: 3 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
                 <Icon
                   size={18}
@@ -115,7 +119,7 @@ function TherapistShell() {
                   className="sidebar__item-icon"
                 />
                 {!collapsed && <span className="sidebar__item-label">{label}</span>}
-              </button>
+              </motion.button>
             );
           })}
 
@@ -176,7 +180,17 @@ function TherapistShell() {
         )}
         <main className="content">
           <div className="content-inner">
-            {renderTab()}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                {renderTab()}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </main>
       </div>
