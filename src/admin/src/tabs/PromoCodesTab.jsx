@@ -40,8 +40,8 @@ function CreateForm({ onCreated }) {
   return (
     <div className="card" style={{ marginBottom: 24 }}>
       <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>Create promo code</h3>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-        <div className="form-group" style={{ flex: '1 1 140px', margin: 0 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '200px 90px 110px 1fr auto', gap: 12, alignItems: 'end' }}>
+        <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Code</label>
           <input
             value={code}
@@ -54,23 +54,22 @@ function CreateForm({ onCreated }) {
           />
           {codeError && <span className="error-text" style={{ fontSize: 11 }}>{codeError}</span>}
         </div>
-        <div className="form-group" style={{ flex: '0 0 90px', margin: 0 }}>
+        <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Credits</label>
           <input type="number" min="1" value={credits} onChange={(e) => setCredits(e.target.value)} required />
         </div>
-        <div className="form-group" style={{ flex: '0 0 100px', margin: 0 }}>
+        <div className="form-group" style={{ margin: 0 }}>
           <label className="form-label">Max uses</label>
           <input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Unlimited" />
         </div>
-        <div className="form-group" style={{ flex: '1 1 160px', margin: 0 }}>
-          <label className="form-label">Expires</label>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label className="form-label">Expires (optional)</label>
           <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
         </div>
         <button
           className={`btn btn--primary btn--sm${saving ? ' btn--loading' : ''}`}
           type="submit"
           disabled={saving || !!codeError}
-          style={{ flex: '0 0 auto', height: 36 }}
         >
           {saving ? 'Creating…' : 'Create'}
         </button>
@@ -235,8 +234,8 @@ export default function PromoCodesTab() {
                           <span className="badge badge--archived">Inactive</span>
                         )}
                       </td>
-                      <td>
-                        <div className="btn-group">
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <div className="btn-group" style={{ flexWrap: 'nowrap' }}>
                           <button
                             className="btn btn--ghost btn--sm"
                             onClick={() => setPanel({ id: c.id, code: c.code })}
