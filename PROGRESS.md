@@ -21,25 +21,203 @@
 
 ## Current Phase
 
-### Phase 53 — Therapist Portal: Client History + UI Redesign (IN PROGRESS)
+### Phase 53 — Therapist Portal: Client History + UI Redesign + Motion Foundation (IN PROGRESS)
 
-**Goal:** Longitudinal client tracking (sessions + notes history per member) and portal UI redesign using `frontend-design` + `ui-ux-pro-max` skills installed 2026-10-21.
+**Goal:** Motion-first redesign of both portals (therapist + admin), then longitudinal client tracking built on top of the redesigned shell.
 
-**NEXT ACTION → 53.0: Run frontend-design + ui-ux-pro-max design system queries; persist MASTER.md to `design-system/therapist-portal/MASTER.md`. Then 53.1 schema migrations.**
+**Assessment (2026-10-23):** Both portals diagnosed as "default UI with functionality, no heart." Admin uses generic slate-800/blue-500 Tailwind palette — zero brand DNA. Therapist has warm palette but no animation. Neither portal has a motion library. `frontend-design`/`ui-ux-pro-max` skills referenced in original spec are not installed on this machine. Motion.dev (`motion` package, ~18kB) is the correct tool. Kokonut UI is Vue-only — not applicable. Plan below supersedes original 53.0 design-system-query approach.
 
-| Item | Status |
-|------|--------|
-| 53.0 Design system | ⬜ |
-| 53.1 Schema — drop UNIQUE on session_notes, add note_type | ⬜ |
-| 53.2 Backend — client list, client detail, notes edit/fetch | ⬜ |
-| 53.3 Sessions tab — notes panel (load existing, multi-note, pre-session) | ⬜ |
-| 53.4 Clients tab + ClientDetailPanel | ⬜ |
-| 53.5 App.jsx — wire Clients tab | ⬜ |
-| 53.6 Dashboard polish | ⬜ |
-| 53.7 Sessions — returning client badge | ⬜ |
-| 53.8 Schedule — booked cell alias | ⬜ |
-| 53.9 UI redesign — apply MASTER.md across all tabs | ⬜ |
-| 53.10 Verification | ⬜ |
+**NEXT ACTION → A.1: `npm install motion` in `src/admin` and `src/therapist`. Then A.2 admin CSS rebrand.**
+
+---
+
+#### Dependency graph
+
+```
+A.1 motion install (both portals)
+    │
+    ├──→ A.2 admin CSS rebrand (CSS-only, no deps)
+    │
+    └──→ A.3 motion applied to therapist portal shell
+    │
+    └──→ A.4 motion applied to admin portal shell
+              │
+              └──→ B.1 Migration 115 (session_notes schema)
+                        │
+                        └──→ B.2 Backend routes (clients + notes)
+                                  │
+                                  ├──→ C.1 Sessions tab (multi-note)
+                                  ├──→ C.2 Clients tab + ClientDetailPanel
+                                  └──→ C.3–C.4 wire + polish (53.5–53.9)
+                                            │
+                                            └──→ 53.10 Verification
+```
+
+---
+
+#### Phase A — Motion Foundation (before any 53.x feature work)
+
+**A.1 — Install motion, both portals**
+- `cd src/admin && npm install motion`
+- `cd src/therapist && npm install motion`
+- Zero risk. Additive only. Both dev servers must still start after install.
+
+**A.2 — Admin CSS rebrand (`src/admin/src/index.css` vars only)**
+| Old token | New token | Reason |
+|---|---|---|
+| `--color-sidebar-bg: #1e293b` | `#2F2622` | Match therapist portal |
+| `--color-primary: #3b82f6` | `#C2A48A` | PeerPal accent |
+| `--color-bg: #f1f5f9` | `#FAF6F2` | PeerPal warm bg |
+| System font stack | `'Inter', ...` | Match therapist portal |
+No JSX touched. CSS variables only.
+
+**A.3 — Motion: therapist portal shell (`src/therapist/src/App.jsx` + tabs)**
+- Tab content: `AnimatePresence` + `motion.div` with `initial={{ opacity:0, x:8 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-8 }}`
+- Sidebar nav items: `whileHover={{ x: 3 }}` + `whileTap={{ scale: 0.97 }}`
+- Cards: `motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }}`
+- DashboardTab stat numbers: spring on mount
+- No logic changes — wrapping only.
+
+**A.4 — Motion: admin portal shell (`src/admin/src/App.jsx` + tabs)**
+- Same tab transition pattern as A.3
+- Stat cards stagger entrance (`delay: index * 0.05`)
+- Badge count: `motion.span` with `animate={{ scale: [1.3, 1] }}` on count change
+- Quick action buttons: `whileHover={{ x: 4 }}`
+
+**A.3 + A.4 gate:** `npm run build` passes in both portals. Verify visually at localhost:5175 (admin) and localhost:5176 (therapist).
+
+---
+
+#### Phase B — Backend (53.1 + 53.2)
+
+**B.1 — Migration 115: session_notes schema**
+```sql
+-- drop UNIQUE constraint on booking_id — allows multiple notes per session
+ALTER TABLE session_notes DROP CONSTRAINT IF EXISTS session_notes_booking_id_key;
+
+-- add note_type column
+ALTER TABLE session_notes
+  ADD COLUMN IF NOT EXISTS note_type VARCHAR(20) NOT NULL DEFAULT 'session'
+    CHECK (note_type IN ('pre_session','session','follow_up'));
+
+-- index for client history queries
+CREATE INDEX IF NOT EXISTS idx_session_notes_booking_id ON session_notes(booking_id);
+```
+Rollback (`115_session_notes_schema_rollback.sql`): re-add UNIQUE, drop column, drop index.
+
+**Migration verification (run after apply):**
+```sql
+SELECT constraint_name FROM information_schema.table_constraints
+  WHERE table_name='session_notes' AND constraint_type='UNIQUE';
+-- expect: 0 rows
+
+SELECT column_name FROM information_schema.columns
+  WHERE table_name='session_notes' AND column_name='note_type';
+-- expect: 1 row
+```
+
+**B.2 — Backend routes (`src/backend/routes/therapy.js`)**
+
+Four new/updated endpoints. All therapist-auth only.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /therapist/clients` | Distinct members who booked this therapist. Returns: `member_user_id`, `alias`, `session_count`, `last_session_at`, `is_returning` (session_count > 1). Scoped to `therapist_id = req.user.id`. |
+| `GET /therapist/clients/:member_user_id` | Full history for one member: all bookings (status, date, duration, format) + all notes per booking. Returns 403 if member never booked this therapist. |
+| `POST /therapy/session-notes` | Create note. Now accepts `note_type` field. UNIQUE constraint gone — multiple notes per booking allowed. |
+| `GET /therapy/session-notes/:booking_id` | Returns **array** (was single object). Multi-note aware. |
+
+---
+
+#### Phase C — Therapist Portal UI (53.3–53.9)
+
+**C.1 — Sessions tab: multi-note panel (53.3)**
+- Replace single-note textarea with expandable notes list per session
+- `note_type='pre_session'` shown in a section above session notes
+- All expand/collapse wrapped in `motion.div` (height spring)
+- Uses `GET /therapy/session-notes/:booking_id` (array response)
+
+**C.2 — Clients tab + ClientDetailPanel (53.4)**
+- `ClientsTab.jsx`: card grid, `session_count` badge, last seen date, `↩ returning` chip if >1 session
+- Click → `ClientDetailPanel` slides in via `motion` spring (right-side drawer or modal)
+- Panel shows: full booking history sorted desc, notes timeline per booking
+- Uses `GET /therapist/clients` + `GET /therapist/clients/:member_user_id`
+
+**C.3 — Verify Clients tab wiring (53.5)**
+- `clients` tab already in TABS array in `App.jsx` — confirm it renders correctly
+- If `ClientsTab.jsx` didn't exist before, it was a stub — replace with real implementation
+
+**C.4 — Polish pass (53.6–53.9)**
+- Dashboard: `↩ returning` badge on upcoming session cards where member has prior sessions
+- Sessions tab: returning client chip if `session_count > 1`
+- Schedule tab: show member alias on booked time cells (currently blank)
+- Full redesign pass: apply motion tokens and warm palette consistently across all tabs
+
+---
+
+#### Tests
+
+**`src/backend/tests/therapistClients.test.js`** (node:test, same pattern as pricingService.test.js)
+
+```
+GET /therapist/clients
+  ✓ returns 401 without auth
+  ✓ only returns clients for the authenticated therapist
+  ✓ session_count is accurate
+  ✓ is_returning true when session_count > 1
+
+GET /therapist/clients/:member_user_id
+  ✓ returns 401 without auth
+  ✓ returns 403 if member never booked this therapist
+  ✓ returns bookings sorted by date desc
+  ✓ returns notes grouped by booking
+
+POST /therapy/session-notes
+  ✓ accepts note_type in ['pre_session','session','follow_up']
+  ✓ rejects unknown note_type with 400
+  ✓ allows multiple notes per booking (UNIQUE gone)
+  ✓ returns 403 if booking doesn't belong to therapist
+
+GET /therapy/session-notes/:booking_id
+  ✓ returns array not object
+  ✓ returns all note types for a booking
+  ✓ returns 403 if booking doesn't belong to therapist
+```
+
+Add to `src/backend/package.json`:
+```json
+"test:clients": "node --test tests/therapistClients.test.js"
+```
+
+**Frontend integration (53.10 verification checklist)**
+- [ ] Create pre_session note + session note for same booking → both appear in multi-note panel
+- [ ] Clients tab: member with 2+ sessions shows `↩ returning` badge
+- [ ] Tab switch in therapist portal animates (slide/fade)
+- [ ] Card entrance staggers on load
+- [ ] Sidebar nav items respond to hover (x: 3 lift)
+- [ ] Admin portal: warm palette renders (no blue-500 visible)
+- [ ] Admin stat cards animate entrance on load
+- [ ] `npm run build` passes in both portals
+
+---
+
+#### Execution order + completion tracking
+
+| Step | Task | Est | Status |
+|------|------|-----|--------|
+| A.1 | `npm install motion` — admin + therapist | 5 min | ⬜ |
+| A.2 | Admin CSS rebrand (index.css vars only) | 30 min | ⬜ |
+| A.3 | Motion — therapist portal shell | 1 hr | ⬜ |
+| A.4 | Motion — admin portal shell | 1 hr | ⬜ |
+| B.1 | Migration 115 + apply to prod | 20 min | ⬜ |
+| B.2 | Backend routes + therapistClients.test.js | 2 hr | ⬜ |
+| C.1 | Sessions tab: multi-note panel | 1.5 hr | ⬜ |
+| C.2 | Clients tab + ClientDetailPanel | 2 hr | ⬜ |
+| C.3 | Verify Clients tab wiring | 15 min | ⬜ |
+| C.4 | Polish pass (53.6–53.9) | 1.5 hr | ⬜ |
+| — | 53.10 Verification | — | ⬜ |
+
+**Ship gates:** A.1–A.4 are independently shippable (no backend changes). B.1 must run before B.2 deploys. Each step committed + pushed = ✅ before moving to next.
 
 ---
 
@@ -56,6 +234,17 @@
 | 54.5 Verification | ⬜ |
 
 **NEXT ACTION:** Run migration 112 in Supabase, then verify: log in as new user → first_visit pool; log in as user with last mood=low → low pool; trigger same nudge type twice → different variants.
+
+---
+
+## Session 2026-10-22 — Auth + Admin fixes (shipped)
+
+- **Login UX** (3 files): therapist + admin portals now validate email format client-side, map network errors and 401s to human messages, and have a password show/hide eye icon. Member portal dead `NO_ACCOUNT` branch removed; "Incorrect password" changed to "Incorrect email or password."
+- **VerifyPanel rewrite** (admin): text credential fields and confirmation checkboxes are now independent state. One character in a text field no longer marks the step green. Inline document viewer added at top of panel. Verification timestamps surfaced per step.
+- **Therapist email notifications** (emailService.js + admin.js): three new email templates and senders wired into verify, suspend, and unsuspend routes. All fire-and-forget via enqueueEmail, never block the API response. Suspension email contains no reason text.
+- **Therapist category self-selection** (therapy.js + OnboardingScreen.jsx + ProfileTab.jsx): `category_ids` added to EDITABLE in the profile PATCH route; pill picker added to onboarding Step 1 and ProfileTab, both fetching from existing `/api/therapy/categories`. Optional — no minimum required.
+- **Therapist photo upload fix** (storage.js + therapy.js + ProfileTab.jsx): photos now write to the public `therapist-photos` Supabase bucket and set `photo_url` to a permanent public URL. ProfileTab replaced text URL input with a file picker + preview. Credential docs unchanged (private bucket, signed URLs).
+- **Resend expired invite + change password** (therapy.js + SetPasswordScreen.jsx + ProfileTab.jsx): expired invite link now shows an email input that calls `POST /auth/recover` to resend. Logged-in therapists can change password from Profile tab; route verifies current password and stamps `jwt_issued_before` to revoke all sessions.
 
 ---
 
