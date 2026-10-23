@@ -52,3 +52,9 @@ src/backend/config/*.json
 
 # Audio files (large binary assets — source from Freesound.org per README)
 src/frontend/public/sounds/
+
+# Debug screenshots (Playwright / manual captures)
+*.png
+*.jpg
+pw-screenshot*.mjs
+verify*.sh
