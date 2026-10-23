@@ -27,7 +27,7 @@
 
 **Assessment (2026-10-23):** Both portals diagnosed as "default UI with functionality, no heart." Admin uses generic slate-800/blue-500 Tailwind palette — zero brand DNA. Therapist has warm palette but no animation. Neither portal has a motion library. `frontend-design`/`ui-ux-pro-max` skills referenced in original spec are not installed on this machine. Motion.dev (`motion` package, ~18kB) is the correct tool. Kokonut UI is Vue-only — not applicable. Plan below supersedes original 53.0 design-system-query approach.
 
-**NEXT ACTION → Phase 42: therapist onboarding signature block. Add agreement checkbox + name field + KCPA number to OnboardingScreen Step 1. Backend must reject PATCH /therapist/onboarding/complete if agreement_acknowledged != true.**
+**NEXT ACTION → Phase 51: SessionRoom enhanced controls (speaker slider, mic/camera device selectors, speaking indicator, therapist notes drawer with Alt+N shortcut). Single file: `src/therapist/src/components/SessionRoom.jsx`.**
 
 ---
 
