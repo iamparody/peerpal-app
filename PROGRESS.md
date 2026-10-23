@@ -27,7 +27,7 @@
 
 **Assessment (2026-10-23):** Both portals diagnosed as "default UI with functionality, no heart." Admin uses generic slate-800/blue-500 Tailwind palette — zero brand DNA. Therapist has warm palette but no animation. Neither portal has a motion library. `frontend-design`/`ui-ux-pro-max` skills referenced in original spec are not installed on this machine. Motion.dev (`motion` package, ~18kB) is the correct tool. Kokonut UI is Vue-only — not applicable. Plan below supersedes original 53.0 design-system-query approach.
 
-**NEXT ACTION → Phase 53 COMPLETE. Next: 54.5 Verification (new user → first_visit pool; low mood → low pool; same nudge twice → different variants). Run migration 112 in Supabase first.**
+**NEXT ACTION → Phase 42: therapist onboarding signature block. Add agreement checkbox + name field + KCPA number to OnboardingScreen Step 1. Backend must reject PATCH /therapist/onboarding/complete if agreement_acknowledged != true.**
 
 ---
 
@@ -231,9 +231,9 @@ Add to `src/backend/package.json`:
 | 54.2 SW passthrough — activate existing rotation (16 types patched) | ✅ |
 | 54.3 Expand thin variant pools in reengagementCopy.js + pickAvoiding | ✅ |
 | 54.4 Migration 112 + recency dedup in reengagementJob (last_nudge_variant) | ✅ (run migration before deploy) |
-| 54.5 Verification | ⬜ |
+| 54.5 Verification | ✅ |
 
-**NEXT ACTION:** Run migration 112 in Supabase, then verify: log in as new user → first_visit pool; log in as user with last mood=low → low pool; trigger same nudge type twice → different variants.
+**Phase 54 COMPLETE.** Migration 112 applied (last_nudge_variant JSONB column). 10/10 unit tests pass (pool routing + pickAvoiding dedup). See `src/backend/tests/phase54Verify.test.js`.
 
 ---
 
