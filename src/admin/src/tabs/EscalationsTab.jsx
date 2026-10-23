@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { UsersThree } from '@phosphor-icons/react';
 import client from '../api/client';
 import MessageModal from '../components/MessageModal';
 
@@ -63,9 +64,10 @@ export default function EscalationsTab({ onCountChange }) {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : items.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">👥</div>
-              <p className="empty-text">No escalated peer requests</p>
+            <div className="empty-state">
+              <UsersThree size={40} className="empty-state__icon" />
+              <p className="empty-state__title">No escalations</p>
+              <p className="empty-state__sub">No escalated peer requests.</p>
             </div>
           ) : (
             <table>

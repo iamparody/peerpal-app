@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { CheckCircle } from '@phosphor-icons/react';
 import client from '../api/client';
 import MessageModal from '../components/MessageModal';
 
@@ -67,9 +68,10 @@ export default function EmergencyTab({ onCountChange }) {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : items.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">✅</div>
-              <p className="empty-text">No active emergencies</p>
+            <div className="empty-state">
+              <CheckCircle size={40} className="empty-state__icon empty-state__icon--success" weight="fill" />
+              <p className="empty-state__title">All clear</p>
+              <p className="empty-state__sub">No active emergencies.</p>
             </div>
           ) : (
             <table>

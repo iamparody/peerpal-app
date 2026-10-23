@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { ChartLine } from '@phosphor-icons/react';
 import client from '../api/client';
 import MessageModal from '../components/MessageModal';
 
@@ -66,9 +67,10 @@ export default function PatternsTab() {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : patterns.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">✅</div>
-              <p className="empty-text">No high-utilisation patterns detected</p>
+            <div className="empty-state">
+              <ChartLine size={40} className="empty-state__icon empty-state__icon--success" />
+              <p className="empty-state__title">No patterns detected</p>
+              <p className="empty-state__sub">No high-utilisation patterns in the current window.</p>
             </div>
           ) : (
             <table>

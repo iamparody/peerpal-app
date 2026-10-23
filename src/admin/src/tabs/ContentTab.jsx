@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Books } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const CATEGORIES = [
@@ -69,9 +70,10 @@ export default function ContentTab() {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : filtered.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">📚</div>
-              <p className="empty-text">No content found</p>
+            <div className="empty-state">
+              <Books size={40} className="empty-state__icon" />
+              <p className="empty-state__title">No content</p>
+              <p className="empty-state__sub">No articles match the current filter.</p>
             </div>
           ) : (
             <table>

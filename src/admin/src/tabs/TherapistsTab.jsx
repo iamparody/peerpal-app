@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Stethoscope, Folder } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const SESSION_FORMATS  = ['video', 'in_person'];
@@ -179,9 +180,10 @@ function TherapistsTable({ therapists, categories, categoryName, onAvailability,
   if (!therapists.length) {
     return (
       <div className="card">
-        <div className="empty">
-          <div className="empty-icon">🩺</div>
-          <p className="empty-text">No therapists added yet</p>
+        <div className="empty-state">
+          <Stethoscope size={40} className="empty-state__icon" />
+          <p className="empty-state__title">No therapists yet</p>
+          <p className="empty-state__sub">Add a therapist to get started.</p>
         </div>
       </div>
     );
@@ -342,9 +344,10 @@ function CategoriesTable({ categories, onEdit }) {
   if (!categories.length) {
     return (
       <div className="card">
-        <div className="empty">
-          <div className="empty-icon">📂</div>
-          <p className="empty-text">No categories yet</p>
+        <div className="empty-state">
+          <Folder size={40} className="empty-state__icon" />
+          <p className="empty-state__title">No categories</p>
+          <p className="empty-state__sub">No therapy categories configured yet.</p>
         </div>
       </div>
     );

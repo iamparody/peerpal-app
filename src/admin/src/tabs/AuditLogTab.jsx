@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { ClipboardText } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const ACTION_FILTERS = [
@@ -101,9 +102,10 @@ export default function AuditLogTab() {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : logs.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">📋</div>
-              <p className="empty-text">No audit entries yet</p>
+            <div className="empty-state">
+              <ClipboardText size={40} className="empty-state__icon" />
+              <p className="empty-state__title">No audit entries</p>
+              <p className="empty-state__sub">No log entries match the current filter.</p>
             </div>
           ) : (
             <table>

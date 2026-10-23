@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { ShieldCheck } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const FILTER_TABS = [
@@ -62,9 +63,10 @@ export default function ReportsTab({ onCountChange }) {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : filtered.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">🛡️</div>
-              <p className="empty-text">No reports found</p>
+            <div className="empty-state">
+              <ShieldCheck size={40} className="empty-state__icon" />
+              <p className="empty-state__title">No reports</p>
+              <p className="empty-state__sub">No reports match the current filter.</p>
             </div>
           ) : (
             <table>

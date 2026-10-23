@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { ShieldCheck } from '@phosphor-icons/react';
 import client from '../api/client';
 
 const ACTIONS = [
@@ -123,11 +124,12 @@ export default function PermissionFlagsTab({ onCountChange }) {
           {loading ? (
             <div className="loading">Loading…</div>
           ) : items.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">🛡️</div>
-              <p className="empty-text">
-                {filter === 'unresolved' ? 'No unresolved permission flags' : 'No resolved flags yet'}
+            <div className="empty-state">
+              <ShieldCheck size={40} className="empty-state__icon" />
+              <p className="empty-state__title">
+                {filter === 'unresolved' ? 'No unresolved flags' : 'No resolved flags yet'}
               </p>
+              <p className="empty-state__sub">Peer permission flags will appear here.</p>
             </div>
           ) : (
             <table>
