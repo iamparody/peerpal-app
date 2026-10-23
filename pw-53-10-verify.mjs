@@ -113,8 +113,8 @@ if (!notesBtn) {
     if (preHeader) ok('"Pre-session" group header visible after saving pre note');
     else fail('Pre-session header', 'not found after save');
 
-    // Add a session note
-    await page.click('button:has-text("Session")');
+    // Add a session note (scope to slide panel to avoid matching sidebar nav)
+    await page.click('.slide-panel button:has-text("Session")');
     await page.waitForTimeout(200);
     const sessionText = `Session note ${Date.now()}`;
     await page.fill('textarea', sessionText);
