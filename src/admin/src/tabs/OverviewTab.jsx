@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import client from '../api/client';
-import { Siren, Handshake, Flag, Warning, ArrowRight } from '@phosphor-icons/react';
+import { Siren, Handshake, Flag, Warning, ArrowRight, CheckCircle } from '@phosphor-icons/react';
 
 /* ── Animated counter ────────────────────────────────────────────────── */
 function AnimatedNumber({ value, duration = 900 }) {
@@ -114,10 +114,10 @@ export default function OverviewTab({ onNavigate, onBadgesUpdate }) {
   ];
 
   const quickActions = [
-    { label: 'Emergency Queue',  sub: 'View active emergencies',    Icon: Siren,     nav: 'emergency',   bg: 'rgba(179,92,92,0.09)',    ic: 'var(--color-status-open)' },
-    { label: 'Peer Escalations', sub: 'Unanswered peer requests',   Icon: Handshake, nav: 'escalations', bg: 'rgba(217,164,65,0.09)',   ic: 'var(--color-status-pending)' },
-    { label: 'Group Reports',    sub: 'Review flagged content',     Icon: Flag,      nav: 'reports',     bg: 'rgba(123,155,181,0.10)',  ic: 'var(--color-status-review)' },
-    { label: 'Risk Flags',       sub: 'High / critical risk users', Icon: Warning,   nav: 'risk',        bg: 'rgba(217,164,65,0.09)',   ic: 'var(--color-status-pending)' },
+    { label: 'Emergency Queue',  sub: 'View active emergencies',    Icon: Siren,     nav: 'emergency',   mod: 'emergency' },
+    { label: 'Peer Escalations', sub: 'Unanswered peer requests',   Icon: Handshake, nav: 'escalations', mod: 'escalation' },
+    { label: 'Group Reports',    sub: 'Review flagged content',     Icon: Flag,      nav: 'reports',     mod: 'report' },
+    { label: 'Risk Flags',       sub: 'High / critical risk users', Icon: Warning,   nav: 'risk',        mod: 'risk' },
   ];
 
   return (
@@ -166,11 +166,14 @@ export default function OverviewTab({ onNavigate, onBadgesUpdate }) {
           </div>
           <div className="activity-feed">
             {loading ? (
-              <div className="loading">Loading…</div>
+              <div className="skeleton-list">
+                {[...Array(5)].map((_, i) => <div key={i} className="skeleton skeleton-row" />)}
+              </div>
             ) : activity.length === 0 ? (
-              <div className="empty">
-                <div className="empty-icon">✅</div>
-                <p className="empty-text">No recent activity</p>
+              <div className="empty-state">
+                <CheckCircle size={40} className="empty-state__icon empty-state__icon--success" weight="fill" />
+                <p className="empty-state__title">All clear</p>
+                <p className="empty-state__sub">No recent activity to show.</p>
               </div>
             ) : activity.map((item, i) => {
               const { cls, Icon } = ICON_MAP[item.type] ?? ICON_MAP.report;
@@ -193,10 +196,10 @@ export default function OverviewTab({ onNavigate, onBadgesUpdate }) {
           <div className="card-header">
             <h2>Quick Actions</h2>
           </div>
-          {quickActions.map(({ label, sub, Icon, nav, bg, ic }) => (
+          {quickActions.map(({ label, sub, Icon, nav, mod }) => (
             <button key={nav} className="quick-action" onClick={() => onNavigate(nav)}>
-              <div className="quick-action__icon" style={{ background: bg }}>
-                <Icon size={20} weight="fill" style={{ color: ic }} />
+              <div className={`quick-action__icon quick-action__icon--${mod}`}>
+                <Icon size={20} weight="fill" />
               </div>
               <div className="quick-action__body">
                 <div className="quick-action__label">{label}</div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { UsersThree, MagnifyingGlass } from '@phosphor-icons/react';
 import client from '../api/client';
 
 export default function MembersTab() {
@@ -46,11 +47,11 @@ export default function MembersTab() {
         </div>
       </div>
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+      <form onSubmit={handleSearch} className="members-search-form">
         <select
           value={field}
           onChange={(e) => setField(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-card-bg)', color: 'var(--color-text-primary)', fontSize: 13 }}
+          className="members-select"
         >
           <option value="email">Email</option>
           <option value="alias">Alias</option>
@@ -60,7 +61,7 @@ export default function MembersTab() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={field === 'email' ? 'user@example.com' : 'SolarPanda53'}
-          style={{ flex: 1, minWidth: 200, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-card-bg)', color: 'var(--color-text-primary)', fontSize: 13 }}
+          className="members-input"
         />
         <button type="submit" className="btn btn--primary btn--sm" disabled={loading || !query.trim()}>
           {loading ? 'Searching…' : 'Search'}
@@ -69,8 +70,20 @@ export default function MembersTab() {
 
       {error && <div className="error-msg" style={{ marginBottom: 16 }}>{error}</div>}
 
-      {results !== null && results.length === 0 && (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>No accounts found.</p>
+      {loading && (
+        <div>
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="skeleton skeleton-row" />
+          ))}
+        </div>
+      )}
+
+      {!loading && results !== null && results.length === 0 && (
+        <div className="empty-state">
+          <MagnifyingGlass size={40} className="empty-state__icon" />
+          <p className="empty-state__title">No results</p>
+          <p className="empty-state__sub">Try a different search term.</p>
+        </div>
       )}
 
       {results && results.length > 0 && (
@@ -91,40 +104,50 @@ export default function MembersTab() {
             <tbody>
               {results.map((m) => (
                 <tr key={m.id}>
-                  <td style={{ fontWeight: 600 }}>{m.alias}</td>
-                  <td style={{ fontSize: 13 }}>{m.email}</td>
+                  <td className="alias">{m.alias}</td>
+                  <td className="text-sm">{m.email}</td>
                   <td>
-                    <span style={{
-                      display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-                      background: m.role === 'admin' ? 'rgba(99,102,241,0.1)' : m.role === 'therapist' ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)',
-                      color: m.role === 'admin' ? '#6366f1' : m.role === 'therapist' ? '#10b981' : 'var(--color-text-muted)',
-                    }}>
-                      {m.role}
-                    </span>
+                    <span className={`role-badge role-badge--${m.role}`}>{m.role}</span>
                   </td>
-                  <td>{m.email_verified ? '✓' : <span style={{ color: 'var(--color-warning, #f59e0b)' }}>Pending</span>}</td>
-                  <td>{m.is_active ? 'Yes' : <span style={{ color: 'var(--color-status-open)' }}>No</span>}</td>
+                  <td>
+                    {m.email_verified
+                      ? '✓'
+                      : <span className="text-muted" style={{ color: 'var(--color-warning)' }}>Pending</span>
+                    }
+                  </td>
+                  <td>
+                    {m.is_active ? 'Yes' : <span style={{ color: 'var(--color-danger)' }}>No</span>}
+                  </td>
                   <td>{m.credit_balance ?? '—'}</td>
-                  <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{new Date(m.created_at).toLocaleDateString()}</td>
+                  <td className="elapsed">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td>
                     {m.role === 'member' ? (
                       <button
                         className="btn btn--danger btn--sm"
                         onClick={() => handleDeactivate(m)}
                         disabled={!m.is_active}
-                        style={{ fontSize: 12 }}
                         title={m.is_active ? 'Deactivate this account' : 'Already inactive'}
                       >
                         {m.is_active ? 'Deactivate' : 'Inactive'}
                       </button>
                     ) : (
-                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Use {m.role === 'therapist' ? 'Therapists' : 'N/A'} tab</span>
+                      <span className="text-sm text-muted">
+                        Use {m.role === 'therapist' ? 'Therapists' : 'N/A'} tab
+                      </span>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && results === null && (
+        <div className="empty-state">
+          <UsersThree size={40} className="empty-state__icon" />
+          <p className="empty-state__title">No members found</p>
+          <p className="empty-state__sub">Search by email or alias to get started.</p>
         </div>
       )}
     </div>

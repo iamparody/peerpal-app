@@ -2,14 +2,26 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import {
+  UserCircle, Users, Robot, CreditCard, Note, CalendarBlank, Handshake,
+  CheckCircle, Warning, XCircle, Star,
+} from '@phosphor-icons/react';
 import client from '../api/client';
 
 const STAT_META = [
-  { key: 'daily_active_users',      label: 'Daily Active Users',  icon: '👤' },
-  { key: 'checkins_today',          label: 'Check-ins Today',     icon: '📝' },
-  { key: 'peer_sessions_today',     label: 'Peer Sessions',       icon: '👥' },
-  { key: 'ai_sessions_today',       label: 'AI Sessions',         icon: '🤖' },
-  { key: 'credits_purchased_today', label: 'Credits Purchased',   icon: '💳' },
+  { key: 'daily_active_users',      label: 'Daily Active Users',  Icon: UserCircle },
+  { key: 'checkins_today',          label: 'Check-ins Today',     Icon: Note },
+  { key: 'peer_sessions_today',     label: 'Peer Sessions',       Icon: Users },
+  { key: 'ai_sessions_today',       label: 'AI Sessions',         Icon: Robot },
+  { key: 'credits_purchased_today', label: 'Credits Purchased',   Icon: CreditCard },
+];
+
+const GROWTH_META = [
+  { key: 'total_users',            label: 'Total Users',       Icon: UserCircle,   sub: null },
+  { key: 'mau',                    label: 'MAU (30d)',         Icon: CalendarBlank, sub: null },
+  { key: 'conversion_rate',        label: 'Conversion',        Icon: CreditCard,   subKey: (g) => `${g.paid_users} paid of ${g.total_users}`, suffix: '%' },
+  { key: 'peer_fulfillment_rate',  label: 'Peer Match Rate',   Icon: Handshake,    sub: 'last 30 days', nullable: true },
+  { key: 'ai_cost_30d_ksh',        label: 'AI Cost (30d)',     Icon: Robot,        subKey: (g) => `KSh ${g.ai_cost_per_mau_ksh}/user`, prefix: 'KSh ' },
 ];
 
 const SERIES_LINES = [
@@ -24,14 +36,13 @@ const DAYS_OPTIONS = [7, 14, 30, 60];
 
 function shortDate(str) {
   if (!str) return '';
-  const d = new Date(str);
-  return d.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
+  return new Date(str).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
 }
 
 function scaleSignal(totalUsers) {
-  if (totalUsers < 100)  return { level: 'ok',   color: '#6B9E8C', label: 'Comfortable',  note: 'Free tiers are fine. Keep an eye past 100 users.' };
-  if (totalUsers < 300)  return { level: 'watch', color: '#C2A48A', label: 'Watch',        note: 'Monitor DB connections and Render response times.' };
-  return                        { level: 'scale', color: '#B35C5C', label: 'Scale soon',   note: 'Upgrade Render and Supabase before performance drops.' };
+  if (totalUsers < 100)  return { level: 'ok',    Icon: CheckCircle, color: 'var(--color-success)',  label: 'Comfortable',  note: 'Free tiers are fine. Keep an eye past 100 users.' };
+  if (totalUsers < 300)  return { level: 'watch',  Icon: Warning,    color: 'var(--color-warning)', label: 'Watch',        note: 'Monitor DB connections and Render response times.' };
+  return                        { level: 'scale',  Icon: XCircle,    color: 'var(--color-danger)',  label: 'Scale soon',   note: 'Upgrade Render and Supabase before performance drops.' };
 }
 
 export default function StatsTab() {
@@ -44,6 +55,7 @@ export default function StatsTab() {
   const [error,    setError]    = useState('');
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const [sr, gr, fr, dr] = await Promise.all([
         client.get('/api/admin/stats'),
@@ -61,8 +73,24 @@ export default function StatsTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div className="loading">Loading…</div>;
-  if (error)   return <p className="error-text">{error}</p>;
+  if (loading) return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">System Stats</h1>
+        </div>
+      </div>
+      <div className="skeleton-grid-5">
+        {[...Array(5)].map((_, i) => <div key={i} className="skeleton skeleton-card" />)}
+      </div>
+      <div className="skeleton-grid-5" style={{ marginBottom: 16 }}>
+        {[...Array(5)].map((_, i) => <div key={i} className="skeleton skeleton-card" />)}
+      </div>
+      <div className="skeleton skeleton-card" style={{ height: 300, marginBottom: 28 }} />
+    </div>
+  );
+
+  if (error) return <p className="error-text">{error}</p>;
 
   const dateLabel = stats?.date
     ? new Date(stats.date).toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -80,61 +108,48 @@ export default function StatsTab() {
         <button className="refresh-btn" onClick={load} title="Refresh">↻</button>
       </div>
 
-      {/* Daily stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 28 }}>
-        {STAT_META.map(({ key, label, icon }) => (
+      {/* Daily stats */}
+      <div className="daily-stats-grid">
+        {STAT_META.map(({ key, label, Icon }) => (
           <div key={key} className="stat-card">
-            <div className="stat-card__label">{icon} {label}</div>
-            <div className="stat-card__value" style={{ fontSize: 28 }}>
-              {stats?.[key] ?? 0}
-            </div>
+            <div className="stat-icon"><Icon size={24} weight="duotone" /></div>
+            <div className="stat-card__value">{stats?.[key] ?? 0}</div>
+            <div className="stat-card__label">{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Growth & sustainability metrics */}
+      {/* Growth stats */}
       {growth && (() => {
         const sig = scaleSignal(growth.total_users);
+        const SigIcon = sig.Icon;
         return (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
-              <div className="stat-card">
-                <div className="stat-card__label">👤 Total Users</div>
-                <div className="stat-card__value" style={{ fontSize: 28 }}>{growth.total_users}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-card__label">📅 MAU (30d)</div>
-                <div className="stat-card__value" style={{ fontSize: 28 }}>{growth.mau}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-card__label">💳 Conversion</div>
-                <div className="stat-card__value" style={{ fontSize: 28 }}>{growth.conversion_rate}%</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>{growth.paid_users} paid of {growth.total_users}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-card__label">🤝 Peer Match Rate</div>
-                <div className="stat-card__value" style={{ fontSize: 28 }}>
-                  {growth.peer_fulfillment_rate !== null ? `${growth.peer_fulfillment_rate}%` : '—'}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>last 30 days</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-card__label">🤖 AI Cost (30d)</div>
-                <div className="stat-card__value" style={{ fontSize: 28 }}>KSh {growth.ai_cost_30d_ksh}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>KSh {growth.ai_cost_per_mau_ksh}/user</div>
-              </div>
+            <div className="growth-stats-grid">
+              {GROWTH_META.map(({ key, label, Icon, subKey, sub, suffix, prefix, nullable }) => {
+                const raw = growth[key];
+                const val = nullable && raw === null ? '—' : `${prefix ?? ''}${raw}${suffix ?? ''}`;
+                const note = subKey ? subKey(growth) : sub;
+                return (
+                  <div key={key} className="stat-card">
+                    <div className="stat-icon"><Icon size={24} weight="duotone" /></div>
+                    <div className="stat-card__value">{val}</div>
+                    <div className="stat-card__label">{label}</div>
+                    {note && <div className="stat-card__note">{note}</div>}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Scaling callout */}
-            <div className="card" style={{ marginBottom: 28, borderLeft: `4px solid ${sig.color}`, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ fontSize: 22 }}>{sig.level === 'ok' ? '✅' : sig.level === 'watch' ? '⚠️' : '🔴'}</div>
+            <div className="card scale-callout" style={{ borderLeft: `4px solid ${sig.color}` }}>
+              <SigIcon size={22} style={{ color: sig.color, flexShrink: 0 }} weight="fill" />
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: sig.color, marginBottom: 2 }}>
+                <div className="scale-callout__label" style={{ color: sig.color }}>
                   Infrastructure: {sig.label}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{sig.note}</div>
+                <div className="scale-callout__note">{sig.note}</div>
               </div>
-              <div style={{ marginLeft: 'auto', textAlign: 'right', fontSize: 12, color: 'var(--color-text-muted)' }}>
+              <div className="scale-callout__counts">
                 <div>{growth.total_users} registered</div>
                 <div>{growth.mau} active / 30d</div>
               </div>
@@ -144,22 +159,15 @@ export default function StatsTab() {
       })()}
 
       {/* Time-series chart */}
-      <div className="card" style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
-            Usage over time
-          </h2>
-          <div style={{ display: 'flex', gap: 6 }}>
+      <div className="card chart-card">
+        <div className="chart-header">
+          <h2>Usage over time</h2>
+          <div className="chart-day-btns">
             {DAYS_OPTIONS.map((d) => (
               <button
                 key={d}
                 onClick={() => setDays(d)}
-                style={{
-                  padding: '4px 12px', borderRadius: 20, border: '1px solid var(--color-border)',
-                  background: days === d ? 'var(--color-primary)' : 'transparent',
-                  color: days === d ? '#fff' : 'var(--color-text-secondary)',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}
+                className={`chart-day-btn${days === d ? ' chart-day-btn--active' : ''}`}
               >
                 {d}d
               </button>
@@ -177,7 +185,7 @@ export default function StatsTab() {
             />
             <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} tickLine={false} axisLine={false} />
             <Tooltip
-              contentStyle={{ background: 'var(--color-card-bg)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 12 }}
+              contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ fontWeight: 600 }}
             />
             <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
@@ -191,36 +199,31 @@ export default function StatsTab() {
       {/* Session ratings */}
       {feedback && (
         <>
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: 'var(--color-text-primary)' }}>
-            Session Ratings
-          </h2>
+          <h2 className="section-title">Session Ratings</h2>
 
           {feedback.averages?.length > 0 ? (
-            <div style={{ display: 'flex', gap: 14, marginBottom: 28, flexWrap: 'wrap' }}>
+            <div className="ratings-row">
               {feedback.averages.map((row) => (
-                <div key={row.type} className="card" style={{ padding: '18px 22px', minWidth: 160 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                    {row.type}
-                  </div>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
-                    ⭐ {parseFloat(row.avg_rating).toFixed(1)}
+                <div key={row.type} className="card rating-card">
+                  <div className="rating-card__type">{row.type}</div>
+                  <div className="rating-card__value">
+                    <Star size={18} weight="fill" style={{ color: 'var(--color-warning)' }} />
+                    {parseFloat(row.avg_rating).toFixed(1)}
                   </div>
                   <RatingBar value={parseFloat(row.avg_rating)} />
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8 }}>
+                  <div className="rating-card__count">
                     {row.count} response{row.count !== 1 ? 's' : ''}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 13, marginBottom: 24 }}>No ratings yet.</p>
+            <p className="text-muted" style={{ fontSize: 13, marginBottom: 24 }}>No ratings yet.</p>
           )}
 
           {feedback.recent_comments?.length > 0 && (
             <>
-              <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: 'var(--color-text-primary)' }}>
-                Recent Comments
-              </h2>
+              <h2 className="section-title">Recent Comments</h2>
               <div className="card">
                 <div className="table-wrap">
                   <table>
@@ -254,11 +257,11 @@ export default function StatsTab() {
 }
 
 function RatingBar({ value }) {
-  const pct = Math.min(100, (value / 5) * 100);
-  const color = value >= 4 ? 'var(--color-status-resolved)' : value >= 3 ? 'var(--color-status-pending)' : 'var(--color-status-open)';
+  const pct   = Math.min(100, (value / 5) * 100);
+  const color = value >= 4 ? 'var(--color-success)' : value >= 3 ? 'var(--color-warning)' : 'var(--color-danger)';
   return (
-    <div style={{ height: 5, background: 'var(--color-main-bg)', borderRadius: 4, overflow: 'hidden' }}>
-      <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4, transition: 'width 0.3s' }} />
+    <div className="rating-bar">
+      <div className="rating-bar__fill" style={{ width: `${pct}%`, background: color }} />
     </div>
   );
 }
