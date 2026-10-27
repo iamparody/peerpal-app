@@ -3210,4 +3210,36 @@ Scope-contained improvements to the live session experience. No new routes or mi
   - Proposed collaboration model (referrals, co-branded content, joint programmes)
   - Next steps and timelines
 
+---
+
+## Phase 55 — Women's Space: Spec & Deliberation
+
+> Spec all three nodes before any UI is drawn. Each node has a deliberation step (open questions resolved in conversation) followed by a written spec document. Girl Space deliberation is already complete — task 55.1 is documentation only.
+
+### 55.1 Girl Space — Write Spec Document
+- [ ] Write `docs/womens-space/girl-space-spec.md` capturing all locked decisions:
+  - Three-node entry flow (Pathway card → Ladies → Girl Space)
+  - Matching criteria collection UX (spirit animal style, collected once at node entry, not signup)
+  - Circle of 5 formation: present available matches immediately, fill over time
+  - Zero-match holding screen (warm, explains what the circle is, notifies when first match ready)
+  - Link Up: 48h accept window, silent slot replacement on decline, she never sees a rejection
+  - Circle management UI: presence dots (real-time), availability windows (visible on member card), "online" = active on platform
+  - Room model: 1 requester + up to 2 responders, voice + text (confirm peer module supports 3-way)
+  - Room request fallback: no response → peer module fallback mechanics adapted
+  - Circle leave: members notified, <5 circles receive join request, "circle complete" graceful close for remaining pending requests
+  - Minors safeguarding: same-age matching only (13–18 with 13–18), elevated risk thresholds, no parental gate
+  - GBV: internal only, never surfaced as a label; escalation UX feels like care not detection
+  - Matching criteria dimensions: to be researched and standardised (flag as open item)
+
+### 55.2 Mothers Node — Deliberate & Spec
+- [ ] Deliberate: name (Mothers is functional but clinical — find better), postpartum check-in framing (structured without scheduled), Maryben content partnership scope, clinical depth vs. intimacy balance, circle of 5 vs. different group model for this cohort
+- [ ] Write `docs/womens-space/mothers-spec.md` once deliberation is complete
+
+### 55.3 General Women's Space — Deliberate & Spec
+- [ ] Deliberate: identity-ongoing principle, experience-based matching dimensions (career, relationship, loneliness, identity — confirm and expand), whether circle of 5 holds or a different model fits this cohort
+- [ ] Write `docs/womens-space/general-womens-space-spec.md` once deliberation is complete
+
+### 55.4 Matching Criteria Research (cross-node)
+- [ ] Research and define the standardised matching dimensions for each node — the "spirit animal" UX maps to real matching variables; those variables must be defined before UI or algorithm work begins
+- [ ] Document in `docs/womens-space/matching-criteria.md`
 

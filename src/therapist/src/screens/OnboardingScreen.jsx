@@ -38,7 +38,7 @@ function CategoryPill({ label, active, onClick }) {
 
 const DOC_TYPES = [
   { key: 'photo',         label: 'Profile Photo',           accept: 'image/jpeg,image/png,image/webp', required: true,  hint: 'JPG, PNG or WebP · max 10 MB' },
-  { key: 'kcpa_cert',     label: 'KCPA Certificate',         accept: 'application/pdf,image/jpeg,image/png', required: true,  hint: 'PDF or image · max 10 MB' },
+  { key: 'kcpa_cert',     label: 'Professional Certificate',  accept: 'application/pdf,image/jpeg,image/png', required: true,  hint: 'PDF or image · max 10 MB' },
   { key: 'academic_cert', label: 'Academic Certificate',     accept: 'application/pdf,image/jpeg,image/png', required: true,  hint: 'PDF or image · max 10 MB' },
   { key: 'agreement',     label: 'Signed Practice Agreement',accept: 'application/pdf',                    required: true,  hint: 'PDF · max 10 MB' },
   { key: 'indemnity',     label: 'Professional Indemnity',   accept: 'application/pdf,image/jpeg,image/png', required: false, hint: 'PDF or image · optional' },
@@ -499,11 +499,11 @@ function Step1({ s, set, toggleFormat, categories, toggleCategory, error, onNext
         <Field label="Years of Experience" required>
           <input type="number" min="0" max="60" value={s.years_experience} onChange={(e) => set('years_experience', e.target.value)} placeholder="e.g. 5" required />
         </Field>
-        <Field label="KCPA Level">
-          <input type="text" value={s.kcpa_level} onChange={(e) => set('kcpa_level', e.target.value)} placeholder="e.g. Associate, Fellow" />
+        <Field label="Professional Body & Level">
+          <input type="text" value={s.kcpa_level} onChange={(e) => set('kcpa_level', e.target.value)} placeholder="e.g. KCPA Associate, CPB Member, KPS Fellow" />
         </Field>
         <Field label="Registration No.">
-          <input type="text" value={s.registration_number} onChange={(e) => set('registration_number', e.target.value)} placeholder="e.g. KCP/2019/001" />
+          <input type="text" value={s.registration_number} onChange={(e) => set('registration_number', e.target.value)} placeholder="e.g. KCPA/2019/001, CPB/2020/045" />
         </Field>
         <Field label="Gender">
           <select value={s.gender} onChange={(e) => set('gender', e.target.value)}>
@@ -678,7 +678,7 @@ function Step3({ uploads, setFile, agreementChecked, onAgreementChange, error, s
           >
             PeerPal Therapist Partnership Agreement
           </a>
-          , including the independent contractor terms, 20/80 revenue split, off-platform contact prohibition, and KCPA compliance obligations.
+          , including the independent contractor terms, 20/80 revenue split, off-platform contact prohibition, and professional body compliance obligations.
         </div>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
           <input

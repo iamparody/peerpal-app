@@ -656,7 +656,7 @@ function TherapistPanel({ therapist, categories, onClose, onSaved }) {
 
 // ─── VerifyPanel helpers ──────────────────────────────────────────────────────
 const VERIFY_DOCS = [
-  { type: 'kcpa_cert',     label: 'KCPA verification letter' },
+  { type: 'kcpa_cert',     label: 'Professional certificate or verification letter' },
   { type: 'academic_cert', label: 'Academic certificate' },
   { type: 'indemnity',     label: 'Professional indemnity proof' },
   { type: 'good_conduct',  label: 'Certificate of Good Conduct' },
@@ -758,8 +758,6 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
   const [kcpaOk,        setKcpaOk]        = useState(Boolean(therapist.kcpa_level));
   const [regNumber,     setRegNumber]     = useState(therapist.registration_number ?? '');
   const [regOk,         setRegOk]         = useState(Boolean(therapist.registration_number));
-  const [kmpdcNumber,   setKmpdcNumber]   = useState(therapist.kmpdc_number ?? '');
-  const [kmpdcOk,       setKmpdcOk]       = useState(Boolean(therapist.kmpdc_number));
   // Steps 4–6: boolean
   const [indemnity,     setIndemnity]     = useState(therapist.indemnity_verified ?? false);
   const [goodConduct,   setGoodConduct]   = useState(therapist.good_conduct_verified ?? false);
@@ -782,7 +780,6 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
   const allDone =
     (kcpaLevel.trim() && kcpaOk) &&
     (regNumber.trim() && regOk) &&
-    (kmpdcNumber.trim() && kmpdcOk) &&
     indemnity && goodConduct && teletherapy;
 
   async function handleViewDoc(docType) {
@@ -800,7 +797,6 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
       await client.patch(`/api/admin/therapists/${therapist.id}/verify`, {
         kcpa_level:                   kcpaLevel.trim() || null,
         registration_number:          regNumber.trim() || null,
-        kmpdc_number:                 kmpdcNumber.trim() || null,
         indemnity_verified:           indemnity,
         good_conduct_verified:        goodConduct,
         good_conduct_expires_at:      conductExpiry || null,
@@ -859,13 +855,13 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
           </div>
 
           <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 1.5 }}>
-            Complete all 6 steps to verify this therapist. Saving partial progress is allowed — verification
-            is granted automatically when all 6 are confirmed.
+            Complete all 5 steps to verify this therapist. Saving partial progress is allowed — verification
+            is granted automatically when all 5 are confirmed.
           </p>
 
           <TextStep
-            num={1} label="KCPA registration level confirmed"
-            placeholder="e.g. Licensed Professional Counsellor"
+            num={1} label="Professional registration confirmed"
+            placeholder="e.g. KCPA Associate, CPB Member, KPS Fellow"
             value={kcpaLevel}   setValue={setKcpaLevel}
             confirmed={kcpaOk}  setConfirmed={setKcpaOk}
             timestamp={therapist.kcpa_verified_at}
@@ -873,18 +869,10 @@ function VerifyPanel({ therapist, onClose, onSaved }) {
 
           <TextStep
             num={2} label="Professional registration number verified"
-            placeholder="KPS/KCPA registration number"
+            placeholder="e.g. KCPA/2019/001, CPB/2020/045"
             value={regNumber}  setValue={setRegNumber}
             confirmed={regOk}  setConfirmed={setRegOk}
             timestamp={therapist.registration_number_verified_at}
-          />
-
-          <TextStep
-            num={3} label="KMPDC number confirmed (if applicable)"
-            placeholder="KMPDC number or N/A"
-            value={kmpdcNumber}  setValue={setKmpdcNumber}
-            confirmed={kmpdcOk}  setConfirmed={setKmpdcOk}
-            timestamp={therapist.kmpdc_verified_at}
           />
 
           <BoolStep
@@ -1139,7 +1127,7 @@ function CategoryPanel({ category, onClose, onSaved }) {
 // ─── DocumentsPanel ───────────────────────────────────────────────────────────
 const DOC_LABELS = {
   photo:         'Profile photo',
-  kcpa_cert:     'KCPA verification letter',
+  kcpa_cert:     'Professional certificate or verification letter',
   academic_cert: 'Academic certificate',
   indemnity:     'Professional indemnity proof',
   good_conduct:  'Certificate of Good Conduct',
