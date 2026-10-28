@@ -312,6 +312,18 @@ router.get('/trusted-contacts/joined', auth, async (req, res) => {
   return res.status(200).json({ joined: rows });
 });
 
+// ─── DELETE /safety-plan/trusted-contacts/:id/leave ──────────────────────────
+// Leave — acceptor removes themselves from someone else's safety plan
+router.delete('/trusted-contacts/:id/leave', auth, async (req, res) => {
+  const { rowCount } = await query(
+    `UPDATE trusted_contacts SET status = 'revoked', updated_at = NOW()
+     WHERE id = $1 AND contact_user_id = $2 AND status = 'accepted'`,
+    [req.params.id, req.user.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
+  return res.status(200).json({ left: true });
+});
+
 // ─── DELETE /safety-plan/trusted-contacts/:id ─────────────────────────────────
 // Revoke — silent, immediate, inviter only
 router.delete('/trusted-contacts/:id', auth, async (req, res) => {

@@ -177,10 +177,6 @@ export default function SafetyPlanScreen() {
     queryFn: () => client.get('/api/safety-plan/trusted-contacts/incoming').then(r => r.data),
   });
 
-  const { data: joinedData } = useQuery({
-    queryKey: ['trusted-contacts-joined'],
-    queryFn: () => client.get('/api/safety-plan/trusted-contacts/joined').then(r => r.data),
-  });
 
   useEffect(() => {
     if (planData?.plan) {
@@ -262,7 +258,6 @@ export default function SafetyPlanScreen() {
 
   const trustedContacts = tcData?.trusted_contacts || [];
   const incoming        = incomingData?.incoming || [];
-  const joined          = joinedData?.joined || [];
   const slots = [
     ...trustedContacts,
     ...Array(Math.max(0, 3 - trustedContacts.length)).fill(null),
@@ -307,7 +302,15 @@ export default function SafetyPlanScreen() {
 
         {/* ── Trusted contacts ─────────────────────────────────────────── */}
         <div>
-          <label className="label" style={{ marginBottom: 8 }}>4. People I can contact (up to 3)</label>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+            <label className="label" style={{ margin: 0 }}>4. People I can contact (up to 3)</label>
+            <button
+              onClick={() => navigate('/safety-plan/contacts')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--color-primary)', padding: 0, fontWeight: 600 }}
+            >
+              Manage
+            </button>
+          </div>
           <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
             Link app users to receive alerts when you are struggling, or add a name and number for contacts who are not on the app.
           </p>
@@ -372,24 +375,6 @@ export default function SafetyPlanScreen() {
             placeholder="What matters most to you?"
           />
         </div>
-
-        {joined.length > 0 && (
-          <div>
-            <label className="label" style={{ marginBottom: 8 }}>Safety plans I am part of</label>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
-              These people have added you to their safety plan as a trusted contact.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {joined.map(j => (
-                <div key={j.id} style={{ border: '1px solid rgba(194,164,138,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle size={16} weight="fill" color="var(--color-success, #27ae60)" />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{j.user_alias}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-text-muted)', background: 'rgba(39,174,96,0.12)', padding: '2px 8px', borderRadius: 20 }}>In their plan</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <button className="btn btn--primary" onClick={handleSave} disabled={saving || !isDirty}>
           {saving ? 'Saving...' : saved ? 'Saved' : 'Save Safety Plan'}
