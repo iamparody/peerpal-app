@@ -27,6 +27,7 @@ const { runMemberNoShowJob }           = require('./jobs/memberNoShowJob');
 const { runDraftBookingExpiryJob }     = require('./jobs/draftBookingExpiryJob');
 const { runWaitlistDigestJob }         = require('./jobs/waitlistDigestJob');
 const { runReengagementJob }           = require('./jobs/reengagementJob');
+const { runStalePeerSessionJob }       = require('./jobs/stalePeerSessionJob');
 const { updateEngagementSegments }     = require('./ai/engagementScore');
 const { runTrialDrip, runTrialReminder, runTrialExpiry } = require('./jobs/trialDripJob');
 const { runDlqRetryJob } = require('./jobs/dlqRetryJob');
@@ -74,6 +75,9 @@ cron.schedule('0 3 * * *', () => runFlagAggregationJob().catch((err) => logger.e
 
 // Group ban expiry — every hour, lifts bans whose expires_at has passed
 cron.schedule('0 * * * *', () => runBanExpiryJob().catch((err) => logger.error({ err }, 'banExpiryJob failed')));
+
+// Stale peer session cleanup — every hour, closes active sessions >2h old
+cron.schedule('0 * * * *', () => runStalePeerSessionJob().catch((err) => logger.error({ err }, 'stalePeerSessionJob failed')));
 
 // Waitlist digest — 06:00 UTC (9am Nairobi EAT); emails yesterday's new signups
 // to WAITLIST_NOTIFY_EMAIL. No-op if that env isn't set or nothing is new.
