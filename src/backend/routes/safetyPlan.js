@@ -10,11 +10,26 @@ const logger = require('../utils/logger');
 
 const router = express.Router();
 
+// Graceful decrypt — existing plaintext rows won't parse as iv:tag:cipher; return as-is
+function safeDecrypt(value) {
+  if (!value) return value;
+  try { return decrypt(value); } catch { return value; }
+}
+
+const PHI_FIELDS = ['warning_signs', 'helpful_things', 'things_to_avoid', 'reason_to_continue'];
+
+function decryptPlan(row) {
+  const out = { ...row };
+  for (const f of PHI_FIELDS) if (out[f]) out[f] = safeDecrypt(out[f]);
+  out.contacts = decryptContacts(out.contacts);
+  return out;
+}
+
 function decryptContacts(contacts) {
   if (!contacts) return null;
   return contacts.map((c) => ({
     ...c,
-    contact_detail: c.contact_detail ? decrypt(c.contact_detail) : null,
+    contact_detail: c.contact_detail ? safeDecrypt(c.contact_detail) : null,
   }));
 }
 
@@ -59,8 +74,7 @@ async function pushToUser(userId, type, payload) {
 router.get('/', auth, async (req, res) => {
   const { rows } = await query('SELECT * FROM safety_plans WHERE user_id = $1', [req.user.id]);
   if (!rows.length) return res.status(200).json({ plan: null });
-  const plan = { ...rows[0], contacts: decryptContacts(rows[0].contacts) };
-  return res.status(200).json({ plan });
+  return res.status(200).json({ plan: decryptPlan(rows[0]) });
 });
 
 // ─── PUT /safety-plan ─────────────────────────────────────────────────────────
@@ -79,12 +93,12 @@ router.put('/', auth, async (req, res) => {
   const setClauses = ['updated_at = NOW()'];
   let idx = 2;
 
-  if (warning_signs       !== undefined) { setClauses.push(`warning_signs = $${idx++}`);       params.push(warning_signs); }
-  if (helpful_things      !== undefined) { setClauses.push(`helpful_things = $${idx++}`);      params.push(helpful_things); }
-  if (things_to_avoid     !== undefined) { setClauses.push(`things_to_avoid = $${idx++}`);     params.push(things_to_avoid); }
+  if (warning_signs       !== undefined) { setClauses.push(`warning_signs = $${idx++}`);       params.push(warning_signs ? encrypt(warning_signs) : null); }
+  if (helpful_things      !== undefined) { setClauses.push(`helpful_things = $${idx++}`);      params.push(helpful_things ? encrypt(helpful_things) : null); }
+  if (things_to_avoid     !== undefined) { setClauses.push(`things_to_avoid = $${idx++}`);     params.push(things_to_avoid ? encrypt(things_to_avoid) : null); }
   if (encryptedContacts   !== undefined) { setClauses.push(`contacts = $${idx++}`);            params.push(JSON.stringify(encryptedContacts)); }
   if (emergency_resources !== undefined) { setClauses.push(`emergency_resources = $${idx++}`); params.push(emergency_resources); }
-  if (reason_to_continue  !== undefined) { setClauses.push(`reason_to_continue = $${idx++}`);  params.push(reason_to_continue); }
+  if (reason_to_continue  !== undefined) { setClauses.push(`reason_to_continue = $${idx++}`);  params.push(reason_to_continue ? encrypt(reason_to_continue) : null); }
 
   const { rows } = await query(
     `INSERT INTO safety_plans (user_id)
