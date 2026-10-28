@@ -485,8 +485,26 @@ router.get('/quiz/status', auth, async (req, res) => {
 
 // ─── POST /peer/quiz/complete ─────────────────────────────────────────────────
 router.post('/quiz/complete', auth, async (req, res) => {
-  await query('UPDATE users SET peer_quiz_done = true, updated_at = NOW() WHERE id = $1', [req.user.id]);
+  await query('UPDATE users SET peer_quiz_done = true, peer_available_until = NOW() + INTERVAL \'10 years\', updated_at = NOW() WHERE id = $1', [req.user.id]);
   return res.status(200).json({ peer_quiz_done: true });
+});
+
+// ─── GET /peer/available-count ────────────────────────────────────────────────
+router.get('/available-count', auth, async (req, res) => {
+  const { rows } = await query(`
+    SELECT COUNT(*) AS count
+    FROM users
+    WHERE peer_quiz_done = true
+      AND is_active = true
+      AND peer_available_until > NOW()
+      AND notif_peer_broadcast = true
+      AND id != $1
+      AND NOT EXISTS (
+        SELECT 1 FROM peer_requests pr
+        WHERE pr.accepted_by = id AND pr.status = 'active'
+      )
+  `, [req.user.id]);
+  return res.status(200).json({ count: parseInt(rows[0].count, 10) });
 });
 
 // ─── PATCH /peer/request/:id/accept ──────────────────────────────────────────

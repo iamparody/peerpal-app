@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin, BellRinging, BellSlash, WarningCircle, Bell } from '@phosphor-icons/react';
+import { CheckCircle, Handshake, ChatText, Microphone, Lock, Brain, Stethoscope, Coin, BellRinging, BellSlash, WarningCircle, Bell, UsersThree, X } from '@phosphor-icons/react';
 import client from '../../api/client';
 import { trackEvent } from '../../utils/analytics';
 import { getFCMStatus, registerFCMToken } from '../../utils/firebase';
 import { playPeerRequestTone } from '../../utils/peerRequestAlert';
+import { useAuth } from '../../context/AuthContext';
 
 const COST_INFO = {
   text:  { cost: 1, label: 'Text Chat',  desc: '1 credit · 30 min' },
@@ -183,14 +184,93 @@ function ConfidenceOverlay({ request, topicLabel, onAccept, onDecline }) {
   );
 }
 
+function PeerQuizModal({ onStartQuiz, onSkip }) {
+  const [countdown, setCountdown] = useState(10);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: 'rgba(0,0,0,0.55)',
+      backdropFilter: 'blur(6px)',
+      WebkitBackdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '0 24px',
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 360,
+        background: 'rgba(47,38,34,0.82)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(194,164,138,0.18)',
+        borderRadius: 20,
+        padding: '28px 22px 24px',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+        display: 'flex', flexDirection: 'column', gap: 18,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+            background: 'rgba(194,164,138,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <UsersThree size={22} weight="duotone" color="rgba(194,164,138,0.9)" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, color: '#FAF6F2' }}>
+              Learn how to help others
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'rgba(250,246,242,0.65)', lineHeight: 1.6, marginTop: 6 }}>
+              A quick 30-second readiness check means peers can find you when they need support, and you can find them. It's part of your own growth.
+            </p>
+          </div>
+        </div>
+
+        <button
+          className="btn btn--primary"
+          onClick={onStartQuiz}
+          style={{ borderRadius: 12 }}
+        >
+          Take the readiness check
+        </button>
+
+        <button
+          onClick={countdown <= 0 ? onSkip : undefined}
+          disabled={countdown > 0}
+          style={{
+            background: 'none', border: 'none',
+            cursor: countdown > 0 ? 'default' : 'pointer',
+            fontSize: '0.78rem',
+            color: countdown > 0 ? 'rgba(250,246,242,0.4)' : 'rgba(250,246,242,1)',
+            padding: '2px 0', textAlign: 'center', lineHeight: 1.5,
+            transition: 'color 0.3s',
+          }}
+        >
+          {countdown > 0
+            ? `Skip in ${countdown}s`
+            : `Skip for now`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function PeerRequestScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [tab, setTab] = useState('support');
   const [balance, setBalance] = useState(null);
   const [openRequests, setOpenRequests] = useState([]);
   const [topics, setTopics] = useState([]);
   const [quizDone, setQuizDone] = useState(true); // optimistic: hide gate until loaded
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [peerCount, setPeerCount] = useState(null);
   const [channel, setChannel] = useState('text');
 
   const [topicOpen, setTopicOpen] = useState(false);
@@ -221,19 +301,32 @@ export default function PeerRequestScreen() {
   useEffect(() => {
     async function load() {
       try {
-        const [balRes, reqRes, quizRes, topicsRes, availRes] = await Promise.all([
+        const [balRes, reqRes, quizRes, topicsRes, availRes, countRes] = await Promise.all([
           client.get('/api/credits/balance'),
           client.get('/api/peer/requests/open'),
           client.get('/api/peer/quiz/status'),
           client.get('/api/peer/topics'),
           client.get('/api/peer/availability'),
+          client.get('/api/peer/available-count'),
         ]);
         setBalance(balRes.data.balance ?? 0);
         setOpenRequests(reqRes.data.requests ?? reqRes.data ?? []);
-        setQuizDone(quizRes.data.peer_quiz_done);
+        const quizComplete = quizRes.data.peer_quiz_done;
+        setQuizDone(quizComplete);
         setTopics(topicsRes.data.topics ?? []);
         if (availRes.data.available) setAvailableUntil(availRes.data.available_until);
         setNightAlerts(!!availRes.data.night_alerts);
+        setPeerCount(countRes.data.count ?? 0);
+
+        // Show quiz intercept modal once per account if quiz not done
+        if (!quizComplete && user?.id) {
+          const seenKey = `peer_quiz_modal_seen_${user.id}`;
+          const lastSeen = parseInt(localStorage.getItem(seenKey) || '0', 10);
+          const reshowAfter = 8 * 60 * 60 * 1000;
+          if (!lastSeen || Date.now() - lastSeen > reshowAfter) {
+            setTimeout(() => setShowQuizModal(true), 1000);
+          }
+        }
       } catch {
         setError('Failed to load. Please try again.');
       } finally {
@@ -528,6 +621,21 @@ export default function PeerRequestScreen() {
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>›</span>
             </button>
 
+            {/* ── Peer count signal ── */}
+            {peerCount !== null && (
+              <div style={{
+                fontSize: '0.78rem', color: peerCount > 0 ? 'var(--color-calm)' : 'var(--color-text-muted)',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                background: peerCount > 0 ? 'rgba(143,175,154,0.1)' : 'transparent',
+              }}>
+                <UsersThree size={15} weight="duotone" color={peerCount > 0 ? 'var(--color-calm)' : 'var(--color-text-muted)'} />
+                {peerCount > 0
+                  ? `${peerCount} peer${peerCount !== 1 ? 's' : ''} available now`
+                  : 'No peers available right now — you can still send a request and we\'ll notify them when they\'re next active'}
+              </div>
+            )}
+
             {/* ── Accept card — always at top if requests exist ── */}
             {openRequests.length > 0 && (
               <div style={{
@@ -665,6 +773,17 @@ export default function PeerRequestScreen() {
           </div>
 
         </div>
+      )}
+
+      {/* Quiz intercept modal — shown once per account when quiz not done */}
+      {showQuizModal && (
+        <PeerQuizModal
+          onStartQuiz={() => { setShowQuizModal(false); setTab('support'); }}
+          onSkip={() => {
+            if (user?.id) localStorage.setItem(`peer_quiz_modal_seen_${user.id}`, Date.now().toString());
+            setShowQuizModal(false);
+          }}
+        />
       )}
 
       {/* Confidence overlay */}
