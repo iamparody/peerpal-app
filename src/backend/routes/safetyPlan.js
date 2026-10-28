@@ -159,7 +159,7 @@ router.post('/trusted-contacts/invite', auth, async (req, res) => {
     [req.user.id, token]
   );
 
-  const baseUrl = process.env.FRONTEND_URL || 'https://app.peerpal.co';
+  const baseUrl = (process.env.FRONTEND_URL || 'https://app.peer-pal.com').split(',')[0].trim();
   return res.status(201).json({ invite_url: `${baseUrl}/trusted-invite?token=${token}` });
 });
 
