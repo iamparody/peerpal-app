@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Heart } from '@phosphor-icons/react';
+import { Heart, UserCirclePlus, CheckCircle } from '@phosphor-icons/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { rootRedirectPath } from './utils/referral';
 import { trackPageview } from './lib/analytics';
@@ -80,6 +80,106 @@ import SkillDetailScreen    from './screens/training/SkillDetailScreen';
 import ScenarioScreen       from './screens/training/ScenarioScreen';
 import MyPermissionsScreen  from './screens/training/MyPermissionsScreen';
 import { playPeerRequestTone, closeStaleRequestNotifications } from './utils/peerRequestAlert';
+
+const INVITE_STORAGE_KEY = 'trusted_invite_token';
+
+function TrustedInviteHandler() {
+  const { user } = useAuth();
+  const [pending, setPending] = useState(null);
+  const [status, setStatus]   = useState('idle'); // idle | loading | accepted | error
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    function checkToken() {
+      if (!user) return;
+      const stored = localStorage.getItem(INVITE_STORAGE_KEY);
+      if (stored) setPending(stored);
+    }
+    checkToken();
+    window.addEventListener('trusted-invite-token-set', checkToken);
+    return () => window.removeEventListener('trusted-invite-token-set', checkToken);
+  }, [user]);
+
+  if (!pending) return null;
+
+  async function handleAccept() {
+    setStatus('loading');
+    try {
+      await client.post('/api/safety-plan/trusted-contacts/accept', { token: pending });
+      localStorage.removeItem(INVITE_STORAGE_KEY);
+      setStatus('accepted');
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || 'This invite link is no longer valid.');
+      setStatus('error');
+    }
+  }
+
+  function dismiss() {
+    localStorage.removeItem(INVITE_STORAGE_KEY);
+    setPending(null);
+    setStatus('idle');
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(0,0,0,0.55)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      padding: 'var(--space-md)',
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 480,
+        background: 'var(--color-surface)',
+        borderRadius: '20px 20px 12px 12px',
+        padding: '28px var(--space-lg) var(--space-lg)',
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-md)',
+        textAlign: 'center',
+      }}>
+        {status === 'idle' && (
+          <>
+            <UserCirclePlus size={44} weight="duotone" color="var(--color-primary)" style={{ alignSelf: 'center' }} />
+            <div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>You have been invited</h3>
+              <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                Someone on PeerPal wants to add you to their safety plan as a trusted contact.
+                If you accept, they can choose to share alerts with you when they are struggling.
+              </p>
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                You will only appear in their safety plan. You will not see their history or any other part of their account.
+              </p>
+            </div>
+            <button className="btn btn--primary" onClick={handleAccept}>Accept</button>
+            <button className="btn btn--ghost" onClick={dismiss} style={{ fontSize: 13 }}>Decline</button>
+          </>
+        )}
+
+        {status === 'loading' && (
+          <p style={{ color: 'var(--color-text-muted)', margin: '24px 0' }}>Linking your accounts...</p>
+        )}
+
+        {status === 'accepted' && (
+          <>
+            <CheckCircle size={44} weight="fill" color="var(--color-success, #27ae60)" style={{ alignSelf: 'center' }} />
+            <div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>You are linked</h3>
+              <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                You are now in their safety plan. They can choose to send you alerts when they need support.
+              </p>
+            </div>
+            <button className="btn btn--primary" onClick={dismiss}>Done</button>
+          </>
+        )}
+
+        {status === 'error' && (
+          <>
+            <p style={{ fontSize: 14, color: 'var(--color-danger, #e74c3c)', margin: 0 }}>{errorMsg}</p>
+            <button className="btn btn--ghost" onClick={dismiss} style={{ marginTop: 8 }}>Close</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const HIDE_NAV_ON = [
   '/login', '/register', '/recover', '/email-sent', '/verify-email', '/reset-password',
@@ -274,6 +374,7 @@ function Layout() {
 
   return (
     <>
+      <TrustedInviteHandler />
       <VerificationBanner />
       <PeerRequestBanner />
       <Routes>

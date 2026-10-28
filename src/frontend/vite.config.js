@@ -14,6 +14,7 @@ export default defineConfig({
         description: 'Mental health peer support — always here for you.',
         start_url: '/',
         display: 'standalone',
+        handle_links: 'preferred',
         background_color: '#1A1410',
         theme_color: '#8FAF9A',
         icons: [

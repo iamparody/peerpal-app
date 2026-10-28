@@ -153,7 +153,7 @@ router.post('/trusted-contacts/invite', auth, async (req, res) => {
     return res.status(400).json({ error: 'Maximum of 3 trusted contacts allowed', code: 'MAX_CONTACTS' });
   }
 
-  const token = crypto.randomBytes(32).toString('hex');
+  const token = crypto.randomBytes(9).toString('base64url');
   await query(
     `INSERT INTO trusted_contacts (user_id, token) VALUES ($1, $2)`,
     [req.user.id, token]
