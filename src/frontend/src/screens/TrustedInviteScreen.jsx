@@ -10,18 +10,13 @@ export default function TrustedInviteScreen() {
   const { user, loading } = useAuth();
   const token = searchParams.get('token');
 
-  // Save token immediately — before auth resolves
   useEffect(() => {
-    if (token) {
-      localStorage.setItem(STORAGE_KEY, token);
-      window.dispatchEvent(new Event('trusted-invite-token-set'));
-    }
+    if (token) localStorage.setItem(STORAGE_KEY, token);
   }, [token]);
 
-  // Navigate once auth state is known
   useEffect(() => {
     if (!loading) {
-      navigate(user ? '/dashboard' : '/login', { replace: true });
+      navigate(user ? '/safety-plan' : '/login', { replace: true });
     }
   }, [loading, user, navigate]);
 

@@ -85,20 +85,18 @@ const INVITE_STORAGE_KEY = 'trusted_invite_token';
 
 function TrustedInviteHandler() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const [pending, setPending] = useState(null);
   const [status, setStatus]   = useState('idle'); // idle | loading | accepted | error
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Re-check on every route change so we catch tokens set by TrustedInviteScreen
+  // just before it navigates to /safety-plan
   useEffect(() => {
-    function checkToken() {
-      if (!user) return;
-      const stored = localStorage.getItem(INVITE_STORAGE_KEY);
-      if (stored) setPending(stored);
-    }
-    checkToken();
-    window.addEventListener('trusted-invite-token-set', checkToken);
-    return () => window.removeEventListener('trusted-invite-token-set', checkToken);
-  }, [user]);
+    if (!user) return;
+    const stored = localStorage.getItem(INVITE_STORAGE_KEY);
+    if (stored) setPending(stored);
+  }, [user, pathname]);
 
   if (!pending) return null;
 
