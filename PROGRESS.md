@@ -19,6 +19,32 @@
 
 ---
 
+### Phase 56 — Peer Pool Funnel Fix — COMPLETE (2026-10-28)
+
+- **56.1** `PeerQuizModal` — glassmorphism floating card, 10s skip countdown, reappears after 8h via localStorage timestamp keyed to user ID
+- **56.2** `POST /peer/quiz/complete` now sets `peer_available_until = NOW() + INTERVAL '10 years'` alongside `peer_quiz_done = true`
+- **56.3** `GET /peer/available-count` endpoint + peer count pill on PeerRequestScreen (green when >0, muted zero state)
+- **56.4** Root cause: stale `active` peer_request from Oct 15 blocked all push eligibility via `NOT EXISTS (status='active')`. Fixed with `stalePeerSessionJob` (hourly cron): closes active requests whose session has `ended_at IS NOT NULL`; resets locked >5 min; closes escalated >24h. Push delivery verified on real Android devices.
+- Tests: `peerQuizComplete.test.js` (2 tests) + `peerAvailableCount.test.js` (4 tests), all passing.
+- **noMorePeers keeps `'escalated'`** — admin portal has 4 live queries on this status (unmet demand stats, live events, escalation list, resolve endpoint). The 24h auto-close via stalePeerSessionJob is the right cleanup. Escalated requests do not block push eligibility (only `active` does).
+
+---
+
+### Phase 57 — Trusted Contacts (Safety Plan Extension) — COMPLETE (2026-10-28)
+
+**What shipped:**
+- Migration 115: `trusted_contacts` table + 4 notification type enum values
+- 11 backend routes: outgoing, incoming, joined (acceptor view), invite, accept (token + request_id), decline, toggle permissions, revoke (inviter), leave (acceptor)
+- Mood alert: fire-and-forget after mood save; N+1 eliminated via JOIN query
+- noMorePeers alert: fire-and-forget in peer.js
+- SafetyPlanScreen: trusted contact slots, incoming requests, permission toggles, "Manage" link, Save disabled until edit
+- `/trusted-invite` deep link: PWA `handle_links:preferred`, TrustedInviteScreen thin redirect, TrustedInviteHandler modal in App.jsx
+- `/safety-plan/contacts` management page: both directions (in my plan + plans I joined), Remove + Leave actions
+- 38 unit + static analysis tests in `tests/trustedContacts.test.js`
+- PHI fields encrypted at rest (AES-256-GCM)
+
+---
+
 ## Current Phase
 
 ### Phase 53 — Therapist Portal: Client History + UI Redesign + Motion Foundation (IN PROGRESS)
@@ -27,7 +53,7 @@
 
 **Assessment (2026-10-23):** Both portals diagnosed as "default UI with functionality, no heart." Admin uses generic slate-800/blue-500 Tailwind palette — zero brand DNA. Therapist has warm palette but no animation. Neither portal has a motion library. `frontend-design`/`ui-ux-pro-max` skills referenced in original spec are not installed on this machine. Motion.dev (`motion` package, ~18kB) is the correct tool. Kokonut UI is Vue-only — not applicable. Plan below supersedes original 53.0 design-system-query approach.
 
-**NEXT ACTION → Phase 52.1–52.3: Containerization + Staging + CI/CD. Backend Dockerfile, docker-compose.yml, GET /health endpoint, staging Render + Vercel environments, GitHub Actions CI + deploy pipelines.**
+**NEXT ACTION → Phase 53: Motion Foundation + Therapist Portal redesign. Start with A.2 admin CSS rebrand (index.css vars only — no JSX), then A.3/A.4 motion shell for both portals.**
 
 ---
 

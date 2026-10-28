@@ -3212,6 +3212,112 @@ Scope-contained improvements to the live session experience. No new routes or mi
 
 ---
 
+## Phase 56 — Peer Pool Funnel Fix
+
+> Two invisible gates are silently emptying the peer pool: users who haven't taken the quiz are excluded entirely, and quiz-done users default to unavailable for push. Fix the funnel in three testable steps before touching the notification layer.
+
+### 56.1 Quiz Intercept Modal (Frontend)
+- [x] In `PeerScreen` (or wherever the peer module entry renders), check `peer_quiz_done` from `/peer/quiz/status` on mount
+- [x] If `false`, show a full-screen modal — calm, non-wall, emotionally warm — after a brief (~1s) delay so the screen isn't immediately blocked
+- [x] Modal copy direction: "Learn how to help others" as headline. Body: short, warm, explains that completing the quiz means peers can find and connect with them. Not an obligation — a step towards their own growth.
+- [x] Skip note (small, not a CTA): something like "Skipping means others won't be able to see you as a peer supporter"
+- [x] Primary button: takes them directly to the peer quiz flow
+- [x] Modal shows once per account (persist seen state — `localStorage` keyed to user id, reappears after 8 hours)
+- [x] Does not block the rest of the peer module — user can still browse after skipping
+
+### 56.2 Default Availability on Quiz Completion (Backend)
+- [x] In `POST /peer/quiz/complete` (`src/backend/routes/peer.js`), extend the UPDATE to also set `peer_available_until = NOW() + INTERVAL '10 years'` alongside `peer_quiz_done = true`
+- [x] This makes all new quiz completions always-available by default until the user explicitly sets a window in settings
+- [x] Existing users with `peer_quiz_done = true` but `peer_available_until` null or expired: one-off backfill script written at `scripts/_quiz_reset_test.js`
+
+### 56.3 Available Peer Count on Request Screen (Frontend + Backend)
+- [x] Add `GET /peer/available-count` endpoint — returns `{ count: N }` — count of users where `peer_quiz_done = true`, `is_active = true`, `peer_available_until > NOW()`, `notif_peer_broadcast = true`, not in an active session
+- [x] On the peer request screen, fetch this count before the user sends. Show: "N peers available now"
+- [x] Zero state: "No peers are available right now — you can still send a request and we'll notify them when they're next active"
+- [x] Count is a pre-send signal only — does not block the request
+
+### 56.4 Peer Push Notifications (Fix to match re-engagement delivery)
+- [x] Diagnosed push delivery: stale `active` peer_request from Oct 15 was blocking all eligibility via `NOT EXISTS (status='active')` gate
+- [x] Fixed: `stalePeerSessionJob` — closes active requests whose `sessions.ended_at IS NOT NULL`; resets locked requests >5 min; closes escalated >24h. Runs hourly.
+- [x] Verified: push delivered to real device after stale session cleanup
+- [x] `broadcastPeerRequestPush` logs `[peer-push] candidates= eligible= sent= dup= quiet= ttl=` per request
+
+### 56.5 Verification
+- [x] Peer request screen shows accurate count — non-zero with quiz-done users
+- [x] Send a peer request → eligible peer receives a device push notification (verified on real Android)
+- [x] Modal reappears after 8 hours (not permanent skip)
+
+---
+
+## Phase 57 — Trusted Contacts (Safety Plan Extension)
+
+> Bridges the safety plan from stored names/numbers into real in-app relationships. A user invites trusted people via link or alias search; once linked, those contacts can receive mood alerts and no-peer-found alerts with per-permission consent. Revocation is silent and immediate.
+
+### 57.1 Migration — `trusted_contacts` table + notification types ✅
+
+- [x] `src/backend/migrations/115_trusted_contacts.sql` — table + 4 notification enum values
+- [x] `src/backend/migrations/115_trusted_contacts_rollback.sql`
+- [x] Applied to production DB
+
+### 57.2 Backend routes (`src/backend/routes/safetyPlan.js`) ✅
+
+- [x] `GET /safety-plan/trusted-contacts`
+- [x] `GET /safety-plan/trusted-contacts/incoming`
+- [x] `GET /safety-plan/trusted-contacts/joined` — acceptor view (whose plan am I in)
+- [x] `POST /safety-plan/trusted-contacts/invite`
+- [x] `POST /safety-plan/trusted-contacts/search`
+- [x] `POST /safety-plan/trusted-contacts/request`
+- [x] `POST /safety-plan/trusted-contacts/accept`
+- [x] `POST /safety-plan/trusted-contacts/decline`
+- [x] `PATCH /safety-plan/trusted-contacts/:id`
+- [x] `DELETE /safety-plan/trusted-contacts/:id` (revoke — inviter)
+- [x] `DELETE /safety-plan/trusted-contacts/:id/leave` (leave — acceptor)
+
+### 57.3 Mood alert trigger ✅
+
+- [x] Fire-and-forget after mood INSERT; N+1 eliminated (JOIN query)
+
+### 57.4 noMorePeers alert trigger ✅
+
+- [x] Fire-and-forget in noMorePeers()
+
+### 57.5 Frontend — SafetyPlanScreen ✅
+
+- [x] Trusted contacts section with link slots, incoming requests, permission toggles
+- [x] "Manage" button → `/safety-plan/contacts`
+- [x] Save disabled until edit (isDirty flag)
+
+### 57.6 Frontend — deep link handler ✅
+
+- [x] `/trusted-invite` route — stores token, redirects to /safety-plan or /login
+- [x] `TrustedInviteHandler` modal in App.jsx — accepts/declines, invalidates queries
+- [x] PWA `handle_links: 'preferred'` for Android deep link
+
+### 57.7 Notifications wiring ✅
+
+- [x] 4 types in `sw-notifications.js`
+- [x] 4 types in `NotificationsScreen.jsx`
+
+### 57.8 Management subpage ✅
+
+- [x] `/safety-plan/contacts` — shows both directions (people in MY plan + plans I'm part of)
+- [x] Remove from my plan (inviter revoke)
+- [x] Leave someone's plan (acceptor leave)
+
+### 57.8 Verification
+
+- [ ] User A generates invite link → User B (no account) installs app, opens link, accepts → A's safety plan shows B as linked contact
+- [ ] User A searches alias → sends in-app request → B gets notification → accepts → A's plan shows B linked
+- [ ] A logs mood level 1 with mood_alerts on → B gets push "A is feeling very low"
+- [ ] A logs mood level 2 with threshold=1 → B gets no alert (below threshold)
+- [ ] A logs mood level 2 with threshold=2 → B gets alert
+- [ ] A sends peer request → no peer found → B gets push (no_peer_alerts on)
+- [ ] A revokes B → B stops receiving all alerts immediately; B's slot returns to unlinked
+- [ ] A removes B — B receives no notification of removal
+- [ ] 4th invite attempt → rejected (max 3)
+
+---
+
 ## Phase 55 — Women's Space: Spec & Deliberation
 
 > Spec all three nodes before any UI is drawn. Each node has a deliberation step (open questions resolved in conversation) followed by a written spec document. Girl Space deliberation is already complete — task 55.1 is documentation only.
