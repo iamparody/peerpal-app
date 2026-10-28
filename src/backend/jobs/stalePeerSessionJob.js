@@ -14,12 +14,22 @@ async function runStalePeerSessionJob() {
       AND updated_at < NOW() - INTERVAL '5 minutes'
   `);
 
-  // 2. Close active sessions >1 hour old — sessions are 30 min max.
+  // 2. Close active peer_requests whose underlying session has already ended.
+  //    Primary signal: sessions.ended_at IS NOT NULL (session completed normally but
+  //    peer_request status was never updated, e.g. server restart mid-teardown).
+  //    Fallback: no session_id recorded and request is >1 hour old (orphaned record).
+  //    A genuinely ongoing session always has sessions.ended_at = NULL so is never touched.
   const { rowCount: closedActive } = await query(`
-    UPDATE peer_requests
+    UPDATE peer_requests pr
     SET status = 'closed', updated_at = NOW()
-    WHERE status = 'active'
-      AND created_at < NOW() - INTERVAL '1 hour'
+    WHERE pr.status = 'active'
+      AND (
+        EXISTS (
+          SELECT 1 FROM sessions s
+          WHERE s.id = pr.session_id AND s.ended_at IS NOT NULL
+        )
+        OR (pr.session_id IS NULL AND pr.created_at < NOW() - INTERVAL '1 hour')
+      )
   `);
 
   // 3. Close escalated requests >24 hours old — fallback already sent, admin window passed.
