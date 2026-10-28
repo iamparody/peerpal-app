@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Trophy, Handshake, CheckCircle, BookOpen, Stethoscope, Clipboard,
   ChatText, Warning, Bell, BellSlash, Info, Flame, Heart, Robot,
-  CurrencyDollar, Shield, ArrowRight, Gift,
+  CurrencyDollar, Shield, ArrowRight, Gift, UserCirclePlus,
 } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
@@ -12,7 +12,7 @@ const LANES = [
   { key: 'activity', label: 'Activity',  types: ['milestone', 'peer_broadcast', 'peer_request_broadcast', 'peer_matching_update', 'session_confirmation', 'journal_prompt', 'streak_reminder', 'streak_broken', 'dormant_nudge', 'bad_mood_followup', 'session_followup_peer', 'session_followup_therapy', 'unmatched_request', 'low_mood_streak'] },
   { key: 'therapy',  label: 'Therapy',   types: ['therapist_update', 'therapist_nudge', 'therapist_upsell', 'therapy_booking_confirmed', 'therapy_session_reminder', 'therapy_dispute_update', 'referral_status', 'admin_message'] },
   { key: 'payments', label: 'Payments',  types: ['credit_low', 'credit_zero', 'payment_confirmed', 'referral_reward_credited'] },
-  { key: 'system',   label: 'System',    types: ['ai_dormant', 'no_safety_plan', 'account_notice', 'generic'] },
+  { key: 'system',   label: 'System',    types: ['ai_dormant', 'no_safety_plan', 'trusted_contact_request', 'trusted_contact_accepted', 'trusted_contact_mood_alert', 'trusted_contact_no_peer_alert', 'account_notice', 'generic'] },
 ];
 
 const TYPE_META = {
@@ -42,7 +42,11 @@ const TYPE_META = {
   low_mood_streak:            { Icon: Heart,        label: 'A few hard days',        route: '/peer' },
   ai_dormant:                 { Icon: Robot,        label: 'Your companion',         route: '/ai' },
   credit_zero:                { Icon: CurrencyDollar, label: 'Out of credits',       route: '/credits' },
-  no_safety_plan:             { Icon: Shield,       label: 'Safety plan',            route: '/safety-plan' },
+  no_safety_plan:                    { Icon: Shield,          label: 'Safety plan',              route: '/safety-plan' },
+  trusted_contact_request:           { Icon: UserCirclePlus,  label: 'Trusted contact request',  route: '/safety-plan', highlight: true },
+  trusted_contact_accepted:          { Icon: UserCirclePlus,  label: 'Contact linked',           route: '/safety-plan' },
+  trusted_contact_mood_alert:        { Icon: Heart,           label: 'Check on someone',         route: '/safety-plan', highlight: true },
+  trusted_contact_no_peer_alert:     { Icon: Heart,           label: 'Someone needed support',   route: '/safety-plan', highlight: true },
   therapist_upsell:           { Icon: ArrowRight,   label: 'Ready to go deeper?',   route: '/therapy/browse' },
   referral_reward_credited:   { Icon: Gift,         label: 'You earned 2 credits',   route: '/profile', highlight: true },
   generic:                    { Icon: Bell,         label: 'Notification',           route: null },

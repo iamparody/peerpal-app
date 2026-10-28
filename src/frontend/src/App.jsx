@@ -46,6 +46,7 @@ import GroupAgreementScreen from './screens/GroupAgreementScreen';
 import GroupChatScreen from './screens/GroupChatScreen';
 import EmergencyScreen from './screens/EmergencyScreen';
 import SafetyPlanScreen from './screens/SafetyPlanScreen';
+import TrustedInviteScreen from './screens/TrustedInviteScreen';
 import ResourcesScreen from './screens/ResourcesScreen';
 import ArticleScreen from './screens/ArticleScreen';
 import BreathingScreen from './screens/BreathingScreen';
@@ -308,7 +309,8 @@ function Layout() {
         <Route path="/groups/:id/agree" element={<ProtectedRoute><GroupAgreementScreen /></ProtectedRoute>} />
         <Route path="/groups/:id/chat"  element={<ProtectedRoute><GroupChatScreen /></ProtectedRoute>} />
         <Route path="/emergency"   element={<ProtectedRoute><EmergencyScreen /></ProtectedRoute>} />
-        <Route path="/safety-plan" element={<ProtectedRoute><SafetyPlanScreen /></ProtectedRoute>} />
+        <Route path="/safety-plan"    element={<ProtectedRoute><SafetyPlanScreen /></ProtectedRoute>} />
+        <Route path="/trusted-invite" element={<TrustedInviteScreen />} />
         <Route path="/resources"   element={<ProtectedRoute><ResourcesScreen /></ProtectedRoute>} />
         <Route path="/resources/:id" element={<ProtectedRoute><ArticleScreen /></ProtectedRoute>} />
         <Route path="/sounds"      element={<ProtectedRoute><CalmingSoundsScreen /></ProtectedRoute>} />

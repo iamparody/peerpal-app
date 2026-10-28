@@ -206,6 +206,37 @@ async function noMorePeers(requestId, requesterId) {
      FROM users WHERE role = 'admin' AND is_active = true`,
     [JSON.stringify({ request_id: requestId })]
   );
+
+  // Step 9 — trusted contact no-peer alerts (fire-and-forget)
+  setImmediate(async () => {
+    try {
+      const { rows: alertTargets } = await query(
+        `SELECT tc.contact_user_id, u.alias
+         FROM trusted_contacts tc
+         JOIN users u ON u.id = tc.user_id
+         WHERE tc.user_id = $1 AND tc.status = 'accepted' AND tc.no_peer_alerts = true`,
+        [requesterId]
+      );
+      const { enqueuePushNotification } = require('../utils/fcm');
+      for (const t of alertTargets) {
+        const { rows: contactRows } = await query('SELECT fcm_token FROM users WHERE id = $1', [t.contact_user_id]);
+        const token = contactRows[0]?.fcm_token;
+        if (!token) continue;
+        await enqueuePushNotification(
+          token,
+          `${t.alias} was looking for someone to talk to`,
+          "They couldn't find anyone — they might need a message.",
+          { type: 'trusted_contact_no_peer_alert', route: '/safety-plan' }
+        );
+        await query(
+          `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'trusted_contact_no_peer_alert', $2, 'push')`,
+          [t.contact_user_id, JSON.stringify({ alias: t.alias })]
+        );
+      }
+    } catch (err) {
+      logger.warn('[noMorePeers] trusted contact alert error:', err.message);
+    }
+  });
 }
 
 // ─── autoCloseSession ─────────────────────────────────────────────────────────

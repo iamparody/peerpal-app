@@ -121,7 +121,42 @@ router.post('/', auth, async (req, res) => {
   }
 
   await cache.del(`analytics:${req.user.id}`);
-  return res.status(201).json({ mood_id: moodId, streak_count: newStreak, bonus_credited: bonusCredited });
+  res.status(201).json({ mood_id: moodId, streak_count: newStreak, bonus_credited: bonusCredited });
+
+  // Trusted contact mood alerts — fire after response, never delay the save
+  if (mood_level === 'very_low' || mood_level === 'low') {
+    const numericLevel = mood_level === 'very_low' ? 1 : 2;
+    setImmediate(async () => {
+      try {
+        const { rows: alertTargets } = await query(
+          `SELECT tc.contact_user_id, u.alias, u.fcm_token
+           FROM trusted_contacts tc
+           JOIN users u ON u.id = tc.user_id
+           WHERE tc.user_id = $1
+             AND tc.status = 'accepted'
+             AND tc.mood_alerts = true
+             AND $2 <= tc.mood_threshold`,
+          [req.user.id, numericLevel]
+        );
+        const { enqueuePushNotification } = require('../utils/fcm');
+        for (const t of alertTargets) {
+          const { rows: contactRows } = await query('SELECT fcm_token FROM users WHERE id = $1', [t.contact_user_id]);
+          const token = contactRows[0]?.fcm_token;
+          if (!token) continue;
+          const title = `${t.alias} is feeling ${mood_level === 'very_low' ? 'very low' : 'low'}`;
+          await enqueuePushNotification(token, title, 'They might need a message right now.', { type: 'trusted_contact_mood_alert', route: '/safety-plan' });
+          await query(
+            `INSERT INTO notifications (user_id, type, payload, channel) VALUES ($1, 'trusted_contact_mood_alert', $2, 'push')`,
+            [t.contact_user_id, JSON.stringify({ alias: t.alias, mood_level })]
+          );
+        }
+      } catch (err) {
+        logger.error('[moods] trusted contact alert error:', err.message);
+      }
+    });
+  }
+
+  return;
 });
 
 // ─── GET /moods/today ─────────────────────────────────────────────────────────

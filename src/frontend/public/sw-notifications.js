@@ -175,6 +175,42 @@
       actions: [],
     },
 
+    trusted_contact_request: {
+      title: (d) => d.title || 'Someone wants to be your trusted contact',
+      body: (d) => d.body || 'Tap to accept or decline their request.',
+      vibrate: [150, 50, 150],
+      requireInteraction: true,
+      renotify: true,
+      actions: [{ action: 'view', title: 'View request' }],
+    },
+
+    trusted_contact_accepted: {
+      title: (d) => d.title || 'Trusted contact request accepted',
+      body: (d) => d.body || 'Your safety plan now has a linked contact.',
+      vibrate: [100],
+      requireInteraction: false,
+      renotify: false,
+      actions: [],
+    },
+
+    trusted_contact_mood_alert: {
+      title: (d) => d.title || 'Someone you care about is struggling',
+      body: (d) => d.body || 'They might need a message right now.',
+      vibrate: [200, 100, 200],
+      requireInteraction: true,
+      renotify: true,
+      actions: [{ action: 'view', title: 'Check in' }],
+    },
+
+    trusted_contact_no_peer_alert: {
+      title: (d) => d.title || 'Someone you care about needed support',
+      body: (d) => d.body || "They couldn't find anyone — they might need a message.",
+      vibrate: [200, 100, 200],
+      requireInteraction: true,
+      renotify: true,
+      actions: [{ action: 'view', title: 'Reach out' }],
+    },
+
     therapist_upsell: {
       title: (d) => d.title || 'Ready for deeper support?',
       body: (d) => d.body || 'Browse therapists on PeerPal and express interest in minutes.',
@@ -304,7 +340,11 @@
     session_followup_therapy:'/journal',
     journal_prompt:          '/journal',
     ai_dormant:              '/ai',
-    no_safety_plan:          '/safety-plan',
+    no_safety_plan:                 '/safety-plan',
+    trusted_contact_request:        '/safety-plan',
+    trusted_contact_accepted:       '/safety-plan',
+    trusted_contact_mood_alert:     '/safety-plan',
+    trusted_contact_no_peer_alert:  '/safety-plan',
     low_mood_streak:         '/peer',
     therapist_upsell:        '/therapy/browse',
     unmatched_request:       '/peer',
