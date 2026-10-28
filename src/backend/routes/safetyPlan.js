@@ -298,6 +298,20 @@ router.patch('/trusted-contacts/:id', auth, async (req, res) => {
   return res.status(200).json({ updated: true });
 });
 
+// ─── GET /safety-plan/trusted-contacts/joined ─────────────────────────────────
+// Safety plans this user has been accepted into (acceptor side)
+router.get('/trusted-contacts/joined', auth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT tc.id, tc.accepted_at, u.alias AS user_alias
+     FROM trusted_contacts tc
+     JOIN users u ON u.id = tc.user_id
+     WHERE tc.contact_user_id = $1 AND tc.status = 'accepted'
+     ORDER BY tc.accepted_at DESC`,
+    [req.user.id]
+  );
+  return res.status(200).json({ joined: rows });
+});
+
 // ─── DELETE /safety-plan/trusted-contacts/:id ─────────────────────────────────
 // Revoke — silent, immediate, inviter only
 router.delete('/trusted-contacts/:id', auth, async (req, res) => {

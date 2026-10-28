@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Heart, UserCirclePlus, CheckCircle } from '@phosphor-icons/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { rootRedirectPath } from './utils/referral';
@@ -86,6 +87,7 @@ const INVITE_STORAGE_KEY = 'trusted_invite_token';
 function TrustedInviteHandler() {
   const { user } = useAuth();
   const { pathname } = useLocation();
+  const queryClient = useQueryClient();
   const [pending, setPending] = useState(null);
   const [status, setStatus]   = useState('idle'); // idle | loading | accepted | error
   const [errorMsg, setErrorMsg] = useState('');
@@ -105,6 +107,8 @@ function TrustedInviteHandler() {
     try {
       await client.post('/api/safety-plan/trusted-contacts/accept', { token: pending });
       localStorage.removeItem(INVITE_STORAGE_KEY);
+      queryClient.invalidateQueries({ queryKey: ['trusted-contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['trusted-contacts-joined'] });
       setStatus('accepted');
     } catch (err) {
       setErrorMsg(err.response?.data?.error || 'This invite link is no longer valid.');

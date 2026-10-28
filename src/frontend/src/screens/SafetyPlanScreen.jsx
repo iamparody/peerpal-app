@@ -155,10 +155,11 @@ function TrustedContactSlot({ tc, slotIndex, onRevoke, onToggle }) {
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function SafetyPlanScreen() {
   const navigate = useNavigate();
-  const [plan, setPlan]     = useState(DEFAULT_PLAN);
-  const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState('');
-  const [saved, setSaved]   = useState(false);
+  const [plan, setPlan]       = useState(DEFAULT_PLAN);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+  const [saved, setSaved]     = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const { data: planData, isLoading: loading } = useQuery({
     queryKey: ['safety-plan'],
@@ -176,6 +177,11 @@ export default function SafetyPlanScreen() {
     queryFn: () => client.get('/api/safety-plan/trusted-contacts/incoming').then(r => r.data),
   });
 
+  const { data: joinedData } = useQuery({
+    queryKey: ['trusted-contacts-joined'],
+    queryFn: () => client.get('/api/safety-plan/trusted-contacts/joined').then(r => r.data),
+  });
+
   useEffect(() => {
     if (planData?.plan) {
       const p = planData.plan;
@@ -189,11 +195,13 @@ export default function SafetyPlanScreen() {
           ? [...p.contacts, ...Array(Math.max(0, 3 - p.contacts.length)).fill({ name: '', contact_detail: '' })]
           : DEFAULT_PLAN.contacts,
       });
+      setIsDirty(false);
     }
   }, [planData]);
 
-  function updateField(field, value) { setPlan(p => ({ ...p, [field]: value })); }
+  function updateField(field, value) { setIsDirty(true); setPlan(p => ({ ...p, [field]: value })); }
   function updateContact(index, field, value) {
+    setIsDirty(true);
     setPlan(p => {
       const contacts = [...p.contacts];
       contacts[index] = { ...contacts[index], [field]: value };
@@ -213,6 +221,7 @@ export default function SafetyPlanScreen() {
         contacts:           plan.contacts.filter(c => c.name.trim()),
       };
       await client.put('/api/safety-plan', payload);
+      setIsDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -253,6 +262,7 @@ export default function SafetyPlanScreen() {
 
   const trustedContacts = tcData?.trusted_contacts || [];
   const incoming        = incomingData?.incoming || [];
+  const joined          = joinedData?.joined || [];
   const slots = [
     ...trustedContacts,
     ...Array(Math.max(0, 3 - trustedContacts.length)).fill(null),
@@ -363,7 +373,25 @@ export default function SafetyPlanScreen() {
           />
         </div>
 
-        <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
+        {joined.length > 0 && (
+          <div>
+            <label className="label" style={{ marginBottom: 8 }}>Safety plans I am part of</label>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+              These people have added you to their safety plan as a trusted contact.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {joined.map(j => (
+                <div key={j.id} style={{ border: '1px solid rgba(194,164,138,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CheckCircle size={16} weight="fill" color="var(--color-success, #27ae60)" />
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{j.user_alias}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-text-muted)', background: 'rgba(39,174,96,0.12)', padding: '2px 8px', borderRadius: 20 }}>In their plan</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button className="btn btn--primary" onClick={handleSave} disabled={saving || !isDirty}>
           {saving ? 'Saving...' : saved ? 'Saved' : 'Save Safety Plan'}
         </button>
 
