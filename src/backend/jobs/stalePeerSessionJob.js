@@ -5,13 +5,13 @@ const logger = require('../utils/logger');
 
 // Guards against lost in-process timers (Render restarts, free-tier sleep).
 async function runStalePeerSessionJob() {
-  // 1. Reset locked requests >5 min old back to open so they can be re-broadcast.
-  //    Confidence check is 90s — anything locked longer means the timer was lost.
+  // 1. Reset locked requests >3 min old back to open so they can be re-broadcast.
+  //    Confidence check is 90s — 3 min is 2× buffer for slow phones + lost timers.
   const { rowCount: unlocked } = await query(`
     UPDATE peer_requests
     SET status = 'open', accepted_by = NULL, updated_at = NOW()
     WHERE status = 'locked'
-      AND updated_at < NOW() - INTERVAL '5 minutes'
+      AND updated_at < NOW() - INTERVAL '3 minutes'
   `);
 
   // 2. Close active peer_requests whose underlying session has already ended.
