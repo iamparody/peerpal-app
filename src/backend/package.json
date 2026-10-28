@@ -13,7 +13,8 @@
     "test:referrals": "node --test tests/referrals.test.js",
     "test:pricing": "node --test tests/pricingService.test.js",
     "test:clients": "node --test tests/therapistClients.test.js",
-    "test:phase54": "node --test tests/phase54Verify.test.js"
+    "test:phase54": "node --test tests/phase54Verify.test.js",
+    "test:trusted-contacts": "node --test tests/trustedContacts.test.js"
   },
   "engines": {
     "node": ">=20.20.0"

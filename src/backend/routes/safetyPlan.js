@@ -234,7 +234,7 @@ router.post('/trusted-contacts/accept', auth, async (req, res) => {
     const { rows } = await query(
       `UPDATE trusted_contacts
        SET contact_user_id = $1, status = 'accepted', accepted_at = NOW(), updated_at = NOW()
-       WHERE token = $2 AND status = 'pending' AND contact_user_id IS NULL
+       WHERE token = $2 AND status = 'pending' AND contact_user_id IS NULL AND user_id != $1
        RETURNING id, user_id`,
       [req.user.id, token]
     );

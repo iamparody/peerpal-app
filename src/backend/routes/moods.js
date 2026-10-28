@@ -129,9 +129,10 @@ router.post('/', auth, async (req, res) => {
     setImmediate(async () => {
       try {
         const { rows: alertTargets } = await query(
-          `SELECT tc.contact_user_id, u.alias, u.fcm_token
+          `SELECT tc.contact_user_id, requester.alias, contact.fcm_token
            FROM trusted_contacts tc
-           JOIN users u ON u.id = tc.user_id
+           JOIN users requester ON requester.id = tc.user_id
+           JOIN users contact   ON contact.id   = tc.contact_user_id
            WHERE tc.user_id = $1
              AND tc.status = 'accepted'
              AND tc.mood_alerts = true
@@ -140,8 +141,7 @@ router.post('/', auth, async (req, res) => {
         );
         const { enqueuePushNotification } = require('../utils/fcm');
         for (const t of alertTargets) {
-          const { rows: contactRows } = await query('SELECT fcm_token FROM users WHERE id = $1', [t.contact_user_id]);
-          const token = contactRows[0]?.fcm_token;
+          const token = t.fcm_token;
           if (!token) continue;
           const title = `${t.alias} is feeling ${mood_level === 'very_low' ? 'very low' : 'low'}`;
           await enqueuePushNotification(token, title, 'They might need a message right now.', { type: 'trusted_contact_mood_alert', route: '/safety-plan' });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Siren, UserCirclePlus, CheckCircle, Link, X, Bell, BellSlash } from '@phosphor-icons/react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import PageHeader from '../components/PageHeader';
 
@@ -154,8 +154,7 @@ function TrustedContactSlot({ tc, slotIndex, onRevoke, onToggle }) {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function SafetyPlanScreen() {
-  const navigate     = useNavigate();
-  const queryClient  = useQueryClient();
+  const navigate = useNavigate();
   const [plan, setPlan]     = useState(DEFAULT_PLAN);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
@@ -224,13 +223,21 @@ export default function SafetyPlanScreen() {
   }
 
   async function handleRevoke(id) {
-    await client.delete(`/api/safety-plan/trusted-contacts/${id}`);
-    refetchTc();
+    try {
+      await client.delete(`/api/safety-plan/trusted-contacts/${id}`);
+      refetchTc();
+    } catch {
+      setError('Could not remove contact. Please try again.');
+    }
   }
 
   async function handleToggle(id, patch) {
-    await client.patch(`/api/safety-plan/trusted-contacts/${id}`, patch);
-    refetchTc();
+    try {
+      await client.patch(`/api/safety-plan/trusted-contacts/${id}`, patch);
+      refetchTc();
+    } catch {
+      setError('Could not update setting. Please try again.');
+    }
   }
 
   async function handleAcceptIncoming(requestId) {
