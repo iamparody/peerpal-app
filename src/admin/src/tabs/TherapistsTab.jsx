@@ -67,8 +67,7 @@ export default function TherapistsTab() {
   async function handleResetPassword(t) {
     try {
       const { data } = await client.post(`/api/admin/therapists/${t.id}/reset-password`);
-      const link = `${window.location.origin.replace('5175', '3001').replace('peerpaladmin.vercel.app', 'peerpal.onrender.com')}/reset-password?token=${data.reset_token}`;
-      window.prompt(`Reset link for ${data.email} (valid 72 hrs) — copy this:`, `https://app.peer-pal.com/reset-password?token=${data.reset_token}`);
+      window.prompt(`Reset link for ${data.email} (valid 72 hrs) — copy this:`, `https://tportal-one.vercel.app?set_password=${data.reset_token}`);
     } catch (err) { setError(err.response?.data?.error || 'Failed to generate reset link.'); }
   }
 
