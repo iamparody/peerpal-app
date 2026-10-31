@@ -60,7 +60,6 @@ const ALLOWED_ORIGINS = process.env.FRONTEND_URL
   : DEV_ORIGINS;
 
 const VERCEL_PREVIEW_RE = /^https:\/\/[a-z0-9-]+-iamparodys-projects\.vercel\.app$/;
-const THERAPIST_PORTAL = 'https://tportal-one.vercel.app';
 // Public marketing / waitlist site — only POSTs the anonymous waitlist endpoint, no credentials.
 const MARKETING_ORIGINS = ['https://peer-pal.com', 'https://www.peer-pal.com'];
 
@@ -69,7 +68,6 @@ app.use(cors({
     if (!origin) return cb(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
     if (MARKETING_ORIGINS.includes(origin)) return cb(null, true);
-    if (origin === THERAPIST_PORTAL) return cb(null, true);
     if (VERCEL_PREVIEW_RE.test(origin)) return cb(null, true);
     cb(null, false);
   },
